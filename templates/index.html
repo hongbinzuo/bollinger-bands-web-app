@@ -5,287 +5,59 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>布林带分析器</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-        
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        
-        .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
-        
-        .content {
-            padding: 30px;
-        }
-        
-        .input-section {
-            background: #f8f9fa;
-            padding: 25px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-        }
-        
-        .input-section h2 {
-            color: #333;
-            margin-bottom: 20px;
-            font-size: 1.5em;
-        }
-        
-        .symbol-input {
-            width: 100%;
-            min-height: 120px;
-            padding: 15px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
-            resize: vertical;
-            font-family: monospace;
-        }
-        
-        .symbol-input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        .button-group {
-            display: flex;
-            gap: 15px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-        }
-        
-        .btn {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-        
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-        
-        .btn-secondary:hover {
-            background: #5a6268;
-            transform: translateY(-2px);
-        }
-        
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-        
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .results-section {
-            display: none;
-        }
-        
-        .results-header {
-            display: flex;
-            justify-content: between;
-            align-items: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        
-        .stats {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-        
-        .stat-item {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            min-width: 120px;
-        }
-        
-        .stat-number {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #667eea;
-        }
-        
-        .stat-label {
-            font-size: 0.9em;
-            color: #666;
-            margin-top: 5px;
-        }
-        
-        .table-container {
-            overflow-x: auto;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        
-        .results-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-        }
-        
-        .results-table th,
-        .results-table td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .results-table th {
-            background: #f8f9fa;
-            font-weight: 600;
-            color: #333;
-            position: sticky;
-            top: 0;
-        }
-        
-        .results-table tr:hover {
-            background: #f8f9fa;
-        }
-        
-        .status-success {
-            color: #28a745;
-            font-weight: 600;
-        }
-        
-        .status-error {
-            color: #dc3545;
-            font-weight: 600;
-        }
-        
-        .price {
-            font-family: monospace;
-            font-weight: 600;
-        }
-        
-        .alert {
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .alert-info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                margin: 10px;
-                border-radius: 10px;
-            }
-            
-            .header {
-                padding: 20px;
-            }
-            
-            .header h1 {
-                font-size: 2em;
-            }
-            
-            .content {
-                padding: 20px;
-            }
-            
-            .button-group {
-                flex-direction: column;
-            }
-            
-            .btn {
-                width: 100%;
-            }
-            
-            .stats {
-                flex-direction: column;
-            }
-            
-            .stat-item {
-                min-width: auto;
-            }
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 15px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { font-size: 1.1em; opacity: 0.9; }
+        .content { padding: 30px; }
+        .input-section { background: #f8f9fa; padding: 25px; border-radius: 10px; margin-bottom: 30px; }
+        .input-section h2 { color: #333; margin-bottom: 20px; font-size: 1.5em; }
+        .symbol-input { width: 100%; min-height: 120px; padding: 15px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; resize: vertical; font-family: monospace; }
+        .symbol-input:focus { outline: none; border-color: #667eea; }
+        .button-group { display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap; }
+        .btn { padding: 12px 25px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: inline-block; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3); }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #5a6268; transform: translateY(-2px); }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #218838; transform: translateY(-2px); }
+        .btn-warning { background: #ffc107; color: #212529; }
+        .btn-warning:hover { background: #e0a800; transform: translateY(-2px); }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .symbol-management { background: #e9ecef; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .management-row { display: flex; gap: 15px; margin-bottom: 15px; align-items: center; flex-wrap: wrap; }
+        .management-input { flex: 1; min-width: 200px; padding: 10px 15px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; }
+        .management-input:focus { outline: none; border-color: #667eea; }
+        .management-label { font-weight: 600; color: #333; min-width: 80px; }
+        .loading { display: none; text-align: center; padding: 20px; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .results-section { display: none; }
+        .results-header { display: flex; justify-content: between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+        .stats { display: flex; gap: 20px; flex-wrap: wrap; }
+        .stat-item { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; min-width: 120px; }
+        .stat-number { font-size: 1.5em; font-weight: bold; color: #667eea; }
+        .stat-label { font-size: 0.9em; color: #666; margin-top: 5px; }
+        .table-container { overflow-x: auto; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .results-table { width: 100%; border-collapse: collapse; background: white; }
+        .results-table th, .results-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        .results-table th { background: #f8f9fa; font-weight: 600; color: #333; position: sticky; top: 0; }
+        .results-table tr:hover { background: #f8f9fa; }
+        .status-success { color: #28a745; font-weight: 600; }
+        .status-error { color: #dc3545; font-weight: 600; }
+        .price { font-family: monospace; font-weight: 600; }
+        .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .alert-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .cache-info { background: #e7f3ff; padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; color: #0056b3; }
+        @media (max-width: 768px) { .container { margin: 10px; border-radius: 10px; } .header { padding: 20px; } .header h1 { font-size: 2em; } .content { padding: 20px; } .button-group { flex-direction: column; } .btn { width: 100%; } .management-row { flex-direction: column; align-items: stretch; } .management-input { min-width: auto; } .stats { flex-direction: column; } .stat-item { min-width: auto; } }
     </style>
 </head>
 <body>
@@ -297,16 +69,40 @@
         
         <div class="content">
             <div class="input-section">
-                <h2>🔍 输入币种列表</h2>
-                <textarea 
-                    id="symbolInput" 
-                    class="symbol-input" 
-                    placeholder="请输入币种列表，每行一个币种（例如：BTC, ETH, SOL）&#10;&#10;示例：&#10;BTC&#10;ETH&#10;SOL&#10;ADA&#10;DOT"
-                >ROAM, SAGA, SQD, SUN, USUAL, KAVA, AERGO, LAYER, AVAAI, KAITO, FIS, MOCA, XCN, WAL, DUCK, JUP, ZBCN, PENDLE, CETUS, HAEDAL, JOE, SPK, KAS, EIGEN, THE, BANK, ZRC, IKA, DOGE, PNUT, MOODENG, HYPE, USELESS, JST, CYBER, COOKIE, 1000BONK, 1000CAT, B3, HIFI, BLUR, SUPER, FORM, FUN, ANIME, PARTI, SOPH, LA, DEGEN, DENT, BABY, MAGIC, COS, ALICE, HEI, FIDA, TAC, PIPPIN, STO, DF, TA, CAKE, ID, FUEL, ASP, DOOD, LOOKS, VELVET, SUNDOG, KERNEL, ERA, H, DBR, NXPC, LISTA, SYRUP, KATO, FLM, JASMY, SANTOS, SLP, MAJOR, TRUMP, HIPPO, KAIA, DIA, LSK, MERL, XRP, BTC, ETH, LDO, ES, HUMA, PUMP, RAY, SOL, UNI, HBAR, XLM, ICX, XDC, BERA, ZORA, IP, LINK, ENA, SCR, MYRO, UMA, TAG, TOSHI, SOON, ICNT, IDOL, INIT, CATI, ALPINE, PROVE, LUNA, A2Z, BID, DEEP, RAD, RWA, IO, PONKE, GTC, K, HMSTR</textarea>
+                <h2>🔍 币种管理</h2>
+                
+                <div class="symbol-management">
+                    <div class="management-row">
+                        <span class="management-label">添加币种:</span>
+                        <input type="text" id="addSymbolsInput" class="management-input" placeholder="输入币种，用逗号分隔，如: BTC, ETH, SOL">
+                        <button id="addSymbolsBtn" class="btn btn-success">➕ 添加</button>
+                    </div>
+                    
+                    <div class="management-row">
+                        <span class="management-label">删除币种:</span>
+                        <input type="text" id="removeSymbolsInput" class="management-input" placeholder="输入要删除的币种，用逗号分隔">
+                        <button id="removeSymbolsBtn" class="btn btn-danger">🗑️ 删除</button>
+                    </div>
+                    
+                    <div class="management-row">
+                        <span class="management-label">查询币种:</span>
+                        <input type="text" id="searchSymbolInput" class="management-input" placeholder="输入要查询的币种">
+                        <button id="searchSymbolBtn" class="btn btn-warning">🔍 查询</button>
+                    </div>
+                </div>
+                
+                <div class="cache-info">
+                    💡 <strong>缓存功能</strong>: 当天查询过的币种会自动缓存，提高查询速度。使用"强制刷新"按钮可获取最新数据。
+                </div>
+                
+                <h2>📝 币种列表</h2>
+                <textarea id="symbolInput" class="symbol-input" placeholder="请输入币种列表，每行一个币种（例如：BTC, ETH, SOL）">ROAM, SAGA, SQD, SUN, USUAL, KAVA, AERGO, LAYER, AVAAI, KAITO, FIS, MOCA, XCN, WAL, DUCK, JUP, ZBCN, PENDLE, CETUS, HAEDAL, JOE, SPK, KAS, EIGEN, THE, BANK, ZRC, IKA, DOGE, PNUT, MOODENG, HYPE, USELESS, JST, CYBER, COOKIE, 1000BONK, 1000CAT, B3, HIFI, BLUR, SUPER, FORM, FUN, ANIME, PARTI, SOPH, LA, DEGEN, DENT, BABY, MAGIC, COS, ALICE, HEI, FIDA, TAC, PIPPIN, STO, DF, TA, CAKE, ID, FUEL, ASP, DOOD, LOOKS, VELVET, SUNDOG, KERNEL, ERA, H, DBR, NXPC, LISTA, SYRUP, KATO, FLM, JASMY, SANTOS, SLP, MAJOR, TRUMP, HIPPO, KAIA, DIA, LSK, MERL, XRP, BTC, ETH, LDO, ES, HUMA, PUMP, RAY, SOL, UNI, HBAR, XLM, ICX, XDC, BERA, ZORA, IP, LINK, ENA, SCR, MYRO, UMA, TAG, TOSHI, SOON, ICNT, IDOL, INIT, CATI, ALPINE, PROVE, LUNA, A2Z, BID, DEEP, RAD, RWA, IO, PONKE, GTC, K, HMSTR</textarea>
                 
                 <div class="button-group">
                     <button id="analyzeBtn" class="btn btn-primary">🚀 开始分析</button>
-                    <button id="clearBtn" class="btn btn-secondary">🗑️ 清空</button>
+                    <button id="forceRefreshBtn" class="btn btn-warning">🔄 强制刷新</button>
+                    <button id="clearCacheBtn" class="btn btn-secondary">🗑️ 清除缓存</button>
+                    <button id="clearBtn" class="btn btn-secondary">🗑️ 清空列表</button>
                 </div>
             </div>
             
@@ -352,10 +148,10 @@
                                 <th>挂单价格</th>
                                 <th>状态</th>
                                 <th>数据源</th>
+                                <th>缓存时间</th>
                             </tr>
                         </thead>
-                        <tbody id="resultsBody">
-                        </tbody>
+                        <tbody id="resultsBody"></tbody>
                     </table>
                 </div>
             </div>
@@ -364,11 +160,20 @@
 
     <script>
         let currentResults = [];
+        let currentSymbols = [];
         
         // 获取DOM元素
         const symbolInput = document.getElementById('symbolInput');
+        const addSymbolsInput = document.getElementById('addSymbolsInput');
+        const removeSymbolsInput = document.getElementById('removeSymbolsInput');
+        const searchSymbolInput = document.getElementById('searchSymbolInput');
         const analyzeBtn = document.getElementById('analyzeBtn');
+        const forceRefreshBtn = document.getElementById('forceRefreshBtn');
+        const clearCacheBtn = document.getElementById('clearCacheBtn');
         const clearBtn = document.getElementById('clearBtn');
+        const addSymbolsBtn = document.getElementById('addSymbolsBtn');
+        const removeSymbolsBtn = document.getElementById('removeSymbolsBtn');
+        const searchSymbolBtn = document.getElementById('searchSymbolBtn');
         const loading = document.getElementById('loading');
         const resultsSection = document.getElementById('resultsSection');
         const alertContainer = document.getElementById('alertContainer');
@@ -379,60 +184,53 @@
         const successCount = document.getElementById('successCount');
         const failedCount = document.getElementById('failedCount');
         
+        // 初始化当前币种列表
+        function initializeSymbols() {
+            const input = symbolInput.value.trim();
+            currentSymbols = parseSymbols(input);
+        }
+        
         // 显示提示信息
         function showAlert(message, type = 'info') {
-            alertContainer.innerHTML = `
-                <div class="alert alert-${type}">
-                    ${message}
-                </div>
-            `;
-            
-            // 3秒后自动隐藏
-            setTimeout(() => {
-                alertContainer.innerHTML = '';
-            }, 3000);
+            alertContainer.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            setTimeout(() => { alertContainer.innerHTML = ''; }, 3000);
         }
         
         // 解析币种列表
         function parseSymbols(input) {
-            return input
-                .split(/[,\n]/)
-                .map(s => s.trim())
-                .filter(s => s.length > 0);
+            return input.split(/[,\n]/).map(s => s.trim()).filter(s => s.length > 0);
         }
         
         // 格式化价格显示
         function formatPrice(price) {
-            if (price === null || price === undefined || price === '获取失败') {
-                return '获取失败';
-            }
-            
+            if (price === null || price === undefined || price === '获取失败') return '获取失败';
             const num = parseFloat(price);
-            if (isNaN(num)) {
-                return price;
-            }
-            
-            if (num >= 1) {
-                return `$${num.toFixed(4)}`;
-            } else {
-                return `$${num.toFixed(6)}`;
+            if (isNaN(num)) return price;
+            if (num >= 1) return `$${num.toFixed(4)}`;
+            else return `$${num.toFixed(6)}`;
+        }
+        
+        // 格式化时间显示
+        function formatTime(timeStr) {
+            if (!timeStr) return '';
+            try {
+                const date = new Date(timeStr);
+                return date.toLocaleString('zh-CN');
+            } catch (e) {
+                return timeStr;
             }
         }
         
         // 显示结果
         function displayResults(results) {
             currentResults = results;
-            
-            // 清空表格
             resultsBody.innerHTML = '';
             
-            // 统计数据
             let success = 0;
             let failed = 0;
             
             results.forEach(result => {
                 const row = document.createElement('tr');
-                
                 const symbol = result.symbol.replace('USDT', '');
                 const currentPrice = formatPrice(result.current_price);
                 const middleBand = formatPrice(result.middle_band);
@@ -440,13 +238,10 @@
                 const orderPrice = result.order_price;
                 const status = result.status;
                 const dataSource = result.data_source;
+                const cacheTime = formatTime(result.cache_date);
                 
-                // 统计成功/失败
-                if (status.includes('成功')) {
-                    success++;
-                } else {
-                    failed++;
-                }
+                if (status.includes('成功')) success++;
+                else failed++;
                 
                 row.innerHTML = `
                     <td><strong>${symbol}</strong></td>
@@ -456,22 +251,20 @@
                     <td class="price">${orderPrice}</td>
                     <td class="${status.includes('成功') ? 'status-success' : 'status-error'}">${status}</td>
                     <td>${dataSource}</td>
+                    <td>${cacheTime}</td>
                 `;
                 
                 resultsBody.appendChild(row);
             });
             
-            // 更新统计
             totalCount.textContent = results.length;
             successCount.textContent = success;
             failedCount.textContent = failed;
-            
-            // 显示结果区域
             resultsSection.style.display = 'block';
         }
         
         // 开始分析
-        async function startAnalysis() {
+        async function startAnalysis(forceRefresh = false) {
             const input = symbolInput.value.trim();
             if (!input) {
                 showAlert('请输入币种列表', 'error');
@@ -484,25 +277,24 @@
                 return;
             }
             
-            // 显示加载状态
             loading.style.display = 'block';
             resultsSection.style.display = 'none';
             analyzeBtn.disabled = true;
+            forceRefreshBtn.disabled = true;
             
             try {
                 const response = await fetch('/analyze', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ symbols })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbols, force_refresh: forceRefresh })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
                     displayResults(data.results);
-                    showAlert(`分析完成！共处理 ${data.total} 个币种`, 'success');
+                    const refreshText = forceRefresh ? '（强制刷新）' : '';
+                    showAlert(`分析完成！共处理 ${data.total} 个币种 ${refreshText}`, 'success');
                 } else {
                     showAlert(data.error || '分析失败', 'error');
                 }
@@ -512,6 +304,120 @@
             } finally {
                 loading.style.display = 'none';
                 analyzeBtn.disabled = false;
+                forceRefreshBtn.disabled = false;
+            }
+        }
+        
+        // 添加币种
+        async function addSymbols() {
+            const symbolsStr = addSymbolsInput.value.trim();
+            if (!symbolsStr) {
+                showAlert('请输入要添加的币种', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/add_symbols', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbols: symbolsStr, current_symbols: currentSymbols })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentSymbols = data.symbols;
+                    symbolInput.value = currentSymbols.join(', ');
+                    addSymbolsInput.value = '';
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.error || '添加失败', 'error');
+                }
+            } catch (error) {
+                console.error('添加币种失败:', error);
+                showAlert('网络错误，请重试', 'error');
+            }
+        }
+        
+        // 删除币种
+        async function removeSymbols() {
+            const symbolsStr = removeSymbolsInput.value.trim();
+            if (!symbolsStr) {
+                showAlert('请输入要删除的币种', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/remove_symbols', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbols: symbolsStr, current_symbols: currentSymbols })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentSymbols = data.symbols;
+                    symbolInput.value = currentSymbols.join(', ');
+                    removeSymbolsInput.value = '';
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.error || '删除失败', 'error');
+                }
+            } catch (error) {
+                console.error('删除币种失败:', error);
+                showAlert('网络错误，请重试', 'error');
+            }
+        }
+        
+        // 查询币种
+        async function searchSymbol() {
+            const symbol = searchSymbolInput.value.trim();
+            if (!symbol) {
+                showAlert('请输入要查询的币种', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/search_symbol', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: symbol, current_symbols: currentSymbols })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const alertType = data.exists ? 'success' : 'warning';
+                    showAlert(data.message, alertType);
+                    searchSymbolInput.value = '';
+                } else {
+                    showAlert(data.error || '查询失败', 'error');
+                }
+            } catch (error) {
+                console.error('查询币种失败:', error);
+                showAlert('网络错误，请重试', 'error');
+            }
+        }
+        
+        // 清除缓存
+        async function clearCache() {
+            try {
+                const response = await fetch('/clear_cache', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.error || '清除缓存失败', 'error');
+                }
+            } catch (error) {
+                console.error('清除缓存失败:', error);
+                showAlert('网络错误，请重试', 'error');
             }
         }
         
@@ -525,22 +431,18 @@
             try {
                 const response = await fetch('/download_csv', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ results: currentResults })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    // 创建下载链接
                     const blob = new Blob([data.csv_data], { type: 'text/csv;charset=utf-8;' });
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(blob);
                     link.download = data.filename;
                     link.click();
-                    
                     showAlert('CSV文件下载成功！', 'success');
                 } else {
                     showAlert(data.error || '下载失败', 'error');
@@ -554,6 +456,7 @@
         // 清空输入
         function clearInput() {
             symbolInput.value = '';
+            currentSymbols = [];
             resultsSection.style.display = 'none';
             alertContainer.innerHTML = '';
         }
@@ -566,20 +469,33 @@
         }
         
         // 事件监听
-        analyzeBtn.addEventListener('click', startAnalysis);
+        analyzeBtn.addEventListener('click', () => startAnalysis(false));
+        forceRefreshBtn.addEventListener('click', () => startAnalysis(true));
+        clearCacheBtn.addEventListener('click', clearCache);
         clearBtn.addEventListener('click', clearInput);
+        addSymbolsBtn.addEventListener('click', addSymbols);
+        removeSymbolsBtn.addEventListener('click', removeSymbols);
+        searchSymbolBtn.addEventListener('click', searchSymbol);
         downloadBtn.addEventListener('click', downloadCSV);
         newAnalysisBtn.addEventListener('click', newAnalysis);
         
-        // 回车键分析
+        // 回车键事件
         symbolInput.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') {
-                startAnalysis();
-            }
+            if (e.ctrlKey && e.key === 'Enter') startAnalysis(false);
+        });
+        addSymbolsInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') addSymbols();
+        });
+        removeSymbolsInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') removeSymbols();
+        });
+        searchSymbolInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') searchSymbol();
         });
         
-        // 页面加载完成后的提示
+        // 页面加载完成后的初始化
         window.addEventListener('load', () => {
+            initializeSymbols();
             showAlert('💡 提示：按 Ctrl+Enter 可以快速开始分析', 'info');
         });
     </script>

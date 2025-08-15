@@ -4,17 +4,22 @@ import pandas as pd
 import numpy as np
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Dict
 import json
 import os
 from io import StringIO
+import pickle
 
 app = Flask(__name__)
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# 缓存文件路径
+CACHE_DIR = "cache"
+CACHE_FILE = os.path.join(CACHE_DIR, "bollinger_cache.pkl")
 
 class BollingerBandsAnalyzer:
     def __init__(self):
@@ -28,6 +33,9 @@ class BollingerBandsAnalyzer:
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
+        
+        # 确保缓存目录存在
+        os.makedirs(CACHE_DIR, exist_ok=True)
         
     def get_binance_klines(self, symbol: str, interval: str = '12h', limit: int = 100) -> pd.DataFrame:
         """从Binance获取K线数据"""
@@ -179,10 +187,17 @@ class BollingerBandsAnalyzer:
             logger.error(f"计算挂单价格失败: {e}")
             return "计算失败"
     
-    def analyze_symbol(self, symbol: str) -> Dict:
+    def analyze_symbol(self, symbol: str, force_refresh: bool = False) -> Dict:
         """分析单个币种"""
         try:
             logger.info(f"分析 {symbol}")
+            
+            # 检查缓存
+            if not force_refresh:
+                cached_result = self.get_cached_result(symbol)
+                if cached_result:
+                    logger.info(f"使用缓存数据: {symbol}")
+                    return cached_result
             
             # 首先尝试Binance
             df = self.get_binance_klines(symbol, '12h', 100)
@@ -197,29 +212,35 @@ class BollingerBandsAnalyzer:
                 data_source = "Binance"
             
             if df.empty:
-                return {
+                result = {
                     'symbol': symbol,
                     'current_price': None,
                     'middle_band': None,
                     'lower_band': None,
                     'order_price': None,
                     'status': '✗ 失败',
-                    'data_source': 'None'
+                    'data_source': 'None',
+                    'cache_date': datetime.now().isoformat()
                 }
+                self.save_to_cache(symbol, result)
+                return result
             
             # 计算布林带
             bb_data = self.calculate_bollinger_bands(df)
             
             if bb_data is None:
-                return {
+                result = {
                     'symbol': symbol,
                     'current_price': None,
                     'middle_band': None,
                     'lower_band': None,
                     'order_price': None,
                     'status': '✗ 计算失败',
-                    'data_source': data_source
+                    'data_source': data_source,
+                    'cache_date': datetime.now().isoformat()
                 }
+                self.save_to_cache(symbol, result)
+                return result
             
             # 计算挂单价格
             order_price = self.calculate_order_price(
@@ -229,30 +250,106 @@ class BollingerBandsAnalyzer:
                 bb_data['lower_band']
             )
             
-            return {
+            result = {
                 'symbol': symbol,
                 'current_price': bb_data['current_price'],
                 'middle_band': bb_data['middle_band'],
                 'lower_band': bb_data['lower_band'],
                 'order_price': order_price,
                 'status': '✓ 成功',
-                'data_source': data_source
+                'data_source': data_source,
+                'cache_date': datetime.now().isoformat()
             }
+            
+            # 保存到缓存
+            self.save_to_cache(symbol, result)
+            return result
             
         except Exception as e:
             logger.error(f"分析 {symbol} 时出错: {e}")
-            return {
+            result = {
                 'symbol': symbol,
                 'current_price': None,
                 'middle_band': None,
                 'lower_band': None,
                 'order_price': None,
                 'status': '✗ 错误',
-                'data_source': 'None'
+                'data_source': 'None',
+                'cache_date': datetime.now().isoformat()
             }
+            self.save_to_cache(symbol, result)
+            return result
+    
+    def get_cached_result(self, symbol: str) -> Dict:
+        """获取缓存结果"""
+        try:
+            if not os.path.exists(CACHE_FILE):
+                return None
+            
+            with open(CACHE_FILE, 'rb') as f:
+                cache_data = pickle.load(f)
+            
+            if symbol in cache_data:
+                cached_result = cache_data[symbol]
+                cache_date = datetime.fromisoformat(cached_result['cache_date'])
+                current_date = datetime.now().date()
+                
+                # 检查是否是今天的数据
+                if cache_date.date() == current_date:
+                    return cached_result
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"读取缓存失败: {e}")
+            return None
+    
+    def save_to_cache(self, symbol: str, result: Dict):
+        """保存结果到缓存"""
+        try:
+            cache_data = {}
+            if os.path.exists(CACHE_FILE):
+                with open(CACHE_FILE, 'rb') as f:
+                    cache_data = pickle.load(f)
+            
+            cache_data[symbol] = result
+            
+            with open(CACHE_FILE, 'wb') as f:
+                pickle.dump(cache_data, f)
+                
+        except Exception as e:
+            logger.error(f"保存缓存失败: {e}")
+    
+    def clear_cache(self):
+        """清除缓存"""
+        try:
+            if os.path.exists(CACHE_FILE):
+                os.remove(CACHE_FILE)
+                logger.info("缓存已清除")
+        except Exception as e:
+            logger.error(f"清除缓存失败: {e}")
 
 # 全局分析器实例
 analyzer = BollingerBandsAnalyzer()
+
+def validate_symbols(symbols_str: str) -> List[str]:
+    """验证币种格式"""
+    try:
+        # 分割并清理
+        symbols = [s.strip().upper() for s in symbols_str.split(',') if s.strip()]
+        
+        # 验证格式：只允许字母和数字
+        valid_symbols = []
+        for symbol in symbols:
+            if symbol and symbol.isalnum() and len(symbol) <= 10:
+                valid_symbols.append(symbol)
+            else:
+                logger.warning(f"无效币种格式: {symbol}")
+        
+        return valid_symbols
+    except Exception as e:
+        logger.error(f"验证币种格式失败: {e}")
+        return []
 
 @app.route('/')
 def index():
@@ -265,6 +362,7 @@ def analyze():
     try:
         data = request.get_json()
         symbols = data.get('symbols', [])
+        force_refresh = data.get('force_refresh', False)
         
         if not symbols:
             return jsonify({'error': '请提供币种列表'}), 400
@@ -277,7 +375,7 @@ def analyze():
             try:
                 logger.info(f"处理 {symbol} ({i+1}/{len(symbols_with_usdt)})")
                 
-                result = analyzer.analyze_symbol(symbol)
+                result = analyzer.analyze_symbol(symbol, force_refresh)
                 results.append(result)
                 
                 # 延迟控制
@@ -295,6 +393,110 @@ def analyze():
         
     except Exception as e:
         logger.error(f"分析请求失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/add_symbols', methods=['POST'])
+def add_symbols():
+    """添加币种"""
+    try:
+        data = request.get_json()
+        symbols_str = data.get('symbols', '')
+        current_symbols = data.get('current_symbols', [])
+        
+        if not symbols_str:
+            return jsonify({'error': '请提供币种列表'}), 400
+        
+        # 验证格式
+        new_symbols = validate_symbols(symbols_str)
+        if not new_symbols:
+            return jsonify({'error': '币种格式无效，请使用逗号分隔的字母数字组合'}), 400
+        
+        # 合并并去重
+        all_symbols = list(set(current_symbols + new_symbols))
+        all_symbols.sort()  # 排序
+        
+        return jsonify({
+            'success': True,
+            'symbols': all_symbols,
+            'added': new_symbols,
+            'message': f'成功添加 {len(new_symbols)} 个币种'
+        })
+        
+    except Exception as e:
+        logger.error(f"添加币种失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/remove_symbols', methods=['POST'])
+def remove_symbols():
+    """删除币种"""
+    try:
+        data = request.get_json()
+        symbols_str = data.get('symbols', '')
+        current_symbols = data.get('current_symbols', [])
+        
+        if not symbols_str:
+            return jsonify({'error': '请提供要删除的币种列表'}), 400
+        
+        # 验证格式
+        symbols_to_remove = validate_symbols(symbols_str)
+        if not symbols_to_remove:
+            return jsonify({'error': '币种格式无效，请使用逗号分隔的字母数字组合'}), 400
+        
+        # 删除币种
+        remaining_symbols = [s for s in current_symbols if s not in symbols_to_remove]
+        
+        return jsonify({
+            'success': True,
+            'symbols': remaining_symbols,
+            'removed': symbols_to_remove,
+            'message': f'成功删除 {len(symbols_to_remove)} 个币种'
+        })
+        
+    except Exception as e:
+        logger.error(f"删除币种失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/search_symbol', methods=['POST'])
+def search_symbol():
+    """查询币种"""
+    try:
+        data = request.get_json()
+        symbol = data.get('symbol', '').strip().upper()
+        current_symbols = data.get('current_symbols', [])
+        
+        if not symbol:
+            return jsonify({'error': '请提供要查询的币种'}), 400
+        
+        # 验证格式
+        if not symbol.isalnum() or len(symbol) > 10:
+            return jsonify({'error': '币种格式无效'}), 400
+        
+        # 查询是否存在
+        exists = symbol in current_symbols
+        
+        return jsonify({
+            'success': True,
+            'symbol': symbol,
+            'exists': exists,
+            'message': f'币种 {symbol} {"存在" if exists else "不存在"}'
+        })
+        
+    except Exception as e:
+        logger.error(f"查询币种失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/clear_cache', methods=['POST'])
+def clear_cache():
+    """清除缓存"""
+    try:
+        analyzer.clear_cache()
+        return jsonify({
+            'success': True,
+            'message': '缓存已清除'
+        })
+        
+    except Exception as e:
+        logger.error(f"清除缓存失败: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/download_csv', methods=['POST'])
@@ -317,6 +519,7 @@ def download_csv():
             order_price = result['order_price']
             status = result['status']
             data_source = result['data_source']
+            cache_date = result.get('cache_date', '')
             
             if current_price is not None and middle_band is not None and lower_band is not None and order_price is not None:
                 csv_data.append({
@@ -326,7 +529,8 @@ def download_csv():
                     '下轨': f"{lower_band:.6f}",
                     '挂单价格': order_price,
                     '状态': status,
-                    '数据源': data_source
+                    '数据源': data_source,
+                    '缓存时间': cache_date
                 })
             else:
                 csv_data.append({
@@ -336,7 +540,8 @@ def download_csv():
                     '下轨': '获取失败',
                     '挂单价格': '获取失败',
                     '状态': status,
-                    '数据源': data_source
+                    '数据源': data_source,
+                    '缓存时间': cache_date
                 })
         
         # 创建DataFrame并转换为CSV
