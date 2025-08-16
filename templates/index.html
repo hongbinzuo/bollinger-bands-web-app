@@ -7,29 +7,161 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
-            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        /* 动态背景样式 */
+        .animated-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -3;
+            overflow: hidden;
+            display: none; /* 默认隐藏动画背景 */
+        }
+        
+        /* 添加星星效果 */
+        .star {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            animation: twinkle 3s ease-in-out infinite;
+            box-shadow: 0 0 6px rgba(255, 255, 255, 0.8), 0 0 12px rgba(255, 255, 255, 0.4);
+        }
+        
+        .star:nth-child(1) {
+            top: 15%;
+            left: 20%;
+            animation-delay: 0s;
+            width: 4px;
+            height: 4px;
+        }
+        
+        .star:nth-child(2) {
+            top: 25%;
+            right: 15%;
+            animation-delay: 0.5s;
+            width: 2px;
+            height: 2px;
+        }
+        
+        .star:nth-child(3) {
+            top: 45%;
+            left: 10%;
+            animation-delay: 1s;
+            width: 3px;
+            height: 3px;
+        }
+        
+        .star:nth-child(4) {
+            top: 35%;
+            right: 25%;
+            animation-delay: 1.5s;
+            width: 2px;
+            height: 2px;
+        }
+        
+        .star:nth-child(5) {
+            top: 65%;
+            left: 30%;
+            animation-delay: 2s;
+            width: 4px;
+            height: 4px;
+        }
+        
+        .star:nth-child(6) {
+            top: 55%;
+            right: 40%;
+            animation-delay: 2.5s;
+            width: 3px;
+            height: 3px;
+        }
+        
+        .star:nth-child(7) {
+            top: 75%;
+            left: 60%;
+            animation-delay: 3s;
+            width: 2px;
+            height: 2px;
+        }
+        
+        .star:nth-child(8) {
+            top: 85%;
+            right: 20%;
+            animation-delay: 3.5s;
+            width: 3px;
+            height: 3px;
+        }
+        
+        @keyframes twinkle {
+            0%, 100% {
+                opacity: 0.4;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.3);
+            }
+        }
+        
+
+        
+        /* 视频背景样式 */
+        .video-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -3;
+            object-fit: cover;
+            opacity: 0.8;
+            display: block; /* 默认显示视频背景 */
+            filter: blur(2px);
+        }
+        
+        .video-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.1);
+            z-index: -2;
         }
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            background: white;
+            background: transparent; 
             padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 15px;
+            position: relative;
+            z-index: 1;
         }
         .header {
             text-align: center;
             margin-bottom: 30px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #e9ecef;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
         }
         .help-text {
-            background: #e3f2fd;
+            background: rgba(0, 0, 0, 0.1);
             border-left: 4px solid #2196f3;
             padding: 15px;
             margin-bottom: 20px;
             border-radius: 0 5px 5px 0;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
         }
         .tabs {
             display: flex;
@@ -38,12 +170,14 @@
         }
         .tab {
             padding: 12px 24px;
-            background: #f8f9fa;
+            background: rgba(0, 0, 0, 0.2);
+            color: white;
             border: none;
             cursor: pointer;
             margin-right: 5px;
             border-radius: 5px 5px 0 0;
             font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
         }
         .tab.active {
             background: #007bff;
@@ -52,9 +186,9 @@
         .tab-content {
             display: none;
             padding: 20px;
-            border: 1px solid #e9ecef;
-            border-top: none;
+            background: transparent;
             border-radius: 0 0 5px 5px;
+            color: white;
         }
         .tab-content.active {
             display: block;
@@ -91,6 +225,12 @@
         .btn-danger:hover {
             background: #c82333;
         }
+        .btn-secondary {
+            background: #6c757d;
+        }
+        .btn-secondary:hover {
+            background: #545b62;
+        }
         .form-group {
             margin-bottom: 15px;
         }
@@ -98,28 +238,35 @@
             display: block;
             margin-bottom: 5px;
             font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         }
         .form-control {
             width: 100%;
             padding: 8px;
-            border: 1px solid #ddd;
+            border: 1px solid rgba(255, 255, 255, 0.5);
             border-radius: 4px;
             box-sizing: border-box;
+            background: rgba(0, 0, 0, 0.1);
+            color: white;
         }
         .results-container {
             margin-top: 20px;
             max-height: 400px;
             overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
             padding: 15px;
+            background: transparent;
+            color: white;
         }
         .result-item {
-            background: #f8f9fa;
+            background: transparent;
             padding: 10px;
             margin-bottom: 10px;
-            border-radius: 4px;
+            border-radius: 6px;
             border-left: 4px solid #007bff;
+            color: white;
         }
         .status {
             padding: 10px;
@@ -127,47 +274,53 @@
             border-radius: 4px;
         }
         .status.success {
-            background: #d4edda;
-            color: #155724;
+            background: rgba(40, 167, 69, 0.8);
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         }
         .status.error {
-            background: #f8d7da;
-            color: #721c24;
+            background: rgba(220, 53, 69, 0.8);
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         }
         .position-item {
-            background: #f8f9fa;
+            background: transparent;
             padding: 15px;
             margin-bottom: 10px;
-            border-radius: 4px;
-            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: white;
         }
         .order-item {
-            background: #fff3cd;
+            background: transparent;
             padding: 15px;
             margin-bottom: 10px;
-            border-radius: 4px;
-            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: white;
         }
         .stats {
             display: flex;
             justify-content: space-around;
             margin: 20px 0;
             padding: 15px;
-            background: #f8f9fa;
+            background: transparent;
             border-radius: 5px;
         }
         .stat-item {
             text-align: center;
         }
-        .stat-number {
+                .stat-number {
             font-size: 24px;
             font-weight: bold;
-            color: #007bff;
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         }
-                 .stat-label {
-             font-size: 12px;
-             color: #666;
-         }
+        .stat-label {
+            font-size: 12px;
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
          
          /* 表格样式 */
          .table-container {
@@ -175,12 +328,15 @@
              margin-top: 15px;
          }
          
-         .analysis-table {
-             width: 100%;
-             border-collapse: collapse;
-             background: white;
-             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-         }
+                                                                                                                                                                                                                               .analysis-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: transparent;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            color: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
          
          .analysis-table th,
          .analysis-table td {
@@ -189,33 +345,35 @@
              border-bottom: 1px solid #e9ecef;
          }
          
-         .analysis-table th {
-             background: #f8f9fa;
-             font-weight: bold;
-             color: #495057;
-             position: sticky;
-             top: 0;
-             z-index: 10;
-         }
+                                                                                                                                                                                                                               .analysis-table th {
+            background: transparent;
+            font-weight: bold;
+            color: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            padding: 15px 12px;
+        }
          
-         .analysis-table tr:hover {
-             background: #f8f9fa;
-         }
-         
-         .analysis-table tr:nth-child(even) {
-             background: #fafbfc;
-         }
+                           .analysis-table tr:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+                                   .analysis-table tr:nth-child(even) {
+              background: transparent;
+          }
          
          /* 筛选控制样式 */
-         .filter-controls {
-             display: flex;
-             gap: 15px;
-             margin-bottom: 15px;
-             padding: 15px;
-             background: #f8f9fa;
-             border-radius: 5px;
-             flex-wrap: wrap;
-         }
+                                                                                                                                                                                                                               .filter-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: transparent;
+            border-radius: 8px;
+            flex-wrap: wrap;
+            color: white;
+        }
          
          .filter-group {
              display: flex;
@@ -229,13 +387,15 @@
              white-space: nowrap;
          }
          
-         .filter-group select,
-         .filter-group input {
-             padding: 6px 10px;
-             border: 1px solid #ddd;
-             border-radius: 4px;
-             font-size: 14px;
-         }
+                                                                               .filter-group select,
+            .filter-group input {
+                padding: 6px 10px;
+                border: 1px solid rgba(255, 255, 255, 0.5);
+                border-radius: 4px;
+                font-size: 14px;
+                background: rgba(0, 0, 0, 0.1);
+                color: white;
+            }
          
          .filter-group button {
              padding: 6px 12px;
@@ -252,16 +412,17 @@
          }
          
          /* 分页控制样式 */
-         .pagination-controls {
-             display: flex;
-             justify-content: center;
-             align-items: center;
-             gap: 10px;
-             margin: 15px 0;
-             padding: 10px;
-             background: #f8f9fa;
-             border-radius: 5px;
-         }
+                                                                                                                                                                                                                               .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin: 15px 0;
+            padding: 15px;
+            background: transparent;
+            border-radius: 8px;
+            color: white;
+        }
          
          .pagination-controls button {
              padding: 8px 15px;
@@ -282,17 +443,20 @@
              cursor: not-allowed;
          }
          
-         .pagination-controls select {
-             padding: 6px 10px;
-             border: 1px solid #ddd;
-             border-radius: 4px;
-             font-size: 14px;
-         }
+                                                                               .pagination-controls select {
+                padding: 6px 10px;
+                border: 1px solid rgba(255, 255, 255, 0.5);
+                border-radius: 4px;
+                font-size: 14px;
+                background: rgba(0, 0, 0, 0.1);
+                color: white;
+            }
          
-         #pageInfo {
-             font-weight: bold;
-             color: #495057;
-         }
+                 #pageInfo {
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
          
          /* 状态标签样式 */
          .status-badge {
@@ -340,6 +504,25 @@
     </style>
 </head>
 <body>
+    <!-- 动态背景 -->
+    <div class="animated-background">
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+    </div>
+    
+    <!-- 视频背景 -->
+    <video class="video-background" autoplay muted loop playsinline>
+        <source src="/static/videos/background.mp4" type="video/mp4">
+        您的浏览器不支持视频标签。
+    </video>
+    <div class="video-overlay"></div>
+    
     <div class="container">
         <div class="header">
             <h1>布林带策略挂单系统</h1>
@@ -511,6 +694,14 @@
                 <button class="btn" onclick="downloadCSV()">下载CSV报告</button>
                 <button class="btn" onclick="exportData()">导出数据</button>
                 <button class="btn" onclick="importData()">导入数据</button>
+            </div>
+            
+            <div class="form-group">
+                <h4>背景控制</h4>
+                <button class="btn btn-info" onclick="toggleVideoBackground()">切换背景模式</button>
+                <button class="btn btn-secondary" onclick="toggleBackground()">开关背景</button>
+                <label>背景透明度: <input type="range" min="10" max="100" value="30" onchange="adjustVideoOpacity(this.value)"></label>
+                <span id="opacityValue">30%</span>
             </div>
             <div class="form-group">
                 <label>系统设置：</label>
@@ -1077,12 +1268,104 @@
             statusArea.innerHTML = `<div class="status ${type}">${message}</div>`;
         }
 
+        // 视频背景控制
+        let videoElement = null;
+        
+        function initVideoBackground() {
+            videoElement = document.querySelector('.video-background');
+            
+            if (videoElement) {
+                console.log('找到视频元素，开始初始化...');
+                
+                // 检查视频源
+                console.log('视频源:', videoElement.src);
+                console.log('视频当前状态:', videoElement.readyState);
+                
+                videoElement.addEventListener('loadeddata', function() {
+                    console.log('视频背景加载完成');
+                    showStatus('视频背景加载完成', 'success');
+                });
+                
+                videoElement.addEventListener('canplay', function() {
+                    console.log('视频可以播放');
+                    showStatus('视频背景可以播放', 'success');
+                });
+                
+                videoElement.addEventListener('error', function(e) {
+                    console.log('视频背景加载失败:', e);
+                    showStatus('视频背景加载失败，使用动画背景', 'warning');
+                    const animatedBg = document.querySelector('.animated-background');
+                    if (animatedBg) {
+                        animatedBg.style.display = 'block';
+                    }
+                });
+                
+                // 强制加载视频
+                videoElement.load();
+            } else {
+                console.log('未找到视频元素');
+                showStatus('未找到视频元素', 'error');
+            }
+        }
+        
+        function toggleVideoBackground() {
+            const video = document.querySelector('.video-background');
+            const animatedBg = document.querySelector('.animated-background');
+            const overlay = document.querySelector('.video-overlay');
+            
+            if (video.style.display === 'none' || video.style.display === '') {
+                // 切换到视频背景
+                video.style.display = 'block';
+                animatedBg.style.display = 'none';
+                overlay.style.display = 'block';
+                showStatus('已切换到视频背景', 'success');
+            } else {
+                // 切换到动画背景
+                video.style.display = 'none';
+                animatedBg.style.display = 'block';
+                overlay.style.display = 'block';
+                showStatus('已切换到动画背景', 'info');
+            }
+        }
+        
+        function adjustVideoOpacity(value) {
+            const video = document.querySelector('.video-background');
+            const animatedBg = document.querySelector('.animated-background');
+            const opacity = value / 100;
+            
+            if (video) video.style.opacity = opacity;
+            if (animatedBg) animatedBg.style.opacity = opacity;
+            
+            document.getElementById('opacityValue').textContent = value + '%';
+            showStatus(`背景透明度已调整为 ${value}%`, 'info');
+        }
+        
+        function toggleBackground() {
+            const overlay = document.querySelector('.video-overlay');
+            if (overlay.style.display === 'none') {
+                overlay.style.display = 'block';
+                showStatus('背景已启用', 'success');
+            } else {
+                overlay.style.display = 'none';
+                showStatus('背景已禁用', 'info');
+            }
+        }
+        
         // 页面加载完成后的初始化
         document.addEventListener('DOMContentLoaded', function() {
             console.log('布林带策略系统已加载完成');
             showStatus('系统已就绪，可以开始分析', 'success');
             updateStats();
             updateSystemStatus();
+            
+            // 初始化视频背景
+            initVideoBackground();
+            
+            // 初始化动画背景（默认隐藏）
+            const animatedBg = document.querySelector('.animated-background');
+            if (animatedBg) {
+                animatedBg.style.display = 'none';
+            }
             
             // 定期更新系统状态
             setInterval(updateSystemStatus, 30000); // 每30秒更新一次

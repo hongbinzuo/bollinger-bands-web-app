@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qimeng - 创新项目</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            /**background: rgba(255, 255, 255, 0.95);*/
+            
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+        }
+
+        .logo {
+            font-size: 3rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 20px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+        }
+
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 5px solid #667eea;
+        }
+
+        .status-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .status-value {
+            color: #28a745;
+            font-size: 1.1rem;
+        }
+
+        .api-info {
+            background: #e3f2fd;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .api-title {
+            font-weight: bold;
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+
+        .api-endpoint {
+            background: #f5f5f5;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            color: #333;
+            margin: 5px 0;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .footer {
+            margin-top: 30px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .logo {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">Qimeng</div>
+        <div class="subtitle">创新项目 - 正在开发中</div>
+        
+        <div class="status-card">
+            <div class="status-title">服务器状态</div>
+            <div class="status-value" id="serverStatus">检查中...</div>
+        </div>
+
+        <div class="api-info">
+            <div class="api-title">API 接口</div>
+            <div class="api-endpoint">GET /api/health - 健康检查</div>
+            <div class="api-endpoint">GET /api/status - 项目状态</div>
+        </div>
+
+        <button class="btn" onclick="checkHealth()">检查健康状态</button>
+        <button class="btn" onclick="checkStatus()">获取项目状态</button>
+
+        <div class="footer">
+            <p>© 2025 Qimeng Project</p>
+            <p>版本: v1.0.0</p>
+        </div>
+    </div>
+
+    <script>
+        // 页面加载时检查服务器状态
+        window.onload = function() {
+            checkHealth();
+        };
+
+        async function checkHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                document.getElementById('serverStatus').innerHTML = 
+                    `✅ 运行正常 | 运行时间: ${Math.floor(data.uptime)}秒`;
+                document.getElementById('serverStatus').style.color = '#28a745';
+            } catch (error) {
+                document.getElementById('serverStatus').innerHTML = '❌ 连接失败';
+                document.getElementById('serverStatus').style.color = '#dc3545';
+            }
+        }
+
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                alert(`项目: ${data.project}\n版本: ${data.version}\n环境: ${data.environment}\n时间: ${new Date(data.timestamp).toLocaleString()}`);
+            } catch (error) {
+                alert('获取状态失败: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
