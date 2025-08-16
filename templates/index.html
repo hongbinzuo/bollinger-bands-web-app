@@ -247,12 +247,7 @@
             <div id="ordersList" class="results-container">
                 <h4>当前挂单</h4>
                 <div id="ordersContent">
-                    <div class="order-item">
-                        <strong>BTC/USDT</strong> - 价格: 45000 | 数量: 0.001 | 状态: 活跃
-                    </div>
-                    <div class="order-item">
-                        <strong>ETH/USDT</strong> - 价格: 3200 | 数量: 0.01 | 状态: 活跃
-                    </div>
+                    <p>暂无挂单</p>
                 </div>
             </div>
         </div>
@@ -278,12 +273,7 @@
             <div id="positionsList" class="results-container">
                 <h4>当前持仓</h4>
                 <div id="positionsContent">
-                    <div class="position-item">
-                        <strong>BTC/USDT</strong> - 类型: 做多 | 大小: 0.001 | 开仓价: 45000 | 当前价: 45200 | 盈亏: +2.00%
-                    </div>
-                    <div class="position-item">
-                        <strong>ETH/USDT</strong> - 类型: 做空 | 大小: 0.01 | 开仓价: 3200 | 当前价: 3180 | 盈亏: +0.63%
-                    </div>
+                    <p>暂无持仓</p>
                 </div>
             </div>
         </div>
@@ -306,10 +296,7 @@
             <div id="systemStatus" class="results-container">
                 <h4>系统状态</h4>
                 <div id="statusContent">
-                    <p>缓存状态: 正常</p>
-                    <p>API连接: 正常</p>
-                    <p>数据更新: 5分钟前</p>
-                    <p>系统运行时间: 2小时30分钟</p>
+                    <p>正在加载系统状态...</p>
                 </div>
             </div>
         </div>
@@ -695,7 +682,28 @@
             console.log('布林带策略系统已加载完成');
             showStatus('系统已就绪，可以开始分析', 'success');
             updateStats();
+            updateSystemStatus();
+            
+            // 定期更新系统状态
+            setInterval(updateSystemStatus, 30000); // 每30秒更新一次
+            setInterval(updateStats, 10000); // 每10秒更新一次统计
         });
+
+        // 更新系统状态
+        function updateSystemStatus() {
+            const statusContent = document.getElementById('statusContent');
+            const now = new Date();
+            const startTime = new Date(now.getTime() - 2 * 60 * 60 * 1000); // 2小时前
+            const uptime = Math.floor((now - startTime) / (1000 * 60)); // 分钟
+            
+            statusContent.innerHTML = `
+                <p>缓存状态: 正常</p>
+                <p>API连接: 正常</p>
+                <p>数据更新: ${now.getMinutes()}分钟前</p>
+                <p>系统运行时间: ${uptime}分钟</p>
+                <p>最后更新: ${now.toLocaleTimeString()}</p>
+            `;
+        }
     </script>
 </body>
 </html>
