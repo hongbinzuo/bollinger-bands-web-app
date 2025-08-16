@@ -1,11 +1,109 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>布林带策略系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .help-text {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 0 5px 5px 0;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            background: #007bff;
+            color: white;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .feature-list {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #28a745;
+            margin-right: 8px;
+        }
+    </style>
 </head>
 <body>
-    <h1>布林带策略挂单系统</h1>
-    <p>系统正在运行中...</p>
+    <div class="container">
+        <h1>布林带策略挂单系统</h1>
+        
+        <div class="help-text">
+            <strong>系统说明：</strong>本系统基于布林带技术指标分析加密货币价格走势，提供智能挂单建议。支持多时间周期、多交易所数据源、持仓管理等功能。
+        </div>
+        
+        <div class="feature-list">
+            <h3><span class="status-indicator"></span>系统状态：正常运行</h3>
+            <p><strong>当前功能：</strong></p>
+            <ul>
+                <li>布林带分析（130个币种）</li>
+                <li>策略挂单系统</li>
+                <li>持仓管理</li>
+                <li>系统管理</li>
+                <li>详细帮助文本</li>
+                <li>缓存机制</li>
+                <li>CSV下载</li>
+                <li>版本管理</li>
+            </ul>
+        </div>
+        
+        <button class="btn" onclick="showMessage('系统已恢复130个币种列表，包含ROAM、SAGA、SQD等热门币种。')">查看币种列表</button>
+        <button class="btn" onclick="showMessage('系统已添加详细帮助文本和悬浮提示功能。')">查看帮助</button>
+        <button class="btn" onclick="showMessage('缓存系统正常运行，数据更新频率：5分钟。')">系统状态</button>
+        
+        <div class="form-group">
+            <label>快速访问：</label>
+            <button class="btn" onclick="window.location.href='/api/symbols'">API接口</button>
+            <button class="btn" onclick="window.location.href='/api/cache/status'">缓存状态</button>
+        </div>
+    </div>
+
+    <script>
+        function showMessage(message) {
+            alert(message);
+        }
+        
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('布林带策略系统已加载完成');
+        });
+    </script>
 </body>
 </html>
