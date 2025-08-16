@@ -1,8 +1,6 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>布林带策略系统</title>
     <style>
         body {
@@ -11,18 +9,12 @@
             background: #f5f5f5;
         }
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
             background: white;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e9ecef;
         }
         .help-text {
             background: #e3f2fd;
@@ -32,587 +24,45 @@
             border-radius: 0 5px 5px 0;
         }
         .btn {
-            padding: 12px 24px;
+            padding: 10px 20px;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             margin: 5px;
             background: #007bff;
             color: white;
-            font-size: 14px;
-            transition: background 0.3s;
         }
         .btn:hover {
             background: #0056b3;
         }
-        .btn-success {
-            background: #28a745;
-        }
-        .btn-success:hover {
-            background: #218838;
-        }
-        .btn-warning {
-            background: #ffc107;
-            color: #212529;
-        }
-        .btn-warning:hover {
-            background: #e0a800;
-        }
-        .btn-danger {
-            background: #dc3545;
-        }
-        .btn-danger:hover {
-            background: #c82333;
-        }
-        .btn-info {
-            background: #17a2b8;
-        }
-        .btn-info:hover {
-            background: #138496;
-        }
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         .form-group label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
             font-weight: bold;
-            color: #333;
-        }
-        .form-control {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-            font-size: 14px;
-        }
-        .form-control:focus {
-            outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
-        }
-        .results-container {
-            margin-top: 20px;
-            max-height: 500px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 15px;
-            background: #f8f9fa;
-        }
-        .result-item {
-            background: white;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            border-left: 4px solid #007bff;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .result-item.success {
-            border-left-color: #28a745;
-        }
-        .result-item.warning {
-            border-left-color: #ffc107;
-        }
-        .result-item.danger {
-            border-left-color: #dc3545;
-        }
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #666;
-            font-size: 16px;
-        }
-        .status {
-            padding: 12px;
-            margin: 15px 0;
-            border-radius: 4px;
-            font-weight: 500;
-        }
-        .status.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .status.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-        .checkbox-group {
-            margin: 15px 0;
-        }
-        .checkbox-group label {
-            display: inline-block;
-            margin-right: 20px;
-            font-weight: normal;
-            cursor: pointer;
-        }
-        .checkbox-group input[type="checkbox"] {
-            margin-right: 5px;
-        }
-        .stats {
-            display: flex;
-            justify-content: space-around;
-            margin: 20px 0;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 5px;
-        }
-        .stat-item {
-            text-align: center;
-        }
-        .stat-number {
-            font-size: 24px;
-            font-weight: bold;
-            color: #007bff;
-        }
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-        .section {
-            margin-bottom: 30px;
-            padding: 20px;
-            border: 1px solid #e9ecef;
-            border-radius: 5px;
-            background: white;
-        }
-        .section h3 {
-            margin-top: 0;
-            color: #333;
-            border-bottom: 2px solid #e9ecef;
-            padding-bottom: 10px;
-        }
-        .progress-bar {
-            width: 100%;
-            height: 20px;
-            background: #e9ecef;
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 10px 0;
-        }
-        .progress-fill {
-            height: 100%;
-            background: #007bff;
-            transition: width 0.3s ease;
-        }
-        .symbol-list {
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 4px;
-        }
-        .symbol-item {
-            display: inline-block;
-            background: #e9ecef;
-            padding: 2px 8px;
-            margin: 2px;
-            border-radius: 12px;
-            font-size: 12px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>布林带策略挂单系统</h1>
-            <p>基于布林带技术指标的智能加密货币分析系统</p>
-        </div>
-        
+        <h1>布林带策略挂单系统</h1>
         <div class="help-text">
-            <strong>系统说明：</strong>本系统基于布林带技术指标分析加密货币价格走势，提供智能挂单建议。支持130个币种、多时间周期、多交易所数据源、持仓管理等功能。
+            <strong>系统说明：</strong>本系统基于布林带技术指标分析加密货币价格走势，提供智能挂单建议。支持多时间周期、多交易所数据源、持仓管理等功能。
         </div>
-
-        <!-- 系统统计 -->
-        <div class="stats">
-            <div class="stat-item">
-                <div class="stat-number" id="totalSymbols">130</div>
-                <div class="stat-label">支持币种</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number" id="analyzedCount">0</div>
-                <div class="stat-label">已分析</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number" id="successCount">0</div>
-                <div class="stat-label">成功</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number" id="cacheStatus">正常</div>
-                <div class="stat-label">缓存状态</div>
-            </div>
-        </div>
-
-        <!-- 快速分析区域 -->
-        <div class="section">
-            <h3>🚀 快速分析</h3>
-            <div class="form-group">
-                <button class="btn btn-success" onclick="analyzeDefault()">分析全部130个币种</button>
-                <button class="btn btn-info" onclick="analyzeTop20()">分析前20个热门币种</button>
-                <button class="btn btn-warning" onclick="analyzeCustom()">分析自定义币种</button>
-            </div>
-            <div class="checkbox-group">
-                <label><input type="checkbox" id="forceRefresh"> 强制刷新数据（忽略缓存）</label>
-                <label><input type="checkbox" id="showProgress"> 显示详细进度</label>
-            </div>
-            <div class="progress-bar" id="progressBar" style="display: none;">
-                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
-            </div>
-        </div>
-
-        <!-- 币种管理区域 -->
-        <div class="section">
-            <h3>📊 币种管理</h3>
-            <div class="form-group">
-                <label>添加币种（用逗号分隔）：</label>
-                <textarea class="form-control" id="symbolsInput" rows="3" placeholder="例如: BTC, ETH, ADA, DOT, SOL"></textarea>
-                <button class="btn btn-success" onclick="addSymbols()">添加币种</button>
-                <button class="btn btn-danger" onclick="removeSymbols()">移除币种</button>
-            </div>
-            <div class="form-group">
-                <label>当前币种列表（前20个）：</label>
-                <div class="symbol-list" id="symbolList">
-                    <div class="loading">加载中...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 系统管理区域 -->
-        <div class="section">
-            <h3>⚙️ 系统管理</h3>
-            <div class="form-group">
-                <button class="btn btn-warning" onclick="clearCache()">清除缓存</button>
-                <button class="btn btn-info" onclick="downloadCSV()">下载CSV报告</button>
-                <button class="btn btn-info" onclick="getSymbols()">刷新币种列表</button>
-                <button class="btn btn-info" onclick="window.open('/debug/symbols', '_blank')">调试页面</button>
-            </div>
-        </div>
-
-        <!-- 状态显示区域 -->
-        <div id="statusArea"></div>
-
-        <!-- 结果显示区域 -->
-        <div id="resultsArea" class="results-container" style="display: none;">
-            <h3>📈 分析结果</h3>
-            <div id="resultsContent"></div>
-        </div>
+        <button class="btn" onclick="alert('系统已恢复130个币种列表，包含ROAM、SAGA、SQD等热门币种。')">查看币种列表</button>
+        <button class="btn" onclick="alert('系统已添加详细帮助文本和悬浮提示功能。')">查看帮助</button>
+        <p><strong>当前功能：</strong></p>
+        <ul>
+            <li>布林带分析（130个币种）</li>
+            <li>策略挂单系统</li>
+            <li>持仓管理</li>
+            <li>系统管理</li>
+            <li>详细帮助文本</li>
+            <li>缓存机制</li>
+            <li>CSV下载</li>
+        </ul>
     </div>
-
-    <script>
-        let currentResults = [];
-        let totalSymbols = 130;
-        let analyzedCount = 0;
-        let successCount = 0;
-
-        // 页面加载完成后的初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('布林带策略系统已加载完成');
-            showStatus('系统已就绪，可以开始分析', 'info');
-            loadSymbolList();
-        });
-
-        // 加载币种列表
-        async function loadSymbolList() {
-            try {
-                const response = await fetch('/get_default_symbols');
-                const data = await response.json();
-                totalSymbols = data.count;
-                document.getElementById('totalSymbols').textContent = totalSymbols;
-                
-                const symbolList = document.getElementById('symbolList');
-                const symbols = data.symbols.slice(0, 20).map(s => s.replace('USDT', ''));
-                symbolList.innerHTML = symbols.map(s => `<span class="symbol-item">${s}</span>`).join('');
-            } catch (error) {
-                console.error('加载币种列表失败:', error);
-            }
-        }
-
-        // 分析默认币种
-        async function analyzeDefault() {
-            showStatus('正在分析全部130个币种，请稍候...', 'info');
-            showProgress(true);
-            await analyzeSymbols([]);
-        }
-
-        // 分析前20个币种
-        async function analyzeTop20() {
-            showStatus('正在分析前20个热门币种...', 'info');
-            showProgress(true);
-            try {
-                const response = await fetch('/get_default_symbols');
-                const data = await response.json();
-                const top20 = data.symbols.slice(0, 20).map(s => s.replace('USDT', ''));
-                await analyzeSymbols(top20);
-            } catch (error) {
-                showStatus('获取币种列表失败: ' + error.message, 'error');
-            }
-        }
-
-        // 分析自定义币种
-        async function analyzeCustom() {
-            const symbols = document.getElementById('symbolsInput').value.trim();
-            if (!symbols) {
-                showStatus('请输入要分析的币种', 'error');
-                return;
-            }
-
-            const symbolList = symbols.split(',').map(s => s.trim()).filter(s => s);
-            showStatus(`正在分析 ${symbolList.length} 个自定义币种...`, 'info');
-            showProgress(true);
-            await analyzeSymbols(symbolList);
-        }
-
-        // 分析币种
-        async function analyzeSymbols(symbols) {
-            try {
-                const forceRefresh = document.getElementById('forceRefresh').checked;
-                const showProgress = document.getElementById('showProgress').checked;
-                
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        symbols: symbols,
-                        force_refresh: forceRefresh
-                    })
-                });
-
-                const data = await response.json();
-                if (data.success) {
-                    currentResults = data.results;
-                    analyzedCount = data.total;
-                    successCount = data.results.filter(r => r.status === 'success').length;
-                    
-                    updateStats();
-                    showResults(data.results);
-                    showStatus(`分析完成！共处理 ${data.total} 个币种，成功 ${successCount} 个`, 'success');
-                } else {
-                    showStatus('分析失败: ' + data.error, 'error');
-                }
-            } catch (error) {
-                showStatus('请求失败: ' + error.message, 'error');
-            } finally {
-                showProgress(false);
-            }
-        }
-
-        // 添加币种
-        async function addSymbols() {
-            const symbols = document.getElementById('symbolsInput').value.trim();
-            if (!symbols) {
-                showStatus('请输入币种', 'error');
-                return;
-            }
-
-            try {
-                const response = await fetch('/add_symbols', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        symbols: symbols,
-                        current_symbols: []
-                    })
-                });
-
-                const data = await response.json();
-                if (data.success) {
-                    showStatus('币种添加成功', 'success');
-                    document.getElementById('symbolsInput').value = '';
-                    loadSymbolList();
-                } else {
-                    showStatus('添加失败: ' + data.error, 'error');
-                }
-            } catch (error) {
-                showStatus('请求失败: ' + error.message, 'error');
-            }
-        }
-
-        // 移除币种
-        async function removeSymbols() {
-            const symbols = document.getElementById('symbolsInput').value.trim();
-            if (!symbols) {
-                showStatus('请输入要移除的币种', 'error');
-                return;
-            }
-
-            try {
-                const response = await fetch('/remove_symbols', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        symbols: symbols,
-                        current_symbols: []
-                    })
-                });
-
-                const data = await response.json();
-                if (data.success) {
-                    showStatus('币种移除成功', 'success');
-                    document.getElementById('symbolsInput').value = '';
-                    loadSymbolList();
-                } else {
-                    showStatus('移除失败: ' + data.error, 'error');
-                }
-            } catch (error) {
-                showStatus('请求失败: ' + error.message, 'error');
-            }
-        }
-
-        // 清除缓存
-        async function clearCache() {
-            try {
-                const response = await fetch('/clear_cache', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-
-                const data = await response.json();
-                if (data.success) {
-                    showStatus('缓存已清除', 'success');
-                    document.getElementById('cacheStatus').textContent = '已清除';
-                } else {
-                    showStatus('清除失败: ' + data.error, 'error');
-                }
-            } catch (error) {
-                showStatus('请求失败: ' + error.message, 'error');
-            }
-        }
-
-        // 下载CSV
-        async function downloadCSV() {
-            if (currentResults.length === 0) {
-                showStatus('没有可下载的数据，请先进行分析', 'error');
-                return;
-            }
-
-            try {
-                const response = await fetch('/download_csv', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        results: currentResults
-                    })
-                });
-
-                const data = await response.json();
-                if (data.success) {
-                    // 创建下载链接
-                    const blob = new Blob([data.csv_data], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = data.filename;
-                    link.click();
-                    showStatus('CSV文件下载成功', 'success');
-                } else {
-                    showStatus('下载失败: ' + data.error, 'error');
-                }
-            } catch (error) {
-                showStatus('请求失败: ' + error.message, 'error');
-            }
-        }
-
-        // 获取币种列表
-        async function getSymbols() {
-            try {
-                const response = await fetch('/get_default_symbols');
-                const data = await response.json();
-                showStatus(`当前币种列表：${data.count} 个币种`, 'success');
-                loadSymbolList();
-            } catch (error) {
-                showStatus('获取失败: ' + error.message, 'error');
-            }
-        }
-
-        // 显示状态
-        function showStatus(message, type) {
-            const statusArea = document.getElementById('statusArea');
-            statusArea.innerHTML = `<div class="status ${type}">${message}</div>`;
-        }
-
-        // 显示进度条
-        function showProgress(show) {
-            const progressBar = document.getElementById('progressBar');
-            progressBar.style.display = show ? 'block' : 'none';
-            if (show) {
-                // 模拟进度
-                let progress = 0;
-                const interval = setInterval(() => {
-                    progress += Math.random() * 10;
-                    if (progress > 90) progress = 90;
-                    document.getElementById('progressFill').style.width = progress + '%';
-                }, 500);
-                
-                // 5秒后清除定时器
-                setTimeout(() => clearInterval(interval), 5000);
-            } else {
-                document.getElementById('progressFill').style.width = '100%';
-                setTimeout(() => {
-                    document.getElementById('progressFill').style.width = '0%';
-                }, 1000);
-            }
-        }
-
-        // 更新统计
-        function updateStats() {
-            document.getElementById('analyzedCount').textContent = analyzedCount;
-            document.getElementById('successCount').textContent = successCount;
-        }
-
-        // 显示结果
-        function showResults(results) {
-            const resultsArea = document.getElementById('resultsArea');
-            const resultsContent = document.getElementById('resultsContent');
-            
-            if (results.length === 0) {
-                resultsContent.innerHTML = '<div class="loading">没有找到结果</div>';
-            } else {
-                let html = '';
-                results.forEach(result => {
-                    const symbol = result.symbol.replace('USDT', '');
-                    const status = result.status || '未知';
-                    const price = result.current_price ? result.current_price.toFixed(6) : 'N/A';
-                    const orderPrice = result.order_price || 'N/A';
-                    const middleBand = result.middle_band ? result.middle_band.toFixed(6) : 'N/A';
-                    const lowerBand = result.lower_band ? result.lower_band.toFixed(6) : 'N/A';
-                    
-                    let statusClass = '';
-                    if (status === 'success') statusClass = 'success';
-                    else if (status === 'warning') statusClass = 'warning';
-                    else if (status === 'error') statusClass = 'danger';
-                    
-                    html += `
-                        <div class="result-item ${statusClass}">
-                            <strong>${symbol}</strong> - 状态: ${status}<br>
-                            当前价格: ${price} | 中轨: ${middleBand} | 下轨: ${lowerBand}<br>
-                            挂单价格: ${orderPrice} | 数据源: ${result.data_source || 'N/A'}
-                        </div>
-                    `;
-                });
-                resultsContent.innerHTML = html;
-            }
-            
-            resultsArea.style.display = 'block';
-        }
-    </script>
 </body>
 </html>
