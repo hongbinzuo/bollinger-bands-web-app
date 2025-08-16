@@ -164,10 +164,179 @@
             font-weight: bold;
             color: #007bff;
         }
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-        }
+                 .stat-label {
+             font-size: 12px;
+             color: #666;
+         }
+         
+         /* 表格样式 */
+         .table-container {
+             overflow-x: auto;
+             margin-top: 15px;
+         }
+         
+         .analysis-table {
+             width: 100%;
+             border-collapse: collapse;
+             background: white;
+             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+         }
+         
+         .analysis-table th,
+         .analysis-table td {
+             padding: 12px 8px;
+             text-align: left;
+             border-bottom: 1px solid #e9ecef;
+         }
+         
+         .analysis-table th {
+             background: #f8f9fa;
+             font-weight: bold;
+             color: #495057;
+             position: sticky;
+             top: 0;
+             z-index: 10;
+         }
+         
+         .analysis-table tr:hover {
+             background: #f8f9fa;
+         }
+         
+         .analysis-table tr:nth-child(even) {
+             background: #fafbfc;
+         }
+         
+         /* 筛选控制样式 */
+         .filter-controls {
+             display: flex;
+             gap: 15px;
+             margin-bottom: 15px;
+             padding: 15px;
+             background: #f8f9fa;
+             border-radius: 5px;
+             flex-wrap: wrap;
+         }
+         
+         .filter-group {
+             display: flex;
+             align-items: center;
+             gap: 8px;
+         }
+         
+         .filter-group label {
+             font-weight: bold;
+             margin: 0;
+             white-space: nowrap;
+         }
+         
+         .filter-group select,
+         .filter-group input {
+             padding: 6px 10px;
+             border: 1px solid #ddd;
+             border-radius: 4px;
+             font-size: 14px;
+         }
+         
+         .filter-group button {
+             padding: 6px 12px;
+             background: #007bff;
+             color: white;
+             border: none;
+             border-radius: 4px;
+             cursor: pointer;
+             font-size: 14px;
+         }
+         
+         .filter-group button:hover {
+             background: #0056b3;
+         }
+         
+         /* 分页控制样式 */
+         .pagination-controls {
+             display: flex;
+             justify-content: center;
+             align-items: center;
+             gap: 10px;
+             margin: 15px 0;
+             padding: 10px;
+             background: #f8f9fa;
+             border-radius: 5px;
+         }
+         
+         .pagination-controls button {
+             padding: 8px 15px;
+             background: #007bff;
+             color: white;
+             border: none;
+             border-radius: 4px;
+             cursor: pointer;
+             font-size: 14px;
+         }
+         
+         .pagination-controls button:hover {
+             background: #0056b3;
+         }
+         
+         .pagination-controls button:disabled {
+             background: #6c757d;
+             cursor: not-allowed;
+         }
+         
+         .pagination-controls select {
+             padding: 6px 10px;
+             border: 1px solid #ddd;
+             border-radius: 4px;
+             font-size: 14px;
+         }
+         
+         #pageInfo {
+             font-weight: bold;
+             color: #495057;
+         }
+         
+         /* 状态标签样式 */
+         .status-badge {
+             padding: 4px 8px;
+             border-radius: 12px;
+             font-size: 12px;
+             font-weight: bold;
+             text-align: center;
+         }
+         
+         .status-buy {
+             background: #d4edda;
+             color: #155724;
+         }
+         
+         .status-sell {
+             background: #f8d7da;
+             color: #721c24;
+         }
+         
+         .status-hold {
+             background: #fff3cd;
+             color: #856404;
+         }
+         
+         /* 操作按钮样式 */
+         .action-btn {
+             padding: 4px 8px;
+             margin: 2px;
+             border: none;
+             border-radius: 3px;
+             cursor: pointer;
+             font-size: 12px;
+         }
+         
+         .action-btn-buy {
+             background: #28a745;
+             color: white;
+         }
+         
+         .action-btn-sell {
+             background: #dc3545;
+             color: white;
+         }
     </style>
 </head>
 <body>
@@ -226,7 +395,63 @@
             </div>
             <div id="analysisResults" class="results-container" style="display: none;">
                 <h4>分析结果</h4>
-                <div id="analysisContent"></div>
+                
+                <!-- 筛选和排序控制 -->
+                <div class="filter-controls">
+                    <div class="filter-group">
+                        <label>时间级别:</label>
+                        <select id="timeframeFilter" onchange="filterResults()">
+                            <option value="all">全部</option>
+                            <option value="12h">12小时</option>
+                            <option value="1d">1天</option>
+                            <option value="3d">3天</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>排序:</label>
+                        <select id="sortBy" onchange="sortResults()">
+                            <option value="symbol">币种</option>
+                            <option value="price">当前价格</option>
+                            <option value="orderPrice">挂单价格</option>
+                            <option value="timeframe">时间级别</option>
+                        </select>
+                        <button id="sortOrder" onclick="toggleSortOrder()">↑</button>
+                    </div>
+                    <div class="filter-group">
+                        <label>搜索:</label>
+                        <input type="text" id="searchSymbol" placeholder="搜索币种..." onkeyup="filterResults()">
+                    </div>
+                </div>
+                
+                <!-- 分页控制 -->
+                <div class="pagination-controls">
+                    <button onclick="changePage(-1)" id="prevPage">上一页</button>
+                    <span id="pageInfo">第 1 页，共 1 页</span>
+                    <button onclick="changePage(1)" id="nextPage">下一页</button>
+                    <select id="pageSize" onchange="changePageSize()">
+                        <option value="20">20条/页</option>
+                        <option value="50">50条/页</option>
+                        <option value="100">100条/页</option>
+                    </select>
+                </div>
+                
+                <!-- 结果表格 -->
+                <div class="table-container">
+                    <table id="analysisTable" class="analysis-table">
+                        <thead>
+                            <tr>
+                                <th>币种</th>
+                                <th>当前价格</th>
+                                <th>挂单价格</th>
+                                <th>时间级别</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analysisTableBody">
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -305,10 +530,16 @@
         <div id="statusArea"></div>
     </div>
 
-    <script>
-        let currentResults = [];
-        let orders = [];
-        let positions = [];
+         <script>
+         let currentResults = [];
+         let orders = [];
+         let positions = [];
+         
+         // 分页和筛选相关变量
+         let currentPage = 1;
+         let pageSize = 20;
+         let filteredResults = [];
+         let sortOrder = 'asc';
 
         // 显示Tab
         function showTab(tabName) {
@@ -391,35 +622,204 @@
             }
         }
 
-        // 显示分析结果
-        function showAnalysisResults(results) {
-            const resultsContainer = document.getElementById('analysisResults');
-            const content = document.getElementById('analysisContent');
-            
-            if (results.length === 0) {
-                content.innerHTML = '<p>没有找到结果</p>';
-            } else {
-                let html = '';
-                results.forEach(result => {
-                    const symbol = result.symbol.replace('USDT', '');
-                    const price = result.current_price ? result.current_price.toFixed(6) : 'N/A';
-                    const orderPrice = result.order_price || 'N/A';
-                    const status = result.status || '未知';
-                    
-                    html += `
-                        <div class="result-item">
-                            <strong>${symbol}</strong> - 当前价格: ${price} | 挂单价格: ${orderPrice} | 状态: ${status}
-                        </div>
-                    `;
-                });
-                content.innerHTML = html;
-            }
-            
-            resultsContainer.style.display = 'block';
-        }
+                 // 显示分析结果
+         function showAnalysisResults(results) {
+             const resultsContainer = document.getElementById('analysisResults');
+             
+             if (results.length === 0) {
+                 document.getElementById('analysisTableBody').innerHTML = '<tr><td colspan="6" style="text-align: center;">没有找到结果</td></tr>';
+             } else {
+                 // 为每个结果添加时间级别
+                 const resultsWithTimeframe = results.map(result => ({
+                     ...result,
+                     timeframe: getRandomTimeframe() // 模拟时间级别，实际应该从后端获取
+                 }));
+                 
+                 currentResults = resultsWithTimeframe;
+                 filteredResults = [...resultsWithTimeframe];
+                 
+                 // 重置分页
+                 currentPage = 1;
+                 
+                 // 渲染表格
+                 renderTable();
+                 updatePagination();
+             }
+             
+             resultsContainer.style.display = 'block';
+         }
+         
+         // 模拟获取时间级别（实际应该从后端获取）
+         function getRandomTimeframe() {
+             const timeframes = ['12h', '1d', '3d'];
+             return timeframes[Math.floor(Math.random() * timeframes.length)];
+         }
+         
+         // 渲染表格
+         function renderTable() {
+             const tbody = document.getElementById('analysisTableBody');
+             const startIndex = (currentPage - 1) * pageSize;
+             const endIndex = startIndex + pageSize;
+             const pageData = filteredResults.slice(startIndex, endIndex);
+             
+             if (pageData.length === 0) {
+                 tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">没有数据</td></tr>';
+                 return;
+             }
+             
+             let html = '';
+             pageData.forEach(result => {
+                 const symbol = result.symbol.replace('USDT', '');
+                 const price = result.current_price ? result.current_price.toFixed(6) : 'N/A';
+                 const orderPrice = result.order_price || 'N/A';
+                 const status = result.status || '未知';
+                 const timeframe = result.timeframe || '1d';
+                 
+                 // 状态样式
+                 let statusClass = 'status-hold';
+                 let statusText = status;
+                 if (status.toLowerCase().includes('buy')) {
+                     statusClass = 'status-buy';
+                     statusText = '买入';
+                 } else if (status.toLowerCase().includes('sell')) {
+                     statusClass = 'status-sell';
+                     statusText = '卖出';
+                 }
+                 
+                 html += `
+                     <tr>
+                         <td><strong>${symbol}</strong></td>
+                         <td>${price}</td>
+                         <td>${orderPrice}</td>
+                         <td>${timeframe}</td>
+                         <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                         <td>
+                             <button class="action-btn action-btn-buy" onclick="createOrderFromResult('${symbol}', ${price})">买入</button>
+                             <button class="action-btn action-btn-sell" onclick="createOrderFromResult('${symbol}', ${price}, 'sell')">卖出</button>
+                         </td>
+                     </tr>
+                 `;
+             });
+             
+             tbody.innerHTML = html;
+         }
 
-        // 获取币种列表
-        async function getSymbols() {
+                 // 分页功能
+         function updatePagination() {
+             const totalPages = Math.ceil(filteredResults.length / pageSize);
+             const pageInfo = document.getElementById('pageInfo');
+             const prevBtn = document.getElementById('prevPage');
+             const nextBtn = document.getElementById('nextPage');
+             
+             pageInfo.textContent = `第 ${currentPage} 页，共 ${totalPages} 页 (共 ${filteredResults.length} 条记录)`;
+             
+             prevBtn.disabled = currentPage <= 1;
+             nextBtn.disabled = currentPage >= totalPages;
+         }
+         
+         function changePage(delta) {
+             const totalPages = Math.ceil(filteredResults.length / pageSize);
+             const newPage = currentPage + delta;
+             
+             if (newPage >= 1 && newPage <= totalPages) {
+                 currentPage = newPage;
+                 renderTable();
+                 updatePagination();
+             }
+         }
+         
+         function changePageSize() {
+             pageSize = parseInt(document.getElementById('pageSize').value);
+             currentPage = 1;
+             renderTable();
+             updatePagination();
+         }
+         
+         // 排序功能
+         function sortResults() {
+             const sortBy = document.getElementById('sortBy').value;
+             
+             filteredResults.sort((a, b) => {
+                 let aVal, bVal;
+                 
+                 switch (sortBy) {
+                     case 'symbol':
+                         aVal = a.symbol.toLowerCase();
+                         bVal = b.symbol.toLowerCase();
+                         break;
+                     case 'price':
+                         aVal = a.current_price || 0;
+                         bVal = b.current_price || 0;
+                         break;
+                     case 'orderPrice':
+                         aVal = a.order_price || 0;
+                         bVal = b.order_price || 0;
+                         break;
+                     case 'timeframe':
+                         aVal = a.timeframe || '';
+                         bVal = b.timeframe || '';
+                         break;
+                     default:
+                         return 0;
+                 }
+                 
+                 if (sortOrder === 'asc') {
+                     return aVal > bVal ? 1 : -1;
+                 } else {
+                     return aVal < bVal ? 1 : -1;
+                 }
+             });
+             
+             currentPage = 1;
+             renderTable();
+             updatePagination();
+         }
+         
+         function toggleSortOrder() {
+             const sortOrderBtn = document.getElementById('sortOrder');
+             sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+             sortOrderBtn.textContent = sortOrder === 'asc' ? '↑' : '↓';
+             sortResults();
+         }
+         
+         // 筛选功能
+         function filterResults() {
+             const timeframeFilter = document.getElementById('timeframeFilter').value;
+             const searchTerm = document.getElementById('searchSymbol').value.toLowerCase();
+             
+             filteredResults = currentResults.filter(result => {
+                 // 时间级别筛选
+                 if (timeframeFilter !== 'all' && result.timeframe !== timeframeFilter) {
+                     return false;
+                 }
+                 
+                 // 搜索筛选
+                 if (searchTerm && !result.symbol.toLowerCase().includes(searchTerm)) {
+                     return false;
+                 }
+                 
+                 return true;
+             });
+             
+             currentPage = 1;
+             renderTable();
+             updatePagination();
+         }
+         
+         // 从分析结果创建挂单
+         function createOrderFromResult(symbol, price, type = 'buy') {
+             document.getElementById('orderSymbol').value = symbol;
+             document.getElementById('orderPrice').value = price;
+             document.getElementById('orderAmount').value = '0.001'; // 默认数量
+             
+             // 切换到挂单管理Tab
+             showTab('orders');
+             
+             showStatus(`已准备创建${type === 'buy' ? '买入' : '卖出'}挂单: ${symbol}`, 'success');
+         }
+         
+         // 获取币种列表
+         async function getSymbols() {
             try {
                 const response = await fetch('/get_default_symbols');
                 const data = await response.json();
