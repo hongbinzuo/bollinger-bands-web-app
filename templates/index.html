@@ -501,6 +501,69 @@
              background: #dc3545;
              color: white;
          }
+         
+         /* 模态对话框样式 */
+         .modal {
+             display: none;
+             position: fixed;
+             z-index: 1000;
+             left: 0;
+             top: 0;
+             width: 100%;
+             height: 100%;
+             background-color: rgba(0, 0, 0, 0.7);
+             backdrop-filter: blur(5px);
+         }
+         
+         .modal-content {
+             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+             margin: 5% auto;
+             padding: 30px;
+             border: 2px solid rgba(255, 255, 255, 0.3);
+             border-radius: 15px;
+             width: 80%;
+             max-width: 500px;
+             color: white;
+             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+         }
+         
+         .modal-header {
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             margin-bottom: 20px;
+             padding-bottom: 15px;
+             border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+         }
+         
+         .modal-title {
+             font-size: 20px;
+             font-weight: bold;
+             color: white;
+             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+         }
+         
+         .close {
+             color: rgba(255, 255, 255, 0.7);
+             font-size: 28px;
+             font-weight: bold;
+             cursor: pointer;
+             transition: color 0.3s;
+         }
+         
+         .close:hover {
+             color: white;
+         }
+         
+         .modal-body {
+             margin-bottom: 20px;
+         }
+         
+         .modal-footer {
+             display: flex;
+             justify-content: flex-end;
+             gap: 10px;
+         }
     </style>
 </head>
 <body>
@@ -530,7 +593,7 @@
         </div>
         
         <div class="help-text">
-            <strong>系统说明：</strong>本系统基于布林带技术指标分析加密货币价格走势，提供智能挂单建议。支持130个币种、多时间周期、多交易所数据源、持仓管理等功能。
+                            <strong>系统说明：</strong>本系统基于布林带技术指标分析加密货币价格走势，提供智能挂单建议。支持<span id="totalSymbolsDisplay">130</span>个币种、多时间周期、多交易所数据源、持仓管理等功能。
         </div>
 
         <!-- 系统统计 -->
@@ -565,7 +628,8 @@
         <div id="analysis" class="tab-content active">
             <h3>币种分析</h3>
             <div class="form-group">
-                <button class="btn btn-success" onclick="analyzeDefault()">分析全部130个币种</button>
+                <button class="btn btn-success" onclick="analyzeDefault()">分析全部<span id="analyzeButtonCount">130</span>个币种</button>
+                <button class="btn btn-info" onclick="showAddSymbolModal()">➕ 新增币种</button>
                 <button class="btn btn-warning" onclick="analyzeCustom()">分析自定义币种</button>
                 <button class="btn" onclick="getSymbols()">获取币种列表</button>
             </div>
@@ -720,17 +784,45 @@
         <!-- 状态显示区域 -->
         <div id="statusArea"></div>
     </div>
+    
+    <!-- 新增币种模态对话框 -->
+    <div id="addSymbolModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">新增币种</span>
+                <span class="close" onclick="closeAddSymbolModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>请输入要新增的币种（用逗号分隔）：</label>
+                    <textarea class="form-control" id="newSymbolsInput" rows="4" placeholder="例如: BTC, ETH, ADA, DOT, LINK, UNI"></textarea>
+                </div>
+                <div class="form-group">
+                    <p style="color: #ffc107; font-size: 14px;">
+                        💡 提示：新增的币种将被保存到系统中，下次分析时会包含这些币种。
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAddSymbolModal()">取消</button>
+                <button class="btn btn-success" onclick="addNewSymbols()">确认添加</button>
+            </div>
+        </div>
+    </div>
 
          <script>
-         let currentResults = [];
-         let orders = [];
-         let positions = [];
-         
-         // 分页和筛选相关变量
-         let currentPage = 1;
-         let pageSize = 20;
-         let filteredResults = [];
-         let sortOrder = 'asc';
+                   let currentResults = [];
+          let orders = [];
+          let positions = [];
+          
+          // 分页和筛选相关变量
+          let currentPage = 1;
+          let pageSize = 20;
+          let filteredResults = [];
+          let sortOrder = 'asc';
+          
+          // 币种管理相关变量
+          let totalSymbols = 130; // 默认币种数量
 
         // 显示Tab
         function showTab(tabName) {
@@ -747,9 +839,9 @@
             event.target.classList.add('active');
         }
 
-        // 分析默认币种
-        async function analyzeDefault() {
-            showStatus('正在分析全部130个币种...', 'success');
+                 // 分析默认币种
+         async function analyzeDefault() {
+             showStatus(`正在分析全部${totalSymbols}个币种...`, 'success');
             try {
                 const response = await fetch('/analyze', {
                     method: 'POST',
@@ -1262,11 +1354,106 @@
             document.getElementById('totalPositions').textContent = positions.length;
         }
 
-        // 显示状态
-        function showStatus(message, type) {
-            const statusArea = document.getElementById('statusArea');
-            statusArea.innerHTML = `<div class="status ${type}">${message}</div>`;
-        }
+                 // 显示状态
+         function showStatus(message, type) {
+             const statusArea = document.getElementById('statusArea');
+             statusArea.innerHTML = `<div class="status ${type}">${message}</div>`;
+         }
+         
+         // 新增币种相关函数
+         function showAddSymbolModal() {
+             document.getElementById('addSymbolModal').style.display = 'block';
+             document.getElementById('newSymbolsInput').value = '';
+             document.getElementById('newSymbolsInput').focus();
+         }
+         
+         function closeAddSymbolModal() {
+             document.getElementById('addSymbolModal').style.display = 'none';
+         }
+         
+         async function addNewSymbols() {
+             const symbolsInput = document.getElementById('newSymbolsInput').value.trim();
+             if (!symbolsInput) {
+                 showStatus('请输入要新增的币种', 'error');
+                 return;
+             }
+             
+             const symbolList = symbolsInput.split(',').map(s => s.trim()).filter(s => s);
+             if (symbolList.length === 0) {
+                 showStatus('请输入有效的币种', 'error');
+                 return;
+             }
+             
+             try {
+                 const response = await fetch('/add_symbols', {
+                     method: 'POST',
+                     headers: {
+                         'Content-Type': 'application/json',
+                     },
+                     body: JSON.stringify({
+                         symbols: symbolList
+                     })
+                 });
+                 
+                 const data = await response.json();
+                 if (data.success) {
+                     // 更新币种数量
+                     totalSymbols = data.total_symbols;
+                     
+                     // 更新页面显示的币种数量
+                     document.getElementById('totalSymbols').textContent = totalSymbols;
+                     
+                     // 更新分析按钮文本
+                     const analyzeBtn = document.querySelector('button[onclick="analyzeDefault()"]');
+                     analyzeBtn.textContent = `分析全部${totalSymbols}个币种`;
+                     
+                     closeAddSymbolModal();
+                     showStatus(`成功新增 ${symbolList.length} 个币种，当前总计 ${totalSymbols} 个币种`, 'success');
+                     
+                     // 刷新页面
+                     setTimeout(() => {
+                         location.reload();
+                     }, 2000);
+                 } else {
+                     showStatus('新增币种失败: ' + data.error, 'error');
+                 }
+             } catch (error) {
+                 showStatus('请求失败: ' + error.message, 'error');
+             }
+         }
+         
+         // 点击模态框外部关闭
+         window.onclick = function(event) {
+             const modal = document.getElementById('addSymbolModal');
+             if (event.target === modal) {
+                 closeAddSymbolModal();
+             }
+         }
+         
+         // 更新币种数量
+         async function updateSymbolCount() {
+             try {
+                 const response = await fetch('/get_default_symbols');
+                 const data = await response.json();
+                 
+                 totalSymbols = data.count;
+                 
+                 // 更新所有显示币种数量的地方
+                 document.getElementById('totalSymbols').textContent = totalSymbols;
+                 document.getElementById('totalSymbolsDisplay').textContent = totalSymbols;
+                 document.getElementById('analyzeButtonCount').textContent = totalSymbols;
+                 
+                 // 更新分析按钮文本
+                 const analyzeBtn = document.querySelector('button[onclick="analyzeDefault()"]');
+                 if (analyzeBtn) {
+                     analyzeBtn.textContent = `分析全部${totalSymbols}个币种`;
+                 }
+                 
+                 console.log(`当前币种数量: ${totalSymbols}`);
+             } catch (error) {
+                 console.error('获取币种数量失败:', error);
+             }
+         }
 
         // 视频背景控制
         let videoElement = null;
@@ -1351,12 +1538,15 @@
             }
         }
         
-        // 页面加载完成后的初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('布林带策略系统已加载完成');
-            showStatus('系统已就绪，可以开始分析', 'success');
-            updateStats();
-            updateSystemStatus();
+                 // 页面加载完成后的初始化
+         document.addEventListener('DOMContentLoaded', function() {
+             console.log('布林带策略系统已加载完成');
+             showStatus('系统已就绪，可以开始分析', 'success');
+             updateStats();
+             updateSystemStatus();
+             
+             // 获取当前币种数量
+             updateSymbolCount();
             
             // 初始化视频背景
             initVideoBackground();

@@ -345,6 +345,9 @@ class BollingerBandsAnalyzer:
         except Exception as e:
             logger.error(f"清除缓存失败: {e}")
 
+# 币种存储文件
+SYMBOLS_FILE = os.path.join(CACHE_DIR, "custom_symbols.json")
+
 # 默认币种列表
 DEFAULT_SYMBOLS = [
     'ROAMUSDT', 'SAGAUSDT', 'SQDUSDT', 'SUNUSDT', 'USUALUSDT', 'KAVAUSDT', 'AERGOUSDT', 'LAYERUSDT', 'AVAAIUSDT', 'KAITOUSDT',
@@ -362,11 +365,46 @@ DEFAULT_SYMBOLS = [
     'BIDUSDT', 'DEEPUSDT', 'RADUSDT', 'RWAUSDT', 'IOUSDT', 'PONKEUSDT', 'GTCUSDT', 'KUSDT', 'HMSTRUSDT'
 ]
 
+def load_custom_symbols():
+    """加载自定义币种列表"""
+    try:
+        if os.path.exists(SYMBOLS_FILE):
+            with open(SYMBOLS_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get('symbols', [])
+        return []
+    except Exception as e:
+        logger.error(f"加载自定义币种失败: {e}")
+        return []
+
+def save_custom_symbols(symbols):
+    """保存自定义币种列表"""
+    try:
+        data = {
+            'symbols': symbols,
+            'updated_at': datetime.now().isoformat()
+        }
+        with open(SYMBOLS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        logger.info(f"自定义币种已保存，共 {len(symbols)} 个")
+    except Exception as e:
+        logger.error(f"保存自定义币种失败: {e}")
+
+def get_all_symbols():
+    """获取所有币种（默认 + 自定义）"""
+    custom_symbols = load_custom_symbols()
+    all_symbols = list(set(DEFAULT_SYMBOLS + custom_symbols))  # 去重
+    return all_symbols
+
 # 记录应用启动信息
 logger.info("=== 布林带策略系统启动 ===")
+all_symbols = get_all_symbols()
+custom_symbols = load_custom_symbols()
 logger.info(f"默认币种数量: {len(DEFAULT_SYMBOLS)}")
+logger.info(f"自定义币种数量: {len(custom_symbols)}")
+logger.info(f"总币种数量: {len(all_symbols)}")
 logger.info("日志文件位置: logs/app.log")
-logger.info(f"前10个币种: {DEFAULT_SYMBOLS[:10]}")
+logger.info(f"前10个币种: {all_symbols[:10]}")
 
 # 全局分析器实例
 analyzer = BollingerBandsAnalyzer()
@@ -398,24 +436,94 @@ def index():
 @app.route('/get_default_symbols', methods=['GET'])
 def get_default_symbols():
     """获取默认币种列表"""
-    logger.info(f"获取默认币种列表请求，币种数量: {len(DEFAULT_SYMBOLS)}")
+    all_symbols = get_all_symbols()
+    logger.info(f"获取币种列表请求，总币种数量: {len(all_symbols)}")
     return jsonify({
-        'symbols': DEFAULT_SYMBOLS,
-        'count': len(DEFAULT_SYMBOLS)
+        'symbols': all_symbols,
+        'count': len(all_symbols)
     })
+
+@app.route('/add_symbols', methods=['POST'])
+def add_symbols():
+    """新增币种"""
+    try:
+        data = request.get_json()
+        new_symbols = data.get('symbols', [])
+        
+        if not new_symbols:
+            return jsonify({
+                'success': False,
+                'error': '请提供要新增的币种'
+            })
+        
+        # 验证币种格式
+        valid_symbols = []
+        for symbol in new_symbols:
+            symbol = symbol.strip().upper()
+            if symbol and symbol.isalnum() and len(symbol) <= 10:
+                # 确保币种以USDT结尾
+                if not symbol.endswith('USDT'):
+                    symbol += 'USDT'
+                valid_symbols.append(symbol)
+            else:
+                logger.warning(f"无效币种格式: {symbol}")
+        
+        if not valid_symbols:
+            return jsonify({
+                'success': False,
+                'error': '没有有效的币种格式'
+            })
+        
+        # 加载现有自定义币种
+        existing_custom_symbols = load_custom_symbols()
+        
+        # 合并新币种（去重）
+        all_custom_symbols = list(set(existing_custom_symbols + valid_symbols))
+        
+        # 保存更新后的币种列表
+        save_custom_symbols(all_custom_symbols)
+        
+        # 获取总币种数量
+        total_symbols = len(get_all_symbols())
+        
+        logger.info(f"新增币种成功: {valid_symbols}, 当前总币种数量: {total_symbols}")
+        
+        return jsonify({
+            'success': True,
+            'added_symbols': valid_symbols,
+            'total_symbols': total_symbols,
+            'message': f'成功新增 {len(valid_symbols)} 个币种'
+        })
+        
+    except Exception as e:
+        logger.error(f"新增币种失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'新增币种失败: {str(e)}'
+        })
 
 @app.route('/debug/symbols', methods=['GET'])
 def debug_symbols():
     """调试页面：显示当前币种列表"""
     logger.info("访问调试页面")
-    symbols_without_usdt = [s.replace('USDT', '') for s in DEFAULT_SYMBOLS]
+    all_symbols = get_all_symbols()
+    custom_symbols = load_custom_symbols()
+    symbols_without_usdt = [s.replace('USDT', '') for s in all_symbols]
+    custom_symbols_without_usdt = [s.replace('USDT', '') for s in custom_symbols]
+    
     return f"""
     <html>
     <head><title>调试页面 - 币种列表</title></head>
     <body>
         <h1>调试页面 - 当前币种列表</h1>
-        <p><strong>总数量:</strong> {len(DEFAULT_SYMBOLS)}</p>
-        <p><strong>前20个币种:</strong></p>
+        <p><strong>默认币种数量:</strong> {len(DEFAULT_SYMBOLS)}</p>
+        <p><strong>自定义币种数量:</strong> {len(custom_symbols)}</p>
+        <p><strong>总币种数量:</strong> {len(all_symbols)}</p>
+        
+        <h2>自定义币种:</h2>
+        <p>{', '.join(custom_symbols_without_usdt) if custom_symbols_without_usdt else '无'}</p>
+        
+        <h2>前20个币种:</h2>
         <ul>
             {''.join([f'<li>{s}</li>' for s in symbols_without_usdt[:20]])}
         </ul>
@@ -435,9 +543,10 @@ def analyze():
         symbols = data.get('symbols', [])  # 获取前端传来的币种列表
         force_refresh = data.get('force_refresh', False)
         
-        # 如果没有提供币种列表，使用默认列表
+        # 如果没有提供币种列表，使用所有币种列表
         if not symbols:
-            symbols = [s.replace('USDT', '') for s in DEFAULT_SYMBOLS]  # 移除USDT后缀用于处理
+            all_symbols = get_all_symbols()
+            symbols = [s.replace('USDT', '') for s in all_symbols]  # 移除USDT后缀用于处理
         
         # 确保所有币种都有USDT后缀
         symbols_with_usdt = []
@@ -472,95 +581,7 @@ def analyze():
         logger.error(f"分析请求失败: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/add_symbols', methods=['POST'])
-def add_symbols():
-    """添加币种"""
-    try:
-        data = request.get_json()
-        symbols_str = data.get('symbols', '')
-        current_symbols = data.get('current_symbols', [])
-        
-        if not symbols_str:
-            return jsonify({'error': '请提供币种列表'}), 400
-        
-        # 验证格式
-        new_symbols = validate_symbols(symbols_str)
-        if not new_symbols:
-            return jsonify({'error': '币种格式无效，请使用逗号分隔的字母数字组合'}), 400
-        
-        # 合并并去重
-        all_symbols = list(set(current_symbols + new_symbols))
-        all_symbols.sort()  # 排序
-        
-        return jsonify({
-            'success': True,
-            'symbols': all_symbols,
-            'added': new_symbols,
-            'message': f'成功添加 {len(new_symbols)} 个币种'
-        })
-        
-    except Exception as e:
-        logger.error(f"添加币种失败: {e}")
-        return jsonify({'error': str(e)}), 500
 
-@app.route('/remove_symbols', methods=['POST'])
-def remove_symbols():
-    """删除币种"""
-    try:
-        data = request.get_json()
-        symbols_str = data.get('symbols', '')
-        current_symbols = data.get('current_symbols', [])
-        
-        if not symbols_str:
-            return jsonify({'error': '请提供要删除的币种列表'}), 400
-        
-        # 验证格式
-        symbols_to_remove = validate_symbols(symbols_str)
-        if not symbols_to_remove:
-            return jsonify({'error': '币种格式无效，请使用逗号分隔的字母数字组合'}), 400
-        
-        # 删除币种
-        remaining_symbols = [s for s in current_symbols if s not in symbols_to_remove]
-        
-        return jsonify({
-            'success': True,
-            'symbols': remaining_symbols,
-            'removed': symbols_to_remove,
-            'message': f'成功删除 {len(symbols_to_remove)} 个币种'
-        })
-        
-    except Exception as e:
-        logger.error(f"删除币种失败: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/search_symbol', methods=['POST'])
-def search_symbol():
-    """查询币种"""
-    try:
-        data = request.get_json()
-        symbol = data.get('symbol', '').strip().upper()
-        current_symbols = data.get('current_symbols', [])
-        
-        if not symbol:
-            return jsonify({'error': '请提供要查询的币种'}), 400
-        
-        # 验证格式
-        if not symbol.isalnum() or len(symbol) > 10:
-            return jsonify({'error': '币种格式无效'}), 400
-        
-        # 查询是否存在
-        exists = symbol in current_symbols
-        
-        return jsonify({
-            'success': True,
-            'symbol': symbol,
-            'exists': exists,
-            'message': f'币种 {symbol} {"存在" if exists else "不存在"}'
-        })
-        
-    except Exception as e:
-        logger.error(f"查询币种失败: {e}")
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/clear_cache', methods=['POST'])
 def clear_cache():
