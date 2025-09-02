@@ -1,0 +1,75 @@
+name: Railway Backup
+on:
+  workflow_dispatch:  # 手动触发
+  schedule:
+    - cron: '0 2 * * *'  # 每天凌晨2点自动备份
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+        
+      - name: Login to Railway
+        run: echo ${{ secrets.RAILWAY_TOKEN }} | railway login
+        
+      - name: Link to Railway project
+        run: railway link --project ${{ secrets.RAILWAY_PROJECT_ID }}
+        
+      - name: Run backup script
+        run: railway run python railway_backup_correct.py
+        
+      - name: Wait for backup completion
+        run: sleep 10
+        
+      - name: List backup files
+        run: ls -la *.zip || echo "No zip files found"
+        
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: railway_backup_*.zip
+          tag_name: backup-${{ github.run_number }}
+          name: Railway Backup ${{ github.run_number }}
+          body: |
+            ## Railway数据备份
+            
+            **备份时间**: ${{ github.event.head_commit.timestamp }}
+            **触发方式**: ${{ github.event_name }}
+            **工作流运行**: #${{ github.run_number }}
+            
+            ### 备份内容
+            - 用户自定义币种
+            - 数据库文件
+            - 缓存目录
+            - 日志文件
+            
+            ### 使用方法
+            1. 下载ZIP文件
+            2. 解压到本地目录
+            3. 使用恢复脚本恢复数据
+            
+            **注意**: 此备份包含敏感数据，请妥善保管
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Upload backup as artifact (backup)
+        uses: actions/upload-artifact@v3
+        with:
+          name: railway-backup-${{ github.run_number }}
+          path: railway_backup_*.zip
+          retention-days: 30
