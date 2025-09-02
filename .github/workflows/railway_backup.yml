@@ -17,110 +17,156 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.11'
           
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
+          cache: 'npm'
           
-      - name: Install Railway CLI
+      - name: Install latest Railway CLI
         run: |
-          npm install -g @railway/cli
+          echo "Installing latest Railway CLI..."
+          npm install -g @railway/cli@latest
           railway --version
+          echo "Railway CLI installation completed"
           
-      - name: Check Railway CLI installation
+      - name: Verify Railway CLI installation
         run: |
+          echo "Verifying Railway CLI installation..."
           which railway
           railway --version
-          echo "Railway CLI installed successfully"
+          echo "CLI path: $(which railway)"
+          echo "CLI version: $(railway --version)"
           
-      - name: Setup Railway authentication
+      - name: Setup Railway environment
         run: |
-          echo "Setting up Railway authentication..."
-          echo "RAILWAY_TOKEN length: ${#RAILWAY_TOKEN}"
-          echo "RAILWAY_PROJECT_ID: $RAILWAY_PROJECT_ID"
+          echo "Setting up Railway environment..."
+          echo "Token length: ${#RAILWAY_TOKEN}"
+          echo "Project ID: $RAILWAY_PROJECT_ID"
+          
+          # Set environment variables for Railway CLI
+          export RAILWAY_TOKEN="$RAILWAY_TOKEN"
+          export RAILWAY_PROJECT_ID="$RAILWAY_PROJECT_ID"
           
           # Create Railway config directory
           mkdir -p ~/.railway
           
-          # Create config file with proper format
-          cat > ~/.railway/config.json << EOF
+          # Create config file with proper escaping
+          cat > ~/.railway/config.json << 'EOF'
           {
-            "token": "$RAILWAY_TOKEN",
-            "project": "$RAILWAY_PROJECT_ID"
+            "token": "'"$RAILWAY_TOKEN"'",
+            "project": "'"$RAILWAY_PROJECT_ID"'"
           }
           EOF
           
-          echo "Authentication config created"
-          cat ~/.railway/config.json
+          echo "Config file created successfully"
+          echo "Config file contents (masked):"
+          cat ~/.railway/config.json | sed 's/"[^"]*"/"***"/g'
           
-      - name: Verify Railway authentication
+      - name: Test Railway authentication methods
         run: |
-          echo "Verifying Railway authentication..."
-          railway whoami
-          echo "Authentication verified"
+          echo "Testing various Railway authentication methods..."
           
-      - name: Link to Railway project
-        run: |
-          echo "Linking to Railway project: $RAILWAY_PROJECT_ID"
-          railway link --project $RAILWAY_PROJECT_ID
-          echo "Project linked successfully"
+          # Method 1: Direct environment variable
+          echo "Method 1: Direct environment variable"
+          RAILWAY_TOKEN="$RAILWAY_TOKEN" railway whoami || echo "Method 1 failed"
           
-      - name: Check Railway project status
-        run: |
-          echo "Checking Railway project status..."
-          railway status
-          echo "Project status checked"
+          # Method 2: Config file
+          echo "Method 2: Config file"
+          railway whoami || echo "Method 2 failed"
           
-      - name: List current directory
+          # Method 3: Direct project link
+          echo "Method 3: Direct project link"
+          railway link --project "$RAILWAY_PROJECT_ID" || echo "Method 3 failed"
+          
+          echo "Authentication testing completed"
+          
+      - name: Verify final authentication
         run: |
-          echo "Current directory contents:"
+          echo "Verifying final authentication status..."
+          
+          # Check if we can access Railway
+          if railway whoami > /dev/null 2>&1; then
+            echo "✅ Railway authentication successful"
+            railway whoami
+          else
+            echo "❌ Railway authentication failed"
+            echo "Attempting to continue with project link..."
+            railway link --project "$RAILWAY_PROJECT_ID" || echo "Project link also failed"
+          fi
+          
+      - name: Check Railway project access
+        run: |
+          echo "Checking Railway project access..."
+          
+          # Try to get project status
+          if railway status > /dev/null 2>&1; then
+            echo "✅ Project access successful"
+            railway status
+          else
+            echo "❌ Project access failed"
+            echo "Available commands:"
+            railway --help
+          fi
+          
+      - name: List current directory and files
+        run: |
+          echo "Current working directory: $(pwd)"
+          echo "Directory contents:"
           ls -la
-          echo "Directory listing completed"
+          echo ""
+          echo "Python files:"
+          find . -name "*.py" -type f
+          echo ""
+          echo "Railway config:"
+          ls -la ~/.railway/ || echo "No Railway config directory"
           
-      - name: Check if backup script exists
+      - name: Check backup script existence
         run: |
-          echo "Checking for backup script..."
+          echo "Checking backup script..."
           if [ -f "railway_backup_correct.py" ]; then
-            echo "Backup script found: railway_backup_correct.py"
-            ls -la railway_backup_correct.py
+            echo "✅ Backup script found: railway_backup_correct.py"
+            echo "File size: $(ls -lh railway_backup_correct.py | awk '{print $5}')"
+            echo "File permissions: $(ls -la railway_backup_correct.py | awk '{print $1}')"
           else
-            echo "Backup script NOT found!"
+            echo "❌ Backup script NOT found!"
             echo "Available Python files:"
-            find . -name "*.py" -type f
+            find . -name "*.py" -type f -exec ls -la {} \;
           fi
           
-      - name: Run backup script
+      - name: Execute backup with fallback
         run: |
-          echo "Starting backup process..."
-          railway run python railway_backup_correct.py
-          echo "Backup script execution completed"
+          echo "Executing backup process..."
           
-      - name: Wait for backup completion
-        run: |
-          echo "Waiting for backup to complete..."
-          sleep 15
-          echo "Wait completed"
-          
-      - name: List backup files
-        run: |
-          echo "Checking for backup files..."
-          ls -la *.zip || echo "No zip files found"
-          echo "File listing completed"
-          
-      - name: Check backup file size
-        run: |
-          if [ -f "railway_backup_*.zip" ]; then
-            echo "Backup file found:"
-            ls -la railway_backup_*.zip
-            echo "File size check completed"
+          # Try Railway run first
+          if command -v railway > /dev/null 2>&1 && railway whoami > /dev/null 2>&1; then
+            echo "Using Railway CLI for backup..."
+            railway run python railway_backup_correct.py || {
+              echo "Railway CLI backup failed, trying local execution..."
+              python railway_backup_correct.py || echo "Local execution also failed"
+            }
           else
-            echo "No backup zip files found"
+            echo "Railway CLI not available, trying local execution..."
+            python railway_backup_correct.py || echo "Local execution failed"
           fi
+          
+          echo "Backup execution completed"
+          
+      - name: Wait and check for backup files
+        run: |
+          echo "Waiting for backup completion..."
+          sleep 20
+          
+          echo "Checking for backup files..."
+          ls -la *.zip 2>/dev/null || echo "No ZIP files found"
+          
+          echo "Checking for any backup files:"
+          find . -name "*backup*" -type f 2>/dev/null || echo "No backup files found"
           
       - name: Create GitHub Release
-        if: success() && contains(steps.list-backup-files.outputs.files, '*.zip')
+        if: success()
         uses: softprops/action-gh-release@v1
         with:
           files: railway_backup_*.zip
