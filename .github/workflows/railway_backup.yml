@@ -7,6 +7,9 @@ on:
 jobs:
   backup:
     runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,9 +38,22 @@ jobs:
       - name: Setup Railway authentication
         run: |
           echo "Setting up Railway authentication..."
+          echo "RAILWAY_TOKEN length: ${#RAILWAY_TOKEN}"
+          echo "RAILWAY_PROJECT_ID: $RAILWAY_PROJECT_ID"
+          
+          # Create Railway config directory
           mkdir -p ~/.railway
-          echo '{"token":"${{ secrets.RAILWAY_TOKEN }}"}' > ~/.railway/config.json
+          
+          # Create config file with proper format
+          cat > ~/.railway/config.json << EOF
+          {
+            "token": "$RAILWAY_TOKEN",
+            "project": "$RAILWAY_PROJECT_ID"
+          }
+          EOF
+          
           echo "Authentication config created"
+          cat ~/.railway/config.json
           
       - name: Verify Railway authentication
         run: |
@@ -47,8 +63,8 @@ jobs:
           
       - name: Link to Railway project
         run: |
-          echo "Linking to Railway project: ${{ secrets.RAILWAY_PROJECT_ID }}"
-          railway link --project ${{ secrets.RAILWAY_PROJECT_ID }}
+          echo "Linking to Railway project: $RAILWAY_PROJECT_ID"
+          railway link --project $RAILWAY_PROJECT_ID
           echo "Project linked successfully"
           
       - name: Check Railway project status
