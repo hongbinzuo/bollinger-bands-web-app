@@ -159,16 +159,43 @@ jobs:
           sleep 20
           
           echo "Checking for backup files..."
+          echo "Current directory: $(pwd)"
+          echo "All files in current directory:"
+          ls -la
+          
+          echo ""
+          echo "Looking for ZIP files:"
           ls -la *.zip 2>/dev/null || echo "No ZIP files found"
           
-          echo "Checking for any backup files:"
+          echo ""
+          echo "Looking for any backup files:"
           find . -name "*backup*" -type f 2>/dev/null || echo "No backup files found"
           
+          echo ""
+          echo "Looking for any ZIP files in subdirectories:"
+          find . -name "*.zip" -type f 2>/dev/null || echo "No ZIP files found in subdirectories"
+          
+      - name: Create backup summary
+        run: |
+          echo "Creating backup summary..."
+          
+          # Check if any backup files were created
+          if find . -name "*.zip" -type f 2>/dev/null | grep -q .; then
+            echo "✅ Backup files found:"
+            find . -name "*.zip" -type f -exec ls -la {} \;
+            echo "BACKUP_SUCCESS=true" >> $GITHUB_ENV
+          else
+            echo "❌ No backup files found"
+            echo "BACKUP_SUCCESS=false" >> $GITHUB_ENV
+          fi
+          
       - name: Create GitHub Release
-        if: success()
+        if: env.BACKUP_SUCCESS == 'true'
         uses: softprops/action-gh-release@v1
         with:
-          files: railway_backup_*.zip
+          files: |
+            *.zip
+            *backup*.zip
           tag_name: backup-${{ github.run_number }}
           name: Railway Backup ${{ github.run_number }}
           body: |
@@ -197,6 +224,37 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: railway-backup-${{ github.run_number }}
-          path: railway_backup_*.zip
+          path: |
+            *.zip
+            *backup*.zip
           retention-days: 30
           if-no-files-found: warn
+          
+      - name: Create backup report
+        if: always()
+        run: |
+          echo "## Backup Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Run**: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ env.BACKUP_SUCCESS }}" = "true" ]; then
+            echo "✅ **Backup Status**: Success" >> $GITHUB_STEP_SUMMARY
+            echo "**Files Created**: " >> $GITHUB_STEP_SUMMARY
+            find . -name "*.zip" -type f -exec echo "- \`{}\`" \; >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Backup Status**: Failed" >> $GITHUB_STEP_SUMMARY
+            echo "**Reason**: No backup files were generated" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps**: " >> $GITHUB_STEP_SUMMARY
+          if [ "${{ env.BACKUP_SUCCESS }}" = "true" ]; then
+            echo "1. Download backup files from GitHub Releases or Artifacts" >> $GITHUB_STEP_SUMMARY
+            echo "2. Extract and verify backup contents" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "1. Check Railway authentication and project access" >> $GITHUB_STEP_SUMMARY
+            echo "2. Verify backup script execution" >> $GITHUB_STEP_SUMMARY
+            echo "3. Review logs for error details" >> $GITHUB_STEP_SUMMARY
+          fi
