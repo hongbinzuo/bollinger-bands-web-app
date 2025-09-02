@@ -32,17 +32,18 @@ jobs:
           railway --version
           echo "Railway CLI installed successfully"
           
-      - name: Login to Railway
+      - name: Setup Railway authentication
         run: |
-          echo "Attempting to login to Railway..."
-          echo ${{ secrets.RAILWAY_TOKEN }} | railway login
-          echo "Login completed"
+          echo "Setting up Railway authentication..."
+          mkdir -p ~/.railway
+          echo '{"token":"${{ secrets.RAILWAY_TOKEN }}"}' > ~/.railway/config.json
+          echo "Authentication config created"
           
-      - name: Check Railway login status
+      - name: Verify Railway authentication
         run: |
-          echo "Checking Railway login status..."
+          echo "Verifying Railway authentication..."
           railway whoami
-          echo "Login status checked"
+          echo "Authentication verified"
           
       - name: Link to Railway project
         run: |
