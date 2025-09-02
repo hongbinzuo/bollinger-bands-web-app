@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -17,29 +17,93 @@ jobs:
           python-version: '3.9'
           
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '16'
+          node-version: '18'
           
       - name: Install Railway CLI
-        run: npm install -g @railway/cli
-        
+        run: |
+          npm install -g @railway/cli
+          railway --version
+          
+      - name: Check Railway CLI installation
+        run: |
+          which railway
+          railway --version
+          echo "Railway CLI installed successfully"
+          
       - name: Login to Railway
-        run: echo ${{ secrets.RAILWAY_TOKEN }} | railway login
-        
+        run: |
+          echo "Attempting to login to Railway..."
+          echo ${{ secrets.RAILWAY_TOKEN }} | railway login
+          echo "Login completed"
+          
+      - name: Check Railway login status
+        run: |
+          echo "Checking Railway login status..."
+          railway whoami
+          echo "Login status checked"
+          
       - name: Link to Railway project
-        run: railway link --project ${{ secrets.RAILWAY_PROJECT_ID }}
-        
+        run: |
+          echo "Linking to Railway project: ${{ secrets.RAILWAY_PROJECT_ID }}"
+          railway link --project ${{ secrets.RAILWAY_PROJECT_ID }}
+          echo "Project linked successfully"
+          
+      - name: Check Railway project status
+        run: |
+          echo "Checking Railway project status..."
+          railway status
+          echo "Project status checked"
+          
+      - name: List current directory
+        run: |
+          echo "Current directory contents:"
+          ls -la
+          echo "Directory listing completed"
+          
+      - name: Check if backup script exists
+        run: |
+          echo "Checking for backup script..."
+          if [ -f "railway_backup_correct.py" ]; then
+            echo "Backup script found: railway_backup_correct.py"
+            ls -la railway_backup_correct.py
+          else
+            echo "Backup script NOT found!"
+            echo "Available Python files:"
+            find . -name "*.py" -type f
+          fi
+          
       - name: Run backup script
-        run: railway run python railway_backup_correct.py
-        
+        run: |
+          echo "Starting backup process..."
+          railway run python railway_backup_correct.py
+          echo "Backup script execution completed"
+          
       - name: Wait for backup completion
-        run: sleep 10
-        
+        run: |
+          echo "Waiting for backup to complete..."
+          sleep 15
+          echo "Wait completed"
+          
       - name: List backup files
-        run: ls -la *.zip || echo "No zip files found"
-        
+        run: |
+          echo "Checking for backup files..."
+          ls -la *.zip || echo "No zip files found"
+          echo "File listing completed"
+          
+      - name: Check backup file size
+        run: |
+          if [ -f "railway_backup_*.zip" ]; then
+            echo "Backup file found:"
+            ls -la railway_backup_*.zip
+            echo "File size check completed"
+          else
+            echo "No backup zip files found"
+          fi
+          
       - name: Create GitHub Release
+        if: success() && contains(steps.list-backup-files.outputs.files, '*.zip')
         uses: softprops/action-gh-release@v1
         with:
           files: railway_backup_*.zip
@@ -67,9 +131,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Upload backup as artifact (backup)
-        uses: actions/upload-artifact@v3
+      - name: Upload backup as artifact
+        uses: actions/upload-artifact@v4
         with:
           name: railway-backup-${{ github.run_number }}
           path: railway_backup_*.zip
           retention-days: 30
+          if-no-files-found: warn
