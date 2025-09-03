@@ -39,7 +39,7 @@ jobs:
           echo "CLI path: $(which railway)"
           echo "CLI version: $(railway --version)"
           
-      - name: Setup Railway environment
+            - name: Setup Railway environment
         run: |
           echo "Setting up Railway environment..."
           echo "Token length: ${#RAILWAY_TOKEN}"
@@ -52,13 +52,8 @@ jobs:
           # Create Railway config directory
           mkdir -p ~/.railway
           
-          # Create config file with proper escaping
-          cat > ~/.railway/config.json << 'EOF'
-          {
-            "token": "'"$RAILWAY_TOKEN"'",
-            "project": "'"$RAILWAY_PROJECT_ID"'"
-          }
-          EOF
+          # Create config file with proper variable substitution
+          echo "{\"token\":\"$RAILWAY_TOKEN\",\"project\":\"$RAILWAY_PROJECT_ID\"}" > ~/.railway/config.json
           
           echo "Config file created successfully"
           echo "Config file contents (masked):"
