@@ -39,7 +39,7 @@ jobs:
           echo "CLI path: $(which railway)"
           echo "CLI version: $(railway --version)"
           
-            - name: Setup Railway environment
+      - name: Setup Railway environment
         run: |
           echo "Setting up Railway environment..."
           echo "Token length: ${#RAILWAY_TOKEN}"
