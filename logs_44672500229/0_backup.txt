@@ -1,0 +1,776 @@
+﻿2025-09-02T23:38:43.7829689Z Current runner version: '2.328.0'
+2025-09-02T23:38:43.7852458Z ##[group]Runner Image Provisioner
+2025-09-02T23:38:43.7853333Z Hosted Compute Agent
+2025-09-02T23:38:43.7853885Z Version: 20250829.383
+2025-09-02T23:38:43.7854756Z Commit: 27cb235aab5b0e52e153a26cd86b4742e89dac5d
+2025-09-02T23:38:43.7855434Z Build Date: 2025-08-29T13:48:48Z
+2025-09-02T23:38:43.7856021Z ##[endgroup]
+2025-09-02T23:38:43.7856663Z ##[group]Operating System
+2025-09-02T23:38:43.7857180Z Ubuntu
+2025-09-02T23:38:43.7857632Z 24.04.3
+2025-09-02T23:38:43.7858158Z LTS
+2025-09-02T23:38:43.7858581Z ##[endgroup]
+2025-09-02T23:38:43.7859090Z ##[group]Runner Image
+2025-09-02T23:38:43.7859697Z Image: ubuntu-24.04
+2025-09-02T23:38:43.7860208Z Version: 20250831.1.0
+2025-09-02T23:38:43.7861160Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250831.1/images/ubuntu/Ubuntu2404-Readme.md
+2025-09-02T23:38:43.7862729Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250831.1
+2025-09-02T23:38:43.7863751Z ##[endgroup]
+2025-09-02T23:38:43.7864975Z ##[group]GITHUB_TOKEN Permissions
+2025-09-02T23:38:43.7866733Z Contents: read
+2025-09-02T23:38:43.7867412Z Metadata: read
+2025-09-02T23:38:43.7867924Z Packages: read
+2025-09-02T23:38:43.7868410Z ##[endgroup]
+2025-09-02T23:38:43.7870441Z Secret source: Actions
+2025-09-02T23:38:43.7871151Z Prepare workflow directory
+2025-09-02T23:38:43.8425927Z Prepare all required actions
+2025-09-02T23:38:43.8461838Z Getting action download info
+2025-09-02T23:38:44.3058139Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+2025-09-02T23:38:44.3745997Z Download action repository 'actions/setup-python@v4' (SHA:7f4fc3e22c37d6ff65e88745f38bd3157c663f7c)
+2025-09-02T23:38:44.4534680Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2025-09-02T23:38:44.5888986Z Download action repository 'softprops/action-gh-release@v1' (SHA:de2c0eb89ae2a093876385947365aca7b0e5f844)
+2025-09-02T23:38:45.0866979Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2025-09-02T23:38:45.2760549Z Complete job name: backup
+2025-09-02T23:38:45.3401515Z ##[group]Run actions/checkout@v4
+2025-09-02T23:38:45.3402322Z with:
+2025-09-02T23:38:45.3402769Z   repository: hongbinzuo/bollinger-bands-web-app
+2025-09-02T23:38:45.3403471Z   token: ***
+2025-09-02T23:38:45.3403842Z   ssh-strict: true
+2025-09-02T23:38:45.3404232Z   ssh-user: git
+2025-09-02T23:38:45.3404794Z   persist-credentials: true
+2025-09-02T23:38:45.3405228Z   clean: true
+2025-09-02T23:38:45.3405624Z   sparse-checkout-cone-mode: true
+2025-09-02T23:38:45.3406091Z   fetch-depth: 1
+2025-09-02T23:38:45.3406460Z   fetch-tags: false
+2025-09-02T23:38:45.3406856Z   show-progress: true
+2025-09-02T23:38:45.3407256Z   lfs: false
+2025-09-02T23:38:45.3407612Z   submodules: false
+2025-09-02T23:38:45.3408014Z   set-safe-directory: true
+2025-09-02T23:38:45.3408842Z env:
+2025-09-02T23:38:45.3409485Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:45.3410066Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:45.3410638Z ##[endgroup]
+2025-09-02T23:38:45.4448673Z Syncing repository: hongbinzuo/bollinger-bands-web-app
+2025-09-02T23:38:45.4450511Z ##[group]Getting Git version info
+2025-09-02T23:38:45.4451373Z Working directory is '/home/runner/work/bollinger-bands-web-app/bollinger-bands-web-app'
+2025-09-02T23:38:45.4452478Z [command]/usr/bin/git version
+2025-09-02T23:38:45.4495475Z git version 2.51.0
+2025-09-02T23:38:45.4520229Z ##[endgroup]
+2025-09-02T23:38:45.4533386Z Temporarily overriding HOME='/home/runner/work/_temp/2cd44b65-560e-4adf-a3c3-f4f2373fc157' before making global git config changes
+2025-09-02T23:38:45.4534989Z Adding repository directory to the temporary git global config as a safe directory
+2025-09-02T23:38:45.4545639Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/bollinger-bands-web-app/bollinger-bands-web-app
+2025-09-02T23:38:45.4581013Z Deleting the contents of '/home/runner/work/bollinger-bands-web-app/bollinger-bands-web-app'
+2025-09-02T23:38:45.4584099Z ##[group]Initializing the repository
+2025-09-02T23:38:45.4589238Z [command]/usr/bin/git init /home/runner/work/bollinger-bands-web-app/bollinger-bands-web-app
+2025-09-02T23:38:45.4663929Z hint: Using 'master' as the name for the initial branch. This default branch name
+2025-09-02T23:38:45.4665861Z hint: is subject to change. To configure the initial branch name to use in all
+2025-09-02T23:38:45.4666923Z hint: of your new repositories, which will suppress this warning, call:
+2025-09-02T23:38:45.4668015Z hint:
+2025-09-02T23:38:45.4668881Z hint: 	git config --global init.defaultBranch <name>
+2025-09-02T23:38:45.4669932Z hint:
+2025-09-02T23:38:45.4670925Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2025-09-02T23:38:45.4672569Z hint: 'development'. The just-created branch can be renamed via this command:
+2025-09-02T23:38:45.4673858Z hint:
+2025-09-02T23:38:45.4674705Z hint: 	git branch -m <name>
+2025-09-02T23:38:45.4675480Z hint:
+2025-09-02T23:38:45.4676541Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2025-09-02T23:38:45.4678710Z Initialized empty Git repository in /home/runner/work/bollinger-bands-web-app/bollinger-bands-web-app/.git/
+2025-09-02T23:38:45.4681973Z [command]/usr/bin/git remote add origin https://github.com/hongbinzuo/bollinger-bands-web-app
+2025-09-02T23:38:45.4713599Z ##[endgroup]
+2025-09-02T23:38:45.4715023Z ##[group]Disabling automatic garbage collection
+2025-09-02T23:38:45.4718514Z [command]/usr/bin/git config --local gc.auto 0
+2025-09-02T23:38:45.4746687Z ##[endgroup]
+2025-09-02T23:38:45.4747903Z ##[group]Setting up auth
+2025-09-02T23:38:45.4753970Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-09-02T23:38:45.4783970Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-09-02T23:38:45.5058069Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-09-02T23:38:45.5087450Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-09-02T23:38:45.5304883Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2025-09-02T23:38:45.5337756Z ##[endgroup]
+2025-09-02T23:38:45.5339002Z ##[group]Fetching the repository
+2025-09-02T23:38:45.5355051Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +e8cb4c1b4292f3a016c949331b87d23b620b6a4c:refs/remotes/origin/main
+2025-09-02T23:38:46.0604742Z From https://github.com/hongbinzuo/bollinger-bands-web-app
+2025-09-02T23:38:46.0606282Z  * [new ref]         e8cb4c1b4292f3a016c949331b87d23b620b6a4c -> origin/main
+2025-09-02T23:38:46.0633178Z ##[endgroup]
+2025-09-02T23:38:46.0633911Z ##[group]Determining the checkout info
+2025-09-02T23:38:46.0635391Z ##[endgroup]
+2025-09-02T23:38:46.0640311Z [command]/usr/bin/git sparse-checkout disable
+2025-09-02T23:38:46.0679122Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2025-09-02T23:38:46.0705275Z ##[group]Checking out the ref
+2025-09-02T23:38:46.0708759Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2025-09-02T23:38:46.0809732Z Switched to a new branch 'main'
+2025-09-02T23:38:46.0812400Z branch 'main' set up to track 'origin/main'.
+2025-09-02T23:38:46.0818395Z ##[endgroup]
+2025-09-02T23:38:46.0850794Z [command]/usr/bin/git log -1 --format=%H
+2025-09-02T23:38:46.0940810Z e8cb4c1b4292f3a016c949331b87d23b620b6a4c
+2025-09-02T23:38:46.1178937Z ##[group]Run actions/setup-python@v4
+2025-09-02T23:38:46.1179587Z with:
+2025-09-02T23:38:46.1180047Z   python-version: 3.11
+2025-09-02T23:38:46.1180556Z   check-latest: false
+2025-09-02T23:38:46.1181224Z   token: ***
+2025-09-02T23:38:46.1181879Z   update-environment: true
+2025-09-02T23:38:46.1182408Z   allow-prereleases: false
+2025-09-02T23:38:46.1182891Z env:
+2025-09-02T23:38:46.1183403Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:46.1183922Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:46.1184419Z ##[endgroup]
+2025-09-02T23:38:46.2822063Z ##[group]Installed versions
+2025-09-02T23:38:46.2918820Z Successfully set up CPython (3.11.13)
+2025-09-02T23:38:46.2920256Z ##[endgroup]
+2025-09-02T23:38:46.3068513Z ##[group]Run actions/setup-node@v4
+2025-09-02T23:38:46.3069100Z with:
+2025-09-02T23:38:46.3069508Z   node-version: 20
+2025-09-02T23:38:46.3069977Z   always-auth: false
+2025-09-02T23:38:46.3070433Z   check-latest: false
+2025-09-02T23:38:46.3071060Z   token: ***
+2025-09-02T23:38:46.3071462Z env:
+2025-09-02T23:38:46.3071967Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:46.3072456Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:46.3073056Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:46.3073905Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:38:46.3074923Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:46.3075702Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:46.3076472Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:46.3077241Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:38:46.3077929Z ##[endgroup]
+2025-09-02T23:38:46.4817508Z Found in cache @ /opt/hostedtoolcache/node/20.19.4/x64
+2025-09-02T23:38:46.4823437Z ##[group]Environment details
+2025-09-02T23:38:48.6378648Z node: v20.19.4
+2025-09-02T23:38:48.6379210Z npm: 10.8.2
+2025-09-02T23:38:48.6379622Z yarn: 1.22.22
+2025-09-02T23:38:48.6381965Z ##[endgroup]
+2025-09-02T23:38:48.6483488Z ##[group]Run echo "Installing latest Railway CLI..."
+2025-09-02T23:38:48.6483950Z [36;1mecho "Installing latest Railway CLI..."[0m
+2025-09-02T23:38:48.6484327Z [36;1mnpm install -g @railway/cli@latest[0m
+2025-09-02T23:38:48.6484923Z [36;1mrailway --version[0m
+2025-09-02T23:38:48.6485449Z [36;1mecho "Railway CLI installation completed"[0m
+2025-09-02T23:38:48.6625825Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:38:48.6626110Z env:
+2025-09-02T23:38:48.6626633Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:48.6626924Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:48.6627252Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:48.6627710Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:38:48.6628170Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:48.6628567Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:48.6628998Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:48.6629392Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:38:48.6629735Z ##[endgroup]
+2025-09-02T23:38:48.6707237Z Installing latest Railway CLI...
+2025-09-02T23:38:52.5160532Z npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+2025-09-02T23:38:53.0633612Z 
+2025-09-02T23:38:53.0634289Z added 17 packages in 4s
+2025-09-02T23:38:53.0634882Z 
+2025-09-02T23:38:53.0635207Z 3 packages are looking for funding
+2025-09-02T23:38:53.0635699Z   run `npm fund` for details
+2025-09-02T23:38:53.1051111Z railway 4.6.3
+2025-09-02T23:38:53.1051434Z 
+2025-09-02T23:38:53.1093234Z Railway CLI installation completed
+2025-09-02T23:38:53.1133729Z ##[group]Run echo "Verifying Railway CLI installation..."
+2025-09-02T23:38:53.1134174Z [36;1mecho "Verifying Railway CLI installation..."[0m
+2025-09-02T23:38:53.1134699Z [36;1mwhich railway[0m
+2025-09-02T23:38:53.1134954Z [36;1mrailway --version[0m
+2025-09-02T23:38:53.1135210Z [36;1mecho "CLI path: $(which railway)"[0m
+2025-09-02T23:38:53.1135487Z [36;1mecho "CLI version: $(railway --version)"[0m
+2025-09-02T23:38:53.1167264Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:38:53.1167484Z env:
+2025-09-02T23:38:53.1167851Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:53.1168305Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:53.1168580Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.1168971Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:38:53.1169352Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.1169693Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.1170097Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.1170444Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:38:53.1170734Z ##[endgroup]
+2025-09-02T23:38:53.1221492Z Verifying Railway CLI installation...
+2025-09-02T23:38:53.1231575Z /opt/hostedtoolcache/node/20.19.4/x64/bin/railway
+2025-09-02T23:38:53.1548886Z railway 4.6.3
+2025-09-02T23:38:53.1549230Z 
+2025-09-02T23:38:53.1601790Z CLI path: /opt/hostedtoolcache/node/20.19.4/x64/bin/railway
+2025-09-02T23:38:53.1950656Z CLI version: railway 4.6.3
+2025-09-02T23:38:53.1977071Z ##[group]Run echo "Setting up Railway environment..."
+2025-09-02T23:38:53.1977489Z [36;1mecho "Setting up Railway environment..."[0m
+2025-09-02T23:38:53.1977789Z [36;1mecho "Token length: ${#RAILWAY_TOKEN}"[0m
+2025-09-02T23:38:53.1978068Z [36;1mecho "Project ID: $RAILWAY_PROJECT_ID"[0m
+2025-09-02T23:38:53.1978314Z [36;1m[0m
+2025-09-02T23:38:53.1978526Z [36;1m# Set environment variables for Railway CLI[0m
+2025-09-02T23:38:53.1978821Z [36;1mexport RAILWAY_TOKEN="$RAILWAY_TOKEN"[0m
+2025-09-02T23:38:53.1979123Z [36;1mexport RAILWAY_PROJECT_ID="$RAILWAY_PROJECT_ID"[0m
+2025-09-02T23:38:53.1979393Z [36;1m[0m
+2025-09-02T23:38:53.1979577Z [36;1m# Create Railway config directory[0m
+2025-09-02T23:38:53.1979829Z [36;1mmkdir -p ~/.railway[0m
+2025-09-02T23:38:53.1980041Z [36;1m[0m
+2025-09-02T23:38:53.1980243Z [36;1m# Create config file with proper escaping[0m
+2025-09-02T23:38:53.1980523Z [36;1mcat > ~/.railway/config.json << 'EOF'[0m
+2025-09-02T23:38:53.1980790Z [36;1m{[0m
+2025-09-02T23:38:53.1980963Z [36;1m  "token": "'"$RAILWAY_TOKEN"'",[0m
+2025-09-02T23:38:53.1981233Z [36;1m  "project": "'"$RAILWAY_PROJECT_ID"'"[0m
+2025-09-02T23:38:53.1981472Z [36;1m}[0m
+2025-09-02T23:38:53.1981625Z [36;1mEOF[0m
+2025-09-02T23:38:53.1981786Z [36;1m[0m
+2025-09-02T23:38:53.1981979Z [36;1mecho "Config file created successfully"[0m
+2025-09-02T23:38:53.1982252Z [36;1mecho "Config file contents (masked):"[0m
+2025-09-02T23:38:53.1982561Z [36;1mcat ~/.railway/config.json | sed 's/"[^"]*"/"***"/g'[0m
+2025-09-02T23:38:53.2013970Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:38:53.2014195Z env:
+2025-09-02T23:38:53.2014712Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:53.2014958Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:53.2015238Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.2015636Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:38:53.2016019Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.2016381Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.2016727Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.2017070Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:38:53.2017357Z ##[endgroup]
+2025-09-02T23:38:53.2065980Z Setting up Railway environment...
+2025-09-02T23:38:53.2066406Z Token length: 36
+2025-09-02T23:38:53.2066736Z Project ID: ***
+2025-09-02T23:38:53.2091670Z Config file created successfully
+2025-09-02T23:38:53.2092248Z Config file contents (masked):
+2025-09-02T23:38:53.2105548Z {
+2025-09-02T23:38:53.2105902Z   "***": "***"$RAILWAY_TOKEN"***",
+2025-09-02T23:38:53.2106240Z   "***": "***"$RAILWAY_PROJECT_ID"***"
+2025-09-02T23:38:53.2106491Z }
+2025-09-02T23:38:53.2129363Z ##[group]Run echo "Testing various Railway authentication methods..."
+2025-09-02T23:38:53.2129828Z [36;1mecho "Testing various Railway authentication methods..."[0m
+2025-09-02T23:38:53.2130144Z [36;1m[0m
+2025-09-02T23:38:53.2130350Z [36;1m# Method 1: Direct environment variable[0m
+2025-09-02T23:38:53.2130799Z [36;1mecho "Method 1: Direct environment variable"[0m
+2025-09-02T23:38:53.2131178Z [36;1mRAILWAY_TOKEN="$RAILWAY_TOKEN" railway whoami || echo "Method 1 failed"[0m
+2025-09-02T23:38:53.2131512Z [36;1m[0m
+2025-09-02T23:38:53.2131685Z [36;1m# Method 2: Config file[0m
+2025-09-02T23:38:53.2131911Z [36;1mecho "Method 2: Config file"[0m
+2025-09-02T23:38:53.2132173Z [36;1mrailway whoami || echo "Method 2 failed"[0m
+2025-09-02T23:38:53.2132419Z [36;1m[0m
+2025-09-02T23:38:53.2132593Z [36;1m# Method 3: Direct project link[0m
+2025-09-02T23:38:53.2132858Z [36;1mecho "Method 3: Direct project link"[0m
+2025-09-02T23:38:53.2133259Z [36;1mrailway link --project "$RAILWAY_PROJECT_ID" || echo "Method 3 failed"[0m
+2025-09-02T23:38:53.2133588Z [36;1m[0m
+2025-09-02T23:38:53.2133790Z [36;1mecho "Authentication testing completed"[0m
+2025-09-02T23:38:53.2162189Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:38:53.2162411Z env:
+2025-09-02T23:38:53.2162705Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:53.2162952Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:53.2163289Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.2163684Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:38:53.2164073Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.2164411Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.2164964Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.2165306Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:38:53.2165593Z ##[endgroup]
+2025-09-02T23:38:53.2213669Z Testing various Railway authentication methods...
+2025-09-02T23:38:53.2214375Z Method 1: Direct environment variable
+2025-09-02T23:38:53.2525654Z Unable to parse config file, regenerating
+2025-09-02T23:38:53.5172137Z Unauthorized. Please login with `railway login`
+2025-09-02T23:38:53.5216233Z Method 1 failed
+2025-09-02T23:38:53.5216969Z Method 2: Config file
+2025-09-02T23:38:53.5535860Z Unable to parse config file, regenerating
+2025-09-02T23:38:53.6722294Z Unauthorized. Please login with `railway login`
+2025-09-02T23:38:53.6761431Z Method 2 failed
+2025-09-02T23:38:53.6761966Z Method 3: Direct project link
+2025-09-02T23:38:53.7076410Z Unable to parse config file, regenerating
+2025-09-02T23:38:53.7076938Z Unable to parse config file, regenerating
+2025-09-02T23:38:53.7740065Z Unauthorized. Please login with `railway login`
+2025-09-02T23:38:53.7774682Z Method 3 failed
+2025-09-02T23:38:53.7775141Z Authentication testing completed
+2025-09-02T23:38:53.7814353Z ##[group]Run echo "Verifying final authentication status..."
+2025-09-02T23:38:53.7815314Z [36;1mecho "Verifying final authentication status..."[0m
+2025-09-02T23:38:53.7815831Z [36;1m[0m
+2025-09-02T23:38:53.7816170Z [36;1m# Check if we can access Railway[0m
+2025-09-02T23:38:53.7816663Z [36;1mif railway whoami > /dev/null 2>&1; then[0m
+2025-09-02T23:38:53.7817218Z [36;1m  echo "✅ Railway authentication successful"[0m
+2025-09-02T23:38:53.7817737Z [36;1m  railway whoami[0m
+2025-09-02T23:38:53.7818089Z [36;1melse[0m
+2025-09-02T23:38:53.7818460Z [36;1m  echo "❌ Railway authentication failed"[0m
+2025-09-02T23:38:53.7819034Z [36;1m  echo "Attempting to continue with project link..."[0m
+2025-09-02T23:38:53.7819817Z [36;1m  railway link --project "$RAILWAY_PROJECT_ID" || echo "Project link also failed"[0m
+2025-09-02T23:38:53.7820476Z [36;1mfi[0m
+2025-09-02T23:38:53.7864032Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:38:53.7864412Z env:
+2025-09-02T23:38:53.7865350Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:53.7865764Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:53.7866232Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.7866936Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:38:53.7867633Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.7868229Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.7869102Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:53.7869712Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:38:53.7870209Z ##[endgroup]
+2025-09-02T23:38:53.7930125Z Verifying final authentication status...
+2025-09-02T23:38:53.9094718Z ❌ Railway authentication failed
+2025-09-02T23:38:53.9095287Z Attempting to continue with project link...
+2025-09-02T23:38:53.9403792Z Unable to parse config file, regenerating
+2025-09-02T23:38:53.9404380Z Unable to parse config file, regenerating
+2025-09-02T23:38:54.0430964Z Unauthorized. Please login with `railway login`
+2025-09-02T23:38:54.0471504Z Project link also failed
+2025-09-02T23:38:54.0504209Z ##[group]Run echo "Checking Railway project access..."
+2025-09-02T23:38:54.0524753Z [36;1mecho "Checking Railway project access..."[0m
+2025-09-02T23:38:54.0525099Z [36;1m[0m
+2025-09-02T23:38:54.0525287Z [36;1m# Try to get project status[0m
+2025-09-02T23:38:54.0525559Z [36;1mif railway status > /dev/null 2>&1; then[0m
+2025-09-02T23:38:54.0525875Z [36;1m  echo "✅ Project access successful"[0m
+2025-09-02T23:38:54.0526128Z [36;1m  railway status[0m
+2025-09-02T23:38:54.0526327Z [36;1melse[0m
+2025-09-02T23:38:54.0526517Z [36;1m  echo "❌ Project access failed"[0m
+2025-09-02T23:38:54.0526765Z [36;1m  echo "Available commands:"[0m
+2025-09-02T23:38:54.0527015Z [36;1m  railway --help[0m
+2025-09-02T23:38:54.0527214Z [36;1mfi[0m
+2025-09-02T23:38:54.0558091Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:38:54.0558316Z env:
+2025-09-02T23:38:54.0558644Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:54.0558875Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:54.0559187Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.0559592Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:38:54.0559984Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.0560328Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.0560681Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.0561022Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:38:54.0561310Z ##[endgroup]
+2025-09-02T23:38:54.0611923Z Checking Railway project access...
+2025-09-02T23:38:54.3365480Z ❌ Project access failed
+2025-09-02T23:38:54.3365907Z Available commands:
+2025-09-02T23:38:54.3683812Z Interact with Railway via CLI
+2025-09-02T23:38:54.3684107Z 
+2025-09-02T23:38:54.3684314Z Usage: railway [COMMAND]
+2025-09-02T23:38:54.3684757Z 
+2025-09-02T23:38:54.3684908Z Commands:
+2025-09-02T23:38:54.3685379Z   add            Add a service to your project
+2025-09-02T23:38:54.3686022Z   completion     Generate completion script
+2025-09-02T23:38:54.3686856Z   connect        Connect to a database's shell (psql for Postgres, mongosh for MongoDB, etc.)
+2025-09-02T23:38:54.3687669Z   deploy         Provisions a template into your project
+2025-09-02T23:38:54.3688482Z   domain         Add a custom domain or generate a railway provided domain for a service
+2025-09-02T23:38:54.3689340Z   docs           Open Railway Documentation in default browser
+2025-09-02T23:38:54.3690007Z   down           Remove the most recent deployment
+2025-09-02T23:38:54.3690759Z   environment    Create, delete or link an environment [aliases: env]
+2025-09-02T23:38:54.3691496Z   init           Create a new project
+2025-09-02T23:38:54.3692394Z   link           Associate existing project with current directory, may specify projectId as an argument
+2025-09-02T23:38:54.3693302Z   list           List all projects in your Railway account
+2025-09-02T23:38:54.3693990Z   login          Login to your Railway account
+2025-09-02T23:38:54.3694782Z   logout         Logout of your Railway account
+2025-09-02T23:38:54.3695340Z   logs           View a deploy's logs
+2025-09-02T23:38:54.3695854Z   open           Open your project dashboard
+2025-09-02T23:38:54.3696568Z   run            Run a local command using variables from the active environment
+2025-09-02T23:38:54.3697624Z   service        Link a service to the current project
+2025-09-02T23:38:54.3698337Z   shell          Open a local subshell with Railway variables available
+2025-09-02T23:38:54.3699019Z   ssh            Connect to a service via SSH
+2025-09-02T23:38:54.3699640Z   status         Show information about the current project
+2025-09-02T23:38:54.3700323Z   unlink         Disassociate project from current directory
+2025-09-02T23:38:54.3701052Z   up             Upload and deploy project from the current directory
+2025-09-02T23:38:54.3701749Z   variables      Show variables for active environment
+2025-09-02T23:38:54.3702367Z   whoami         Get the current logged in user
+2025-09-02T23:38:54.3703221Z   volume         Manage project volumes
+2025-09-02T23:38:54.3703892Z   redeploy       Redeploy the latest deployment of a service
+2025-09-02T23:38:54.3704444Z   scale          
+2025-09-02T23:38:54.3705067Z   check_updates  Test the update check
+2025-09-02T23:38:54.3705845Z   functions      Manage project functions [aliases: function, func, fn, funcs, fns]
+2025-09-02T23:38:54.3706859Z   help           Print this message or the help of the given subcommand(s)
+2025-09-02T23:38:54.3707326Z 
+2025-09-02T23:38:54.3707479Z Options:
+2025-09-02T23:38:54.3707850Z   -h, --help     Print help
+2025-09-02T23:38:54.3708324Z   -V, --version  Print version
+2025-09-02T23:38:54.3708604Z 
+2025-09-02T23:38:54.3775947Z ##[group]Run echo "Current working directory: $(pwd)"
+2025-09-02T23:38:54.3776342Z [36;1mecho "Current working directory: $(pwd)"[0m
+2025-09-02T23:38:54.3776633Z [36;1mecho "Directory contents:"[0m
+2025-09-02T23:38:54.3776864Z [36;1mls -la[0m
+2025-09-02T23:38:54.3777031Z [36;1mecho ""[0m
+2025-09-02T23:38:54.3777222Z [36;1mecho "Python files:"[0m
+2025-09-02T23:38:54.3777454Z [36;1mfind . -name "*.py" -type f[0m
+2025-09-02T23:38:54.3777675Z [36;1mecho ""[0m
+2025-09-02T23:38:54.3777857Z [36;1mecho "Railway config:"[0m
+2025-09-02T23:38:54.3778146Z [36;1mls -la ~/.railway/ || echo "No Railway config directory"[0m
+2025-09-02T23:38:54.3810099Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:38:54.3810325Z env:
+2025-09-02T23:38:54.3810664Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:54.3810895Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:54.3811171Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.3811608Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:38:54.3811988Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.3812803Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.3813164Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.3813592Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:38:54.3813882Z ##[endgroup]
+2025-09-02T23:38:54.3869874Z Current working directory: /home/runner/work/bollinger-bands-web-app/bollinger-bands-web-app
+2025-09-02T23:38:54.3870731Z Directory contents:
+2025-09-02T23:38:54.3885944Z total 296
+2025-09-02T23:38:54.3886471Z drwxr-xr-x 8 runner docker  4096 Sep  2 23:38 .
+2025-09-02T23:38:54.3887121Z drwxr-xr-x 3 runner docker  4096 Sep  2 23:38 ..
+2025-09-02T23:38:54.3887805Z drwxr-xr-x 7 runner docker  4096 Sep  2 23:38 .git
+2025-09-02T23:38:54.3888491Z drwxr-xr-x 3 runner docker  4096 Sep  2 23:38 .github
+2025-09-02T23:38:54.3889196Z -rw-r--r-- 1 runner docker  1187 Sep  2 23:38 .gitignore
+2025-09-02T23:38:54.3889909Z -rw-r--r-- 1 runner docker  2101 Sep  2 23:38 DEPLOYMENT.md
+2025-09-02T23:38:54.3890657Z -rw-r--r-- 1 runner docker    42 Sep  2 23:38 DEPLOYMENT_GUIDE.md
+2025-09-02T23:38:54.3891448Z -rw-r--r-- 1 runner docker  2496 Sep  2 23:38 GITHUB_ACTIONS_SETUP.md
+2025-09-02T23:38:54.3892193Z -rw-r--r-- 1 runner docker    22 Sep  2 23:38 Procfile
+2025-09-02T23:38:54.3892970Z -rw-r--r-- 1 runner docker  6616 Sep  2 23:38 RAILWAY_BACKUP_GUIDE.md
+2025-09-02T23:38:54.3893901Z -rw-r--r-- 1 runner docker  3048 Sep  2 23:38 RAILWAY_DEPLOYMENT.md
+2025-09-02T23:38:54.3894819Z -rw-r--r-- 1 runner docker  4625 Sep  2 23:38 README.md
+2025-09-02T23:38:54.3895814Z -rw-r--r-- 1 runner docker    58 Sep  2 23:38 README_UPGRADE.md
+2025-09-02T23:38:54.3896676Z -rw-r--r-- 1 runner docker  4294 Sep  2 23:38 USER_DATA_BACKUP_GUIDE.md
+2025-09-02T23:38:54.3897423Z -rw-r--r-- 1 runner docker  1236 Sep  2 23:38 VERSION.md
+2025-09-02T23:38:54.3898180Z -rw-r--r-- 1 runner docker  2820 Sep  2 23:38 VERSION_MANAGEMENT.md
+2025-09-02T23:38:54.3899013Z -rw-r--r-- 1 runner docker  6151 Sep  2 23:38 WINDOWS_RAILWAY_GUIDE.md
+2025-09-02T23:38:54.3899806Z -rw-r--r-- 1 runner docker 24507 Sep  2 23:38 app.py
+2025-09-02T23:38:54.3900544Z -rw-r--r-- 1 runner docker  1222 Sep  2 23:38 backup_railway.bat
+2025-09-02T23:38:54.3901349Z -rw-r--r-- 1 runner docker  1864 Sep  2 23:38 backup_user_data.py
+2025-09-02T23:38:54.3902172Z -rw-r--r-- 1 runner docker 16384 Sep  2 23:38 bollinger_strategy.db
+2025-09-02T23:38:54.3902918Z -rw-r--r-- 1 runner docker  7761 Sep  2 23:38 database.py
+2025-09-02T23:38:54.3903651Z -rw-r--r-- 1 runner docker  4433 Sep  2 23:38 decode_backup.py
+2025-09-02T23:38:54.3904423Z -rw-r--r-- 1 runner docker  4397 Sep  2 23:38 download_backup.bat
+2025-09-02T23:38:54.3905606Z -rw-r--r-- 1 runner docker    30 Sep  2 23:38 erszuohocodebollinger-bands-web-app
+2025-09-02T23:38:54.3906422Z -rw-r--r-- 1 runner docker  1414 Sep  2 23:38 index.js
+2025-09-02T23:38:54.3907299Z drwxr-xr-x 2 runner docker  4096 Sep  2 23:38 public
+2025-09-02T23:38:54.3908040Z -rw-r--r-- 1 runner docker  7188 Sep  2 23:38 railway_backup.py
+2025-09-02T23:38:54.3908874Z -rw-r--r-- 1 runner docker  6883 Sep  2 23:38 railway_backup_correct.py
+2025-09-02T23:38:54.3909694Z -rw-r--r-- 1 runner docker  4629 Sep  2 23:38 railway_backup_demo.py
+2025-09-02T23:38:54.3910560Z -rw-r--r-- 1 runner docker  6779 Sep  2 23:38 railway_backup_download_guide.py
+2025-09-02T23:38:54.3911470Z -rw-r--r-- 1 runner docker  4489 Sep  2 23:38 railway_backup_explanation.py
+2025-09-02T23:38:54.3912333Z -rw-r--r-- 1 runner docker  5884 Sep  2 23:38 railway_backup_workflow.py
+2025-09-02T23:38:54.3913202Z -rw-r--r-- 1 runner docker  5811 Sep  2 23:38 railway_cli_backup_guide.py
+2025-09-02T23:38:54.3914104Z -rw-r--r-- 1 runner docker  7466 Sep  2 23:38 railway_container_access_guide.py
+2025-09-02T23:38:54.3915271Z -rw-r--r-- 1 runner docker  6300 Sep  2 23:38 railway_environment_check.py
+2025-09-02T23:38:54.3916099Z -rw-r--r-- 1 runner docker  5166 Sep  2 23:38 railway_restore.py
+2025-09-02T23:38:54.3916948Z -rw-r--r-- 1 runner docker  7046 Sep  2 23:38 railway_vs_local_backup_demo.py
+2025-09-02T23:38:54.3917761Z -rw-r--r-- 1 runner docker    94 Sep  2 23:38 requirements.txt
+2025-09-02T23:38:54.3918514Z -rw-r--r-- 1 runner docker  1802 Sep  2 23:38 restore_railway.bat
+2025-09-02T23:38:54.3919276Z -rw-r--r-- 1 runner docker  2572 Sep  2 23:38 restore_user_data.py
+2025-09-02T23:38:54.3920002Z -rw-r--r-- 1 runner docker    14 Sep  2 23:38 runtime.txt
+2025-09-02T23:38:54.3920785Z -rw-r--r-- 1 runner docker  2008 Sep  2 23:38 setup_github_actions.bat
+2025-09-02T23:38:54.3921521Z drwxr-xr-x 3 runner docker  4096 Sep  2 23:38 static
+2025-09-02T23:38:54.3922202Z drwxr-xr-x 2 runner docker  4096 Sep  2 23:38 templates
+2025-09-02T23:38:54.3922954Z -rw-r--r-- 1 runner docker  7216 Sep  2 23:38 version_manager.py
+2025-09-02T23:38:54.3923683Z drwxr-xr-x 4 runner docker  4096 Sep  2 23:38 versions
+2025-09-02T23:38:54.3924046Z 
+2025-09-02T23:38:54.3924196Z Python files:
+2025-09-02T23:38:54.3924827Z ./railway_backup_download_guide.py
+2025-09-02T23:38:54.3925172Z ./database.py
+2025-09-02T23:38:54.3925413Z ./versions/v1.0.0_20250816_164300/app.py
+2025-09-02T23:38:54.3925692Z ./versions/v1.0.1/app.py
+2025-09-02T23:38:54.3925965Z ./railway_vs_local_backup_demo.py
+2025-09-02T23:38:54.3926367Z ./railway_backup_demo.py
+2025-09-02T23:38:54.3926822Z ./railway_cli_backup_guide.py
+2025-09-02T23:38:54.3927246Z ./restore_user_data.py
+2025-09-02T23:38:54.3927650Z ./railway_backup_correct.py
+2025-09-02T23:38:54.3928048Z ./decode_backup.py
+2025-09-02T23:38:54.3928485Z ./railway_container_access_guide.py
+2025-09-02T23:38:54.3929044Z ./backup_user_data.py
+2025-09-02T23:38:54.3929662Z ./railway_restore.py
+2025-09-02T23:38:54.3929994Z ./app.py
+2025-09-02T23:38:54.3930393Z ./railway_backup_explanation.py
+2025-09-02T23:38:54.3930823Z ./railway_backup.py
+2025-09-02T23:38:54.3931205Z ./railway_backup_workflow.py
+2025-09-02T23:38:54.3931624Z ./version_manager.py
+2025-09-02T23:38:54.3932050Z ./railway_environment_check.py
+2025-09-02T23:38:54.3932358Z 
+2025-09-02T23:38:54.3932525Z Railway config:
+2025-09-02T23:38:54.3938709Z total 12
+2025-09-02T23:38:54.3939537Z drwxr-xr-x  2 runner docker 4096 Sep  2 23:38 .
+2025-09-02T23:38:54.3940102Z drwxr-x--- 13 runner docker 4096 Sep  2 23:38 ..
+2025-09-02T23:38:54.3940518Z -rw-r--r--  1 runner docker   76 Sep  2 23:38 config.json
+2025-09-02T23:38:54.3962242Z ##[group]Run echo "Checking backup script..."
+2025-09-02T23:38:54.3962583Z [36;1mecho "Checking backup script..."[0m
+2025-09-02T23:38:54.3962881Z [36;1mif [ -f "railway_backup_correct.py" ]; then[0m
+2025-09-02T23:38:54.3963238Z [36;1m  echo "✅ Backup script found: railway_backup_correct.py"[0m
+2025-09-02T23:38:54.3963655Z [36;1m  echo "File size: $(ls -lh railway_backup_correct.py | awk '{print $5}')"[0m
+2025-09-02T23:38:54.3964128Z [36;1m  echo "File permissions: $(ls -la railway_backup_correct.py | awk '{print $1}')"[0m
+2025-09-02T23:38:54.3964661Z [36;1melse[0m
+2025-09-02T23:38:54.3964889Z [36;1m  echo "❌ Backup script NOT found!"[0m
+2025-09-02T23:38:54.3965150Z [36;1m  echo "Available Python files:"[0m
+2025-09-02T23:38:54.3965444Z [36;1m  find . -name "*.py" -type f -exec ls -la {} \;[0m
+2025-09-02T23:38:54.3965702Z [36;1mfi[0m
+2025-09-02T23:38:54.3992335Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:38:54.3992555Z env:
+2025-09-02T23:38:54.3992853Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:54.3993088Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:54.3993351Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.3993743Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:38:54.3994132Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.3994785Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.3995162Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.3995508Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:38:54.3995789Z ##[endgroup]
+2025-09-02T23:38:54.4041589Z Checking backup script...
+2025-09-02T23:38:54.4042524Z ✅ Backup script found: railway_backup_correct.py
+2025-09-02T23:38:54.4068338Z File size: 6.8K
+2025-09-02T23:38:54.4092067Z File permissions: -rw-r--r--
+2025-09-02T23:38:54.4112865Z ##[group]Run echo "Executing backup process..."
+2025-09-02T23:38:54.4113226Z [36;1mecho "Executing backup process..."[0m
+2025-09-02T23:38:54.4113483Z [36;1m[0m
+2025-09-02T23:38:54.4113665Z [36;1m# Try Railway run first[0m
+2025-09-02T23:38:54.4114020Z [36;1mif command -v railway > /dev/null 2>&1 && railway whoami > /dev/null 2>&1; then[0m
+2025-09-02T23:38:54.4114405Z [36;1m  echo "Using Railway CLI for backup..."[0m
+2025-09-02T23:38:54.4114991Z [36;1m  railway run python railway_backup_correct.py || {[0m
+2025-09-02T23:38:54.4115368Z [36;1m    echo "Railway CLI backup failed, trying local execution..."[0m
+2025-09-02T23:38:54.4115792Z [36;1m    python railway_backup_correct.py || echo "Local execution also failed"[0m
+2025-09-02T23:38:54.4116134Z [36;1m  }[0m
+2025-09-02T23:38:54.4116299Z [36;1melse[0m
+2025-09-02T23:38:54.4116546Z [36;1m  echo "Railway CLI not available, trying local execution..."[0m
+2025-09-02T23:38:54.4116993Z [36;1m  python railway_backup_correct.py || echo "Local execution failed"[0m
+2025-09-02T23:38:54.4117318Z [36;1mfi[0m
+2025-09-02T23:38:54.4117480Z [36;1m[0m
+2025-09-02T23:38:54.4117670Z [36;1mecho "Backup execution completed"[0m
+2025-09-02T23:38:54.4144239Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:38:54.4144605Z env:
+2025-09-02T23:38:54.4144921Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:54.4145188Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:54.4145474Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.4146050Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:38:54.4146439Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.4146791Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.4147146Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.4147508Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:38:54.4147797Z ##[endgroup]
+2025-09-02T23:38:54.4193328Z Executing backup process...
+2025-09-02T23:38:54.5630091Z Railway CLI not available, trying local execution...
+2025-09-02T23:38:54.6205852Z Railway备份脚本启动
+2025-09-02T23:38:54.6206360Z ============================================================
+2025-09-02T23:38:54.6206827Z ============================================================
+2025-09-02T23:38:54.6207183Z 环境检查通过
+2025-09-02T23:38:54.6207473Z ============================================================
+2025-09-02T23:38:54.6207817Z Railway环境: None
+2025-09-02T23:38:54.6208228Z 项目ID: ***
+2025-09-02T23:38:54.6208456Z 主机名: 未知
+2025-09-02T23:38:54.6208962Z 工作目录: /home/runner/work/bollinger-bands-web-app/bollinger-bands-web-app
+2025-09-02T23:38:54.6209283Z 
+2025-09-02T23:38:54.6209463Z ============================================================
+2025-09-02T23:38:54.6209784Z 开始备份用户数据
+2025-09-02T23:38:54.6210070Z ============================================================
+2025-09-02T23:38:54.6210476Z 创建备份目录: railway_backup_20250902_233854
+2025-09-02T23:38:54.6210864Z 文件不存在: cache/custom_symbols.json
+2025-09-02T23:38:54.6211190Z 备份文件: bollinger_strategy.db
+2025-09-02T23:38:54.6211456Z 目录不存在: cache
+2025-09-02T23:38:54.6211673Z 目录不存在: logs
+2025-09-02T23:38:54.6211917Z 创建备份信息: backup_info.json
+2025-09-02T23:38:54.6212293Z 创建ZIP文件: railway_backup_20250902_233854.zip
+2025-09-02T23:38:54.6212641Z 文件大小: 819 字节 (0.8 KB)
+2025-09-02T23:38:54.6212776Z 
+2025-09-02T23:38:54.6212951Z ============================================================
+2025-09-02T23:38:54.6213263Z 备份完成
+2025-09-02T23:38:54.6213535Z ============================================================
+2025-09-02T23:38:54.6213933Z 备份文件: railway_backup_20250902_233854.zip
+2025-09-02T23:38:54.6214233Z 文件大小: 819 字节
+2025-09-02T23:38:54.6214693Z Base64长度: 1,092 字符
+2025-09-02T23:38:54.6214882Z 
+2025-09-02T23:38:54.6215054Z ============================================================
+2025-09-02T23:38:54.6215368Z 下载说明
+2025-09-02T23:38:54.6215641Z ============================================================
+2025-09-02T23:38:54.6216228Z 请从日志中复制以下Base64编码:
+2025-09-02T23:38:54.6216539Z ============================================================
+2025-09-02T23:38:54.6223023Z UEsDBBQAAAAIANe8IltR9kM3nAEAAABAAAAVAAAAYm9sbGluZ2VyX3N0cmF0ZWd5LmRi7dfPS8MwFAfwdBMFUdHTrjkIWvxx8R9YnVGG3Zw1A3cqWZfN4La6JhOGN0X/AG/+t0Yn03boBMHD+H6gtI+8PNK807s495WRtB0nPWHoAVknjkOKlBJCcvZZIJ+ysUNmy5H9J3fVfuRXXsja81rRvgAAAAAAANIeNvNLhb095/HOiGZXxklLJqE2iTCyo6TOxgulgHmcUe4d+oxmV+n2Ms1QLVqucnbCAloLyhUvaNBT1qBenZ+Vq7ZYhVX57tQuPeo14y7l7JLT6pl96r4/nWVUT7YT0ZOzEsfnvElUJKk9v/9D6sfPjEIzuplZVxthhnqcdcSOvbrP6ZaIjLqVW9PZUSJt6VZoB0BerrAL7lVqk22lehDYqwgnK6ntbi23WNjZcRrvTdKDrh0mQy0HQ9mPsmE+1aLM4nbfXteujdz7a2ep4LrO48Z7zaF+u6FYK6Pivk5HuVTF9No/t1zcdn7Xx8FQ9I0yo1l5TWGiq/DLkb9P/Uv/3mZzO/QDAAAAAAAAwBzD/A8AAAAAAAAw/zD/AwAAAAAAAMy/V1BLAwQUAAAACADbvCJb+2cB1Z8AAADeAAAAEAAAAGJhY2t1cF9pbmZvLmpzb25djkEOgjAQRfecgnQtBIoQ4RzuDGkKHWC0tKS0GmK8uy0mJrqdN+///4zimHS8v7mFWZyBNDGhGS2TrE4yeqZFU5ya8phWeV3lGTmEd8NRPvjGQN3RaDWDsl5TTsofvBh9hd4yFCG0nwDM4GTiFNrtEzTp1Sq+l37tASWsLCwCwdzi0cWfw0gtJaoRDFut4RbGLRUd8azdPYHmT2uj1xtQSwECFAMUAAAACADXvCJbUfZDN5wBAAAAQAAAFQAAAAAAAAAAAAAApIEAAAAAYm9sbGluZ2VyX3N0cmF0ZWd5LmRiUEsBAhQDFAAAAAgA27wiW/tnAdWfAAAA3gAAABAAAAAAAAAAAAAAAKSBzwEAAGJhY2t1cF9pbmZvLmpzb25QSwUGAAAAAAIAAgCBAAAAnAIAAAAA
+2025-09-02T23:38:54.6228869Z ============================================================
+2025-09-02T23:38:54.6229054Z 
+2025-09-02T23:38:54.6229177Z 使用方法:
+2025-09-02T23:38:54.6229376Z 1. 复制上面的Base64编码
+2025-09-02T23:38:54.6229808Z 2. 保存到本地文件 backup_data.txt
+2025-09-02T23:38:54.6230160Z 3. 运行: python decode_backup.py backup_data.txt
+2025-09-02T23:38:54.6230353Z 
+2025-09-02T23:38:54.6230455Z 清理临时文件完成
+2025-09-02T23:38:54.6230551Z 
+2025-09-02T23:38:54.6230642Z 备份成功完成!
+2025-09-02T23:38:54.6230857Z 请从日志中复制Base64编码进行下载
+2025-09-02T23:38:54.6249459Z Backup execution completed
+2025-09-02T23:38:54.6272783Z ##[group]Run echo "Waiting for backup completion..."
+2025-09-02T23:38:54.6273187Z [36;1mecho "Waiting for backup completion..."[0m
+2025-09-02T23:38:54.6273454Z [36;1msleep 20[0m
+2025-09-02T23:38:54.6273634Z [36;1m[0m
+2025-09-02T23:38:54.6273816Z [36;1mecho "Checking for backup files..."[0m
+2025-09-02T23:38:54.6274086Z [36;1mecho "Current directory: $(pwd)"[0m
+2025-09-02T23:38:54.6274365Z [36;1mecho "All files in current directory:"[0m
+2025-09-02T23:38:54.6274829Z [36;1mls -la[0m
+2025-09-02T23:38:54.6274993Z [36;1m[0m
+2025-09-02T23:38:54.6275152Z [36;1mecho ""[0m
+2025-09-02T23:38:54.6275341Z [36;1mecho "Looking for ZIP files:"[0m
+2025-09-02T23:38:54.6275646Z [36;1mls -la *.zip 2>/dev/null || echo "No ZIP files found"[0m
+2025-09-02T23:38:54.6275920Z [36;1m[0m
+2025-09-02T23:38:54.6276074Z [36;1mecho ""[0m
+2025-09-02T23:38:54.6276274Z [36;1mecho "Looking for any backup files:"[0m
+2025-09-02T23:38:54.6276655Z [36;1mfind . -name "*backup*" -type f 2>/dev/null || echo "No backup files found"[0m
+2025-09-02T23:38:54.6276978Z [36;1m[0m
+2025-09-02T23:38:54.6277132Z [36;1mecho ""[0m
+2025-09-02T23:38:54.6277368Z [36;1mecho "Looking for any ZIP files in subdirectories:"[0m
+2025-09-02T23:38:54.6277783Z [36;1mfind . -name "*.zip" -type f 2>/dev/null || echo "No ZIP files found in subdirectories"[0m
+2025-09-02T23:38:54.6307956Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:38:54.6308181Z env:
+2025-09-02T23:38:54.6308452Z   RAILWAY_TOKEN: ***
+2025-09-02T23:38:54.6308676Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:38:54.6308949Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.6309338Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:38:54.6309742Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.6310097Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.6310448Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:38:54.6310800Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:38:54.6311087Z ##[endgroup]
+2025-09-02T23:38:54.6360414Z Waiting for backup completion...
+2025-09-02T23:39:14.6379094Z Checking for backup files...
+2025-09-02T23:39:14.6385118Z Current directory: /home/runner/work/bollinger-bands-web-app/bollinger-bands-web-app
+2025-09-02T23:39:14.6385675Z All files in current directory:
+2025-09-02T23:39:14.6402832Z total 296
+2025-09-02T23:39:14.6403342Z drwxr-xr-x 8 runner docker  4096 Sep  2 23:38 .
+2025-09-02T23:39:14.6403996Z drwxr-xr-x 3 runner docker  4096 Sep  2 23:38 ..
+2025-09-02T23:39:14.6404384Z drwxr-xr-x 7 runner docker  4096 Sep  2 23:38 .git
+2025-09-02T23:39:14.6405265Z drwxr-xr-x 3 runner docker  4096 Sep  2 23:38 .github
+2025-09-02T23:39:14.6405917Z -rw-r--r-- 1 runner docker  1187 Sep  2 23:38 .gitignore
+2025-09-02T23:39:14.6406330Z -rw-r--r-- 1 runner docker  2101 Sep  2 23:38 DEPLOYMENT.md
+2025-09-02T23:39:14.6406775Z -rw-r--r-- 1 runner docker    42 Sep  2 23:38 DEPLOYMENT_GUIDE.md
+2025-09-02T23:39:14.6407232Z -rw-r--r-- 1 runner docker  2496 Sep  2 23:38 GITHUB_ACTIONS_SETUP.md
+2025-09-02T23:39:14.6407636Z -rw-r--r-- 1 runner docker    22 Sep  2 23:38 Procfile
+2025-09-02T23:39:14.6408043Z -rw-r--r-- 1 runner docker  6616 Sep  2 23:38 RAILWAY_BACKUP_GUIDE.md
+2025-09-02T23:39:14.6408483Z -rw-r--r-- 1 runner docker  3048 Sep  2 23:38 RAILWAY_DEPLOYMENT.md
+2025-09-02T23:39:14.6408885Z -rw-r--r-- 1 runner docker  4625 Sep  2 23:38 README.md
+2025-09-02T23:39:14.6409286Z -rw-r--r-- 1 runner docker    58 Sep  2 23:38 README_UPGRADE.md
+2025-09-02T23:39:14.6409730Z -rw-r--r-- 1 runner docker  4294 Sep  2 23:38 USER_DATA_BACKUP_GUIDE.md
+2025-09-02T23:39:14.6410451Z -rw-r--r-- 1 runner docker  1236 Sep  2 23:38 VERSION.md
+2025-09-02T23:39:14.6410863Z -rw-r--r-- 1 runner docker  2820 Sep  2 23:38 VERSION_MANAGEMENT.md
+2025-09-02T23:39:14.6411320Z -rw-r--r-- 1 runner docker  6151 Sep  2 23:38 WINDOWS_RAILWAY_GUIDE.md
+2025-09-02T23:39:14.6411911Z -rw-r--r-- 1 runner docker 24507 Sep  2 23:38 app.py
+2025-09-02T23:39:14.6412312Z -rw-r--r-- 1 runner docker  1222 Sep  2 23:38 backup_railway.bat
+2025-09-02T23:39:14.6412726Z -rw-r--r-- 1 runner docker  1864 Sep  2 23:38 backup_user_data.py
+2025-09-02T23:39:14.6413163Z -rw-r--r-- 1 runner docker 16384 Sep  2 23:38 bollinger_strategy.db
+2025-09-02T23:39:14.6413566Z -rw-r--r-- 1 runner docker  7761 Sep  2 23:38 database.py
+2025-09-02T23:39:14.6413957Z -rw-r--r-- 1 runner docker  4433 Sep  2 23:38 decode_backup.py
+2025-09-02T23:39:14.6414364Z -rw-r--r-- 1 runner docker  4397 Sep  2 23:38 download_backup.bat
+2025-09-02T23:39:14.6415119Z -rw-r--r-- 1 runner docker    30 Sep  2 23:38 erszuohocodebollinger-bands-web-app
+2025-09-02T23:39:14.6415565Z -rw-r--r-- 1 runner docker  1414 Sep  2 23:38 index.js
+2025-09-02T23:39:14.6415930Z drwxr-xr-x 2 runner docker  4096 Sep  2 23:38 public
+2025-09-02T23:39:14.6416321Z -rw-r--r-- 1 runner docker  7188 Sep  2 23:38 railway_backup.py
+2025-09-02T23:39:14.6416756Z -rw-r--r-- 1 runner docker  6883 Sep  2 23:38 railway_backup_correct.py
+2025-09-02T23:39:14.6417209Z -rw-r--r-- 1 runner docker  4629 Sep  2 23:38 railway_backup_demo.py
+2025-09-02T23:39:14.6417684Z -rw-r--r-- 1 runner docker  6779 Sep  2 23:38 railway_backup_download_guide.py
+2025-09-02T23:39:14.6418189Z -rw-r--r-- 1 runner docker  4489 Sep  2 23:38 railway_backup_explanation.py
+2025-09-02T23:39:14.6418736Z -rw-r--r-- 1 runner docker  5884 Sep  2 23:38 railway_backup_workflow.py
+2025-09-02T23:39:14.6419577Z -rw-r--r-- 1 runner docker  5811 Sep  2 23:38 railway_cli_backup_guide.py
+2025-09-02T23:39:14.6420120Z -rw-r--r-- 1 runner docker  7466 Sep  2 23:38 railway_container_access_guide.py
+2025-09-02T23:39:14.6420619Z -rw-r--r-- 1 runner docker  6300 Sep  2 23:38 railway_environment_check.py
+2025-09-02T23:39:14.6421062Z -rw-r--r-- 1 runner docker  5166 Sep  2 23:38 railway_restore.py
+2025-09-02T23:39:14.6421518Z -rw-r--r-- 1 runner docker  7046 Sep  2 23:38 railway_vs_local_backup_demo.py
+2025-09-02T23:39:14.6421967Z -rw-r--r-- 1 runner docker    94 Sep  2 23:38 requirements.txt
+2025-09-02T23:39:14.6422377Z -rw-r--r-- 1 runner docker  1802 Sep  2 23:38 restore_railway.bat
+2025-09-02T23:39:14.6422797Z -rw-r--r-- 1 runner docker  2572 Sep  2 23:38 restore_user_data.py
+2025-09-02T23:39:14.6423187Z -rw-r--r-- 1 runner docker    14 Sep  2 23:38 runtime.txt
+2025-09-02T23:39:14.6423603Z -rw-r--r-- 1 runner docker  2008 Sep  2 23:38 setup_github_actions.bat
+2025-09-02T23:39:14.6424006Z drwxr-xr-x 3 runner docker  4096 Sep  2 23:38 static
+2025-09-02T23:39:14.6424374Z drwxr-xr-x 2 runner docker  4096 Sep  2 23:38 templates
+2025-09-02T23:39:14.6424954Z -rw-r--r-- 1 runner docker  7216 Sep  2 23:38 version_manager.py
+2025-09-02T23:39:14.6425347Z drwxr-xr-x 4 runner docker  4096 Sep  2 23:38 versions
+2025-09-02T23:39:14.6425556Z 
+2025-09-02T23:39:14.6425656Z Looking for ZIP files:
+2025-09-02T23:39:14.6425867Z No ZIP files found
+2025-09-02T23:39:14.6425982Z 
+2025-09-02T23:39:14.6426093Z Looking for any backup files:
+2025-09-02T23:39:14.6442533Z ./download_backup.bat
+2025-09-02T23:39:14.6442922Z ./railway_backup_download_guide.py
+2025-09-02T23:39:14.6443186Z ./backup_railway.bat
+2025-09-02T23:39:14.6443437Z ./railway_vs_local_backup_demo.py
+2025-09-02T23:39:14.6443678Z ./railway_backup_demo.py
+2025-09-02T23:39:14.6443906Z ./railway_cli_backup_guide.py
+2025-09-02T23:39:14.6444183Z ./.github/workflows/railway_backup.yml
+2025-09-02T23:39:14.6444680Z ./railway_backup_correct.py
+2025-09-02T23:39:14.6445091Z ./decode_backup.py
+2025-09-02T23:39:14.6445431Z ./backup_user_data.py
+2025-09-02T23:39:14.6445851Z ./railway_backup_explanation.py
+2025-09-02T23:39:14.6446110Z ./railway_backup.py
+2025-09-02T23:39:14.6446329Z ./railway_backup_workflow.py
+2025-09-02T23:39:14.6446660Z 
+2025-09-02T23:39:14.6446830Z Looking for any ZIP files in subdirectories:
+2025-09-02T23:39:14.6507655Z ##[group]Run echo "Creating backup summary..."
+2025-09-02T23:39:14.6508056Z [36;1mecho "Creating backup summary..."[0m
+2025-09-02T23:39:14.6508308Z [36;1m[0m
+2025-09-02T23:39:14.6508544Z [36;1m# Check if any backup files were created[0m
+2025-09-02T23:39:14.6508905Z [36;1mif find . -name "*.zip" -type f 2>/dev/null | grep -q .; then[0m
+2025-09-02T23:39:14.6509238Z [36;1m  echo "✅ Backup files found:"[0m
+2025-09-02T23:39:14.6509530Z [36;1m  find . -name "*.zip" -type f -exec ls -la {} \;[0m
+2025-09-02T23:39:14.6509848Z [36;1m  echo "BACKUP_SUCCESS=true" >> $GITHUB_ENV[0m
+2025-09-02T23:39:14.6510111Z [36;1melse[0m
+2025-09-02T23:39:14.6510299Z [36;1m  echo "❌ No backup files found"[0m
+2025-09-02T23:39:14.6510578Z [36;1m  echo "BACKUP_SUCCESS=false" >> $GITHUB_ENV[0m
+2025-09-02T23:39:14.6510834Z [36;1mfi[0m
+2025-09-02T23:39:14.6540489Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:39:14.6540730Z env:
+2025-09-02T23:39:14.6541052Z   RAILWAY_TOKEN: ***
+2025-09-02T23:39:14.6541320Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:39:14.6541588Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.6541978Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:39:14.6542357Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.6542702Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.6543041Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.6543388Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:39:14.6543676Z ##[endgroup]
+2025-09-02T23:39:14.6590885Z Creating backup summary...
+2025-09-02T23:39:14.6616511Z ❌ No backup files found
+2025-09-02T23:39:14.6689548Z ##[group]Run actions/upload-artifact@v4
+2025-09-02T23:39:14.6689817Z with:
+2025-09-02T23:39:14.6690003Z   name: railway-backup-11
+2025-09-02T23:39:14.6690219Z   path: *.zip
+*backup*.zip
+
+2025-09-02T23:39:14.6690445Z   retention-days: 30
+2025-09-02T23:39:14.6690642Z   if-no-files-found: warn
+2025-09-02T23:39:14.6690838Z   compression-level: 6
+2025-09-02T23:39:14.6691027Z   overwrite: false
+2025-09-02T23:39:14.6691216Z   include-hidden-files: false
+2025-09-02T23:39:14.6691413Z env:
+2025-09-02T23:39:14.6691654Z   RAILWAY_TOKEN: ***
+2025-09-02T23:39:14.6691865Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:39:14.6692132Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.6692518Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:39:14.6692900Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.6693244Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.6693605Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.6693947Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:39:14.6694238Z   BACKUP_SUCCESS: false
+2025-09-02T23:39:14.6694446Z ##[endgroup]
+2025-09-02T23:39:14.8880509Z ##[warning]No files were found with the provided path: *.zip
+*backup*.zip. No artifacts will be uploaded.
+2025-09-02T23:39:14.8986579Z ##[group]Run echo "## Backup Report" >> $GITHUB_STEP_SUMMARY
+2025-09-02T23:39:14.8986993Z [36;1mecho "## Backup Report" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8987286Z [36;1mecho "" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8987583Z [36;1mecho "**Workflow Run**: #11" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8987914Z [36;1mecho "**Status**: success" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8988204Z [36;1mecho "" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8988434Z [36;1m[0m
+2025-09-02T23:39:14.8988605Z [36;1mif [ "false" = "true" ]; then[0m
+2025-09-02T23:39:14.8989025Z [36;1m  echo "✅ **Backup Status**: Success" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8989532Z [36;1m  echo "**Files Created**: " >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8989918Z [36;1m  find . -name "*.zip" -type f -exec echo "- \`{}\`" \; >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8990464Z [36;1melse[0m
+2025-09-02T23:39:14.8990754Z [36;1m  echo "❌ **Backup Status**: Failed" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8991154Z [36;1m  echo "**Reason**: No backup files were generated" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8991484Z [36;1mfi[0m
+2025-09-02T23:39:14.8991657Z [36;1m[0m
+2025-09-02T23:39:14.8991841Z [36;1mecho "" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8992126Z [36;1mecho "**Next Steps**: " >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8992396Z [36;1mif [ "false" = "true" ]; then[0m
+2025-09-02T23:39:14.8992845Z [36;1m  echo "1. Download backup files from GitHub Releases or Artifacts" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8993442Z [36;1m  echo "2. Extract and verify backup contents" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8993761Z [36;1melse[0m
+2025-09-02T23:39:14.8994073Z [36;1m  echo "1. Check Railway authentication and project access" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8994721Z [36;1m  echo "2. Verify backup script execution" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8995129Z [36;1m  echo "3. Review logs for error details" >> $GITHUB_STEP_SUMMARY[0m
+2025-09-02T23:39:14.8995423Z [36;1mfi[0m
+2025-09-02T23:39:14.9025396Z shell: /usr/bin/bash -e {0}
+2025-09-02T23:39:14.9025618Z env:
+2025-09-02T23:39:14.9025900Z   RAILWAY_TOKEN: ***
+2025-09-02T23:39:14.9026140Z   RAILWAY_PROJECT_ID: ***
+2025-09-02T23:39:14.9026411Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.9026809Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib/pkgconfig
+2025-09-02T23:39:14.9027191Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.9027538Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.9027877Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.13/x64
+2025-09-02T23:39:14.9028218Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.13/x64/lib
+2025-09-02T23:39:14.9028527Z   BACKUP_SUCCESS: false
+2025-09-02T23:39:14.9028712Z ##[endgroup]
+2025-09-02T23:39:14.9129709Z Post job cleanup.
+2025-09-02T23:39:15.0718023Z Post job cleanup.
+2025-09-02T23:39:15.2299306Z Post job cleanup.
+2025-09-02T23:39:15.3262378Z [command]/usr/bin/git version
+2025-09-02T23:39:15.3301690Z git version 2.51.0
+2025-09-02T23:39:15.3346731Z Temporarily overriding HOME='/home/runner/work/_temp/096cd865-a41b-4009-825b-010418e124f5' before making global git config changes
+2025-09-02T23:39:15.3347962Z Adding repository directory to the temporary git global config as a safe directory
+2025-09-02T23:39:15.3362081Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/bollinger-bands-web-app/bollinger-bands-web-app
+2025-09-02T23:39:15.3400845Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-09-02T23:39:15.3438140Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-09-02T23:39:15.3682121Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-09-02T23:39:15.3705503Z http.https://github.com/.extraheader
+2025-09-02T23:39:15.3718435Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2025-09-02T23:39:15.3751694Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-09-02T23:39:15.4086092Z Cleaning up orphan processes

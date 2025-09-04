@@ -619,6 +619,7 @@
         <!-- Tab导航 -->
         <div class="tabs">
             <button class="tab active" onclick="showTab('analysis')">📊 币种分析</button>
+            <button class="tab" onclick="showTab('intraday')">⚡ 日内交易</button>
             <button class="tab" onclick="showTab('orders')">📋 挂单管理</button>
             <button class="tab" onclick="showTab('positions')">💰 分批仓位</button>
             <button class="tab" onclick="showTab('management')">⚙️ 系统管理</button>
@@ -696,6 +697,108 @@
                             </tr>
                         </thead>
                         <tbody id="analysisTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 日内交易Tab -->
+        <div id="intraday" class="tab-content">
+            <h3>⚡ 日内交易信号</h3>
+            <div class="help-text">
+                <strong>日内交易说明：</strong>基于365周期EMA/MA锚点策略，价格在锚点上方为多头信号，下方为空头信号。优先显示15分钟和1小时信号。
+            </div>
+            
+            <div class="form-group">
+                <button class="btn btn-success" onclick="analyzeIntradaySymbols()">分析主要币种</button>
+                <button class="btn btn-info" onclick="analyzeIntradayCustom()">分析自定义币种</button>
+                <button class="btn btn-warning" onclick="getIntradaySignals()">获取信号汇总</button>
+                <button class="btn btn-secondary" onclick="clearIntradayCache()">清除缓存</button>
+            </div>
+            
+            <div class="form-group">
+                <label>自定义币种（用逗号分隔）：</label>
+                <textarea class="form-control" id="intradaySymbolsInput" rows="2" placeholder="例如: BTC, ETH, SOL, ADA"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label><input type="checkbox" id="intradayForceRefresh"> 强制刷新数据</label>
+            </div>
+            
+            <!-- 信号汇总区域 -->
+            <div id="intradaySignals" class="results-container" style="display: none;">
+                <h4>信号汇总（15m + 1h）</h4>
+                <div class="table-container">
+                    <table id="intradaySignalsTable" class="analysis-table">
+                        <thead>
+                            <tr>
+                                <th>币种</th>
+                                <th>综合信号</th>
+                                <th>15分钟</th>
+                                <th>1小时</th>
+                                <th>一致性</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="intradaySignalsTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- 详细分析区域 -->
+            <div id="intradayDetails" class="results-container" style="display: none;">
+                <h4>详细分析结果</h4>
+                
+                <!-- 筛选控制 -->
+                <div class="filter-controls">
+                    <div class="filter-group">
+                        <label>时间周期:</label>
+                        <select id="intradayTimeframeFilter" onchange="filterIntradayResults()">
+                            <option value="all">全部</option>
+                            <option value="1m">1分钟</option>
+                            <option value="3m">3分钟</option>
+                            <option value="15m">15分钟</option>
+                            <option value="1h">1小时</option>
+                            <option value="2h">2小时</option>
+                            <option value="4h">4小时</option>
+                            <option value="6h">6小时</option>
+                            <option value="8h">8小时</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>信号类型:</label>
+                        <select id="intradaySignalFilter" onchange="filterIntradayResults()">
+                            <option value="all">全部</option>
+                            <option value="long">多头</option>
+                            <option value="short">空头</option>
+                            <option value="mixed">混合</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>搜索:</label>
+                        <input type="text" id="intradaySearchSymbol" placeholder="搜索币种..." onkeyup="filterIntradayResults()">
+                    </div>
+                </div>
+                
+                <!-- 详细结果表格 -->
+                <div class="table-container">
+                    <table id="intradayDetailsTable" class="analysis-table">
+                        <thead>
+                            <tr>
+                                <th>币种</th>
+                                <th>时间周期</th>
+                                <th>当前价格</th>
+                                <th>EMA365</th>
+                                <th>MA365</th>
+                                <th>锚点</th>
+                                <th>信号</th>
+                                <th>强度</th>
+                                <th>偏离度</th>
+                            </tr>
+                        </thead>
+                        <tbody id="intradayDetailsTableBody">
                         </tbody>
                     </table>
                 </div>
@@ -823,6 +926,11 @@
           
           // 币种管理相关变量
           let totalSymbols = 130; // 默认币种数量
+          
+          // 日内交易相关变量
+          let intradayResults = [];
+          let intradaySignals = [];
+          let filteredIntradayResults = [];
 
         // 显示Tab
         function showTab(tabName) {
@@ -1576,6 +1684,343 @@
                 <p>系统运行时间: ${uptime}分钟</p>
                 <p>最后更新: ${now.toLocaleTimeString()}</p>
             `;
+        }
+        
+        // ==================== 日内交易相关函数 ====================
+        
+        // 分析主要币种的日内交易信号
+        async function analyzeIntradaySymbols() {
+            const mainSymbols = ['BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'LINK', 'UNI', 'AVAX', 'MATIC', 'ATOM'];
+            showStatus(`正在分析主要币种日内交易信号...`, 'success');
+            
+            try {
+                const response = await fetch('/intraday/get_signals', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbols: mainSymbols,
+                        force_refresh: document.getElementById('intradayForceRefresh').checked
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    intradaySignals = data.signals;
+                    showIntradaySignals(data.signals);
+                    showStatus(`日内交易信号分析完成，共处理 ${data.total} 个币种`, 'success');
+                } else {
+                    showStatus('日内交易分析失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 分析自定义币种的日内交易信号
+        async function analyzeIntradayCustom() {
+            const symbols = document.getElementById('intradaySymbolsInput').value.trim();
+            if (!symbols) {
+                showStatus('请输入要分析的币种', 'error');
+                return;
+            }
+
+            const symbolList = symbols.split(',').map(s => s.trim()).filter(s => s);
+            showStatus(`正在分析 ${symbolList.length} 个自定义币种日内交易信号...`, 'success');
+            
+            try {
+                const response = await fetch('/intraday/get_signals', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbols: symbolList,
+                        force_refresh: document.getElementById('intradayForceRefresh').checked
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    intradaySignals = data.signals;
+                    showIntradaySignals(data.signals);
+                    showStatus(`日内交易信号分析完成，共处理 ${data.total} 个币种`, 'success');
+                } else {
+                    showStatus('日内交易分析失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 获取信号汇总
+        async function getIntradaySignals() {
+            showStatus('正在获取日内交易信号汇总...', 'success');
+            
+            try {
+                const response = await fetch('/intraday/get_signals', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbols: ['BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'LINK', 'UNI', 'AVAX', 'MATIC', 'ATOM'],
+                        force_refresh: document.getElementById('intradayForceRefresh').checked
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    intradaySignals = data.signals;
+                    showIntradaySignals(data.signals);
+                    showStatus(`信号汇总获取完成，共 ${data.total} 个币种`, 'success');
+                } else {
+                    showStatus('获取信号汇总失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 显示日内交易信号
+        function showIntradaySignals(signals) {
+            const signalsContainer = document.getElementById('intradaySignals');
+            const tbody = document.getElementById('intradaySignalsTableBody');
+            
+            if (signals.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">没有找到信号</td></tr>';
+            } else {
+                let html = '';
+                signals.forEach(signal => {
+                    const symbol = signal.symbol.replace('USDT', '');
+                    const overallSignal = signal.overall_signal;
+                    const consistency = signal.signal_consistency;
+                    
+                    // 获取15分钟和1小时信号
+                    const signal15m = signal.priority_signals['15m'] || {};
+                    const signal1h = signal.priority_signals['1h'] || {};
+                    
+                    // 信号样式
+                    let signalClass = 'status-hold';
+                    let signalText = '未知';
+                    if (overallSignal === 'long') {
+                        signalClass = 'status-buy';
+                        signalText = '多头';
+                    } else if (overallSignal === 'short') {
+                        signalClass = 'status-sell';
+                        signalText = '空头';
+                    } else if (overallSignal === 'mixed') {
+                        signalClass = 'status-hold';
+                        signalText = '混合';
+                    }
+                    
+                    // 15分钟信号
+                    let signal15mText = '无';
+                    let signal15mClass = 'status-hold';
+                    if (signal15m.signal) {
+                        signal15mText = signal15m.signal;
+                        signal15mClass = signal15m.signal_type === 'long' ? 'status-buy' : 'status-sell';
+                    }
+                    
+                    // 1小时信号
+                    let signal1hText = '无';
+                    let signal1hClass = 'status-hold';
+                    if (signal1h.signal) {
+                        signal1hText = signal1h.signal;
+                        signal1hClass = signal1h.signal_type === 'long' ? 'status-buy' : 'status-sell';
+                    }
+                    
+                    html += `
+                        <tr>
+                            <td><strong>${symbol}</strong></td>
+                            <td><span class="status-badge ${signalClass}">${signalText}</span></td>
+                            <td><span class="status-badge ${signal15mClass}">${signal15mText}</span></td>
+                            <td><span class="status-badge ${signal1hClass}">${signal1hText}</span></td>
+                            <td>${consistency}</td>
+                            <td>
+                                <button class="action-btn action-btn-buy" onclick="viewIntradayDetails('${symbol}')">详细</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                tbody.innerHTML = html;
+            }
+            
+            signalsContainer.style.display = 'block';
+        }
+        
+        // 查看详细分析
+        async function viewIntradayDetails(symbol) {
+            showStatus(`正在获取 ${symbol} 的详细分析...`, 'success');
+            
+            try {
+                const response = await fetch('/intraday/get_symbol_signals', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        force_refresh: document.getElementById('intradayForceRefresh').checked
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    intradayResults = [data.result];
+                    showIntradayDetails(data.result);
+                    showStatus(`${symbol} 详细分析完成`, 'success');
+                } else {
+                    showStatus('获取详细分析失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 显示详细分析结果
+        function showIntradayDetails(result) {
+            const detailsContainer = document.getElementById('intradayDetails');
+            const tbody = document.getElementById('intradayDetailsTableBody');
+            
+            if (!result.timeframes || Object.keys(result.timeframes).length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">没有找到详细数据</td></tr>';
+            } else {
+                let html = '';
+                Object.entries(result.timeframes).forEach(([timeframe, data]) => {
+                    const symbol = data.symbol.replace('USDT', '');
+                    const price = data.current_price ? data.current_price.toFixed(6) : 'N/A';
+                    const ema365 = data.ema365 ? data.ema365.toFixed(6) : 'N/A';
+                    const ma365 = data.ma365 ? data.ma365.toFixed(6) : 'N/A';
+                    const anchor = data.anchor_point ? data.anchor_point.toFixed(6) : 'N/A';
+                    const signal = data.signal || '未知';
+                    const strength = data.strength || '弱';
+                    const deviation = data.deviation || 0;
+                    
+                    // 信号样式
+                    let signalClass = 'status-hold';
+                    if (data.signal_type === 'long') {
+                        signalClass = 'status-buy';
+                    } else if (data.signal_type === 'short') {
+                        signalClass = 'status-sell';
+                    }
+                    
+                    html += `
+                        <tr>
+                            <td><strong>${symbol}</strong></td>
+                            <td>${timeframe}</td>
+                            <td>${price}</td>
+                            <td>${ema365}</td>
+                            <td>${ma365}</td>
+                            <td>${anchor}</td>
+                            <td><span class="status-badge ${signalClass}">${signal}</span></td>
+                            <td>${strength}</td>
+                            <td>${deviation}%</td>
+                        </tr>
+                    `;
+                });
+                
+                tbody.innerHTML = html;
+                filteredIntradayResults = Object.values(result.timeframes);
+            }
+            
+            detailsContainer.style.display = 'block';
+        }
+        
+        // 筛选日内交易结果
+        function filterIntradayResults() {
+            const timeframeFilter = document.getElementById('intradayTimeframeFilter').value;
+            const signalFilter = document.getElementById('intradaySignalFilter').value;
+            const searchTerm = document.getElementById('intradaySearchSymbol').value.toLowerCase();
+            
+            if (!intradayResults.length) return;
+            
+            const result = intradayResults[0];
+            if (!result.timeframes) return;
+            
+            filteredIntradayResults = Object.values(result.timeframes).filter(data => {
+                // 时间周期筛选
+                if (timeframeFilter !== 'all' && data.timeframe !== timeframeFilter) {
+                    return false;
+                }
+                
+                // 信号类型筛选
+                if (signalFilter !== 'all' && data.signal_type !== signalFilter) {
+                    return false;
+                }
+                
+                // 搜索筛选
+                if (searchTerm && !data.symbol.toLowerCase().includes(searchTerm)) {
+                    return false;
+                }
+                
+                return true;
+            });
+            
+            // 重新渲染表格
+            const tbody = document.getElementById('intradayDetailsTableBody');
+            if (filteredIntradayResults.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">没有匹配的数据</td></tr>';
+            } else {
+                let html = '';
+                filteredIntradayResults.forEach(data => {
+                    const symbol = data.symbol.replace('USDT', '');
+                    const price = data.current_price ? data.current_price.toFixed(6) : 'N/A';
+                    const ema365 = data.ema365 ? data.ema365.toFixed(6) : 'N/A';
+                    const ma365 = data.ma365 ? data.ma365.toFixed(6) : 'N/A';
+                    const anchor = data.anchor_point ? data.anchor_point.toFixed(6) : 'N/A';
+                    const signal = data.signal || '未知';
+                    const strength = data.strength || '弱';
+                    const deviation = data.deviation || 0;
+                    
+                    // 信号样式
+                    let signalClass = 'status-hold';
+                    if (data.signal_type === 'long') {
+                        signalClass = 'status-buy';
+                    } else if (data.signal_type === 'short') {
+                        signalClass = 'status-sell';
+                    }
+                    
+                    html += `
+                        <tr>
+                            <td><strong>${symbol}</strong></td>
+                            <td>${data.timeframe}</td>
+                            <td>${price}</td>
+                            <td>${ema365}</td>
+                            <td>${ma365}</td>
+                            <td>${anchor}</td>
+                            <td><span class="status-badge ${signalClass}">${signal}</span></td>
+                            <td>${strength}</td>
+                            <td>${deviation}%</td>
+                        </tr>
+                    `;
+                });
+                
+                tbody.innerHTML = html;
+            }
+        }
+        
+        // 清除日内交易缓存
+        async function clearIntradayCache() {
+            try {
+                const response = await fetch('/intraday/clear_cache', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showStatus('日内交易缓存已清除', 'success');
+                } else {
+                    showStatus('清除缓存失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error.message, 'error');
+            }
         }
     </script>
 </body>

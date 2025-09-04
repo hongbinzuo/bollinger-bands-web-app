@@ -11,7 +11,13 @@ import os
 from io import StringIO
 import pickle
 
+# 导入日内交易模块
+from intraday_api import intraday_bp
+
 app = Flask(__name__)
+
+# 注册日内交易蓝图
+app.register_blueprint(intraday_bp)
 
 # 设置日志
 import logging
