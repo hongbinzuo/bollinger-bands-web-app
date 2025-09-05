@@ -2674,24 +2674,44 @@
                 const tradingSignals = generateTradingSignals(crossPoints);
                 tradingSignals.forEach(signal => {
                     const isStrongSignal = signal.description.includes('多头排列') || signal.description.includes('空头排列');
-                    const signalSize = isStrongSignal ? 12 : 8;
-                    const signalColor = signal.type === 'buy' ? 
-                        (isStrongSignal ? '#00ff00' : '#90ee90') : 
-                        (isStrongSignal ? '#ff0000' : '#ffa0a0');
+                    const isVolumeConfirmed = signal.volume_confirmed;
+                    
+                    // 根据信号强度和成交量确认确定显示样式
+                    let signalSize, signalColor, signalStyle;
+                    
+                    if (isVolumeConfirmed && isStrongSignal) {
+                        // 强信号 + 成交量确认
+                        signalSize = 14;
+                        signalColor = signal.type === 'buy' ? '#00ff00' : '#ff0000';
+                        signalStyle = 'solid';
+                    } else if (isVolumeConfirmed || isStrongSignal) {
+                        // 单一确认
+                        signalSize = 10;
+                        signalColor = signal.type === 'buy' ? '#90ee90' : '#ffa0a0';
+                        signalStyle = 'solid';
+                    } else {
+                        // 无确认
+                        signalSize = 8;
+                        signalColor = signal.type === 'buy' ? '#d0f0d0' : '#ffd0d0';
+                        signalStyle = 'dashed';
+                    }
+                    
+                    const signalLabel = `${signal.type === 'buy' ? '买入' : '卖出'}信号: ${signal.description}${isVolumeConfirmed ? ' ✓' : ''}`;
                     
                     datasets.push({
-                        label: `${signal.type === 'buy' ? '买入' : '卖出'}信号: ${signal.description}`,
+                        label: signalLabel,
                         data: [{
                             x: new Date(signal.timestamp),
                             y: signal.price
                         }],
                         borderColor: signalColor,
                         backgroundColor: signalColor,
-                        borderWidth: isStrongSignal ? 4 : 3,
+                        borderWidth: signalSize > 10 ? 4 : 3,
                         pointRadius: signalSize,
                         pointHoverRadius: signalSize + 4,
                         showLine: false,
-                        pointStyle: signal.type === 'buy' ? 'triangle' : 'triangleDown'
+                        pointStyle: signal.type === 'buy' ? 'triangle' : 'triangleDown',
+                        borderDash: signalStyle === 'dashed' ? [5, 5] : []
                     });
                 });
             }
@@ -2938,21 +2958,27 @@
                 
                 // 买入信号条件
                 if (isBuySignal(indicator1, indicator2, type, crossPoints)) {
+                    const volumeConfirmed = checkVolumeConfirmation(cross, 'buy');
                     signals.push({
                         timestamp: timestamp,
                         price: price,
                         type: 'buy',
-                        description: getBuySignalDescription(indicator1, indicator2, type)
+                        description: getBuySignalDescription(indicator1, indicator2, type),
+                        volume_confirmed: volumeConfirmed,
+                        volume_info: cross.volume_confirmation || {}
                     });
                 }
                 
                 // 卖出信号条件
                 if (isSellSignal(indicator1, indicator2, type, crossPoints)) {
+                    const volumeConfirmed = checkVolumeConfirmation(cross, 'sell');
                     signals.push({
                         timestamp: timestamp,
                         price: price,
                         type: 'sell',
-                        description: getSellSignalDescription(indicator1, indicator2, type)
+                        description: getSellSignalDescription(indicator1, indicator2, type),
+                        volume_confirmed: volumeConfirmed,
+                        volume_info: cross.volume_confirmation || {}
                     });
                 }
             });
@@ -2977,6 +3003,21 @@
             }
             
             return false;
+        }
+        
+        // 检查成交量确认
+        function checkVolumeConfirmation(cross, signalType) {
+            if (cross.volume_confirmation) {
+                const volConf = cross.volume_confirmation;
+                if (signalType === 'buy') {
+                    // 买入信号需要成交量增加确认
+                    return volConf.confirmed && volConf.volume_ratio > 1.2;
+                } else {
+                    // 卖出信号成交量变化确认
+                    return volConf.confirmed && (volConf.volume_ratio > 1.1 || volConf.volume_ratio < 0.8);
+                }
+            }
+            return false; // 没有成交量数据时默认不确认
         }
         
         // 判断是否为卖出信号

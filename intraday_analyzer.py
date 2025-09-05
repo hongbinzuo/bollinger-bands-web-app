@@ -217,7 +217,56 @@ class IntradayAnalyzer:
             logger.error(f"计算MA365失败: {e}")
             return pd.Series()
     
-    def detect_cross_points(self, prices: pd.Series, indicators: dict, tolerance: float = 0.001) -> dict:
+    def analyze_volume_confirmation(self, volumes: pd.Series, prices: pd.Series, 
+                                  signal_type: str, signal_index: int) -> Dict:
+        """分析成交量确认信号"""
+        try:
+            if signal_index < 5 or signal_index >= len(volumes) - 5:
+                return {'confirmed': False, 'volume_ratio': 1.0, 'description': '数据不足'}
+            
+            # 获取信号前后的成交量
+            pre_volumes = volumes.iloc[signal_index-5:signal_index]
+            post_volumes = volumes.iloc[signal_index:signal_index+5]
+            
+            # 计算平均成交量
+            avg_pre_volume = pre_volumes.mean()
+            avg_post_volume = post_volumes.mean()
+            
+            # 计算成交量比率
+            volume_ratio = avg_post_volume / avg_pre_volume if avg_pre_volume > 0 else 1.0
+            
+            # 判断成交量确认
+            confirmed = False
+            description = ""
+            
+            if signal_type == 'buy':
+                # 买入信号需要成交量增加
+                if volume_ratio > 1.2:  # 成交量增加20%以上
+                    confirmed = True
+                    description = f"成交量确认买入信号 (比率: {volume_ratio:.2f})"
+                else:
+                    description = f"成交量不足，买入信号较弱 (比率: {volume_ratio:.2f})"
+            else:  # sell
+                # 卖出信号成交量可以增加或减少
+                if volume_ratio > 1.1 or volume_ratio < 0.8:  # 成交量变化10%以上
+                    confirmed = True
+                    description = f"成交量确认卖出信号 (比率: {volume_ratio:.2f})"
+                else:
+                    description = f"成交量变化不明显，卖出信号较弱 (比率: {volume_ratio:.2f})"
+            
+            return {
+                'confirmed': confirmed,
+                'volume_ratio': volume_ratio,
+                'description': description,
+                'avg_pre_volume': avg_pre_volume,
+                'avg_post_volume': avg_post_volume
+            }
+            
+        except Exception as e:
+            logger.error(f"分析成交量确认失败: {e}")
+            return {'confirmed': False, 'volume_ratio': 1.0, 'description': '分析失败'}
+    
+    def detect_cross_points(self, prices: pd.Series, indicators: dict, volumes: pd.Series = None, tolerance: float = 0.001) -> dict:
         """检测交叉点位（误差在千分之1以内）"""
         try:
             cross_points = {
@@ -252,12 +301,19 @@ class IntradayAnalyzer:
                         
                         # 验证误差是否在容忍范围内
                         if self._validate_cross_accuracy(cross_price, price_curr, ind_curr, tolerance):
+                            # 分析成交量确认
+                            volume_analysis = {}
+                            if volumes is not None:
+                                signal_type = 'buy' if price_curr > ind_curr else 'sell'
+                                volume_analysis = self.analyze_volume_confirmation(volumes, prices, signal_type, i)
+                            
                             cross_points['price_crosses'].append({
                                 'timestamp': prices.index[i],
                                 'price': cross_price,
                                 'indicator': indicator_name,
                                 'type': 'golden_cross' if price_curr > ind_curr else 'death_cross',
-                                'index': i
+                                'index': i,
+                                'volume_confirmation': volume_analysis
                             })
             
             # 检测均线与均线的交叉
@@ -616,6 +672,7 @@ class IntradayAnalyzer:
             base_data = {
                 'timestamps': df_base.index.strftime('%Y-%m-%d %H:%M:%S').tolist(),
                 'prices': clean_series(df_base['close']),
+                'volumes': clean_series(df_base['volume']),
                 'ema89': clean_series(ema89),
                 'ema144': clean_series(ema144),
                 'ema233': clean_series(ema233),
@@ -638,7 +695,7 @@ class IntradayAnalyzer:
                 'MA365': ma365
             }
             
-            cross_points = self.detect_cross_points(df_base['close'], indicators)
+            cross_points = self.detect_cross_points(df_base['close'], indicators, df_base['volume'])
             
             # 格式化交叉点位数据
             formatted_cross_points = {
