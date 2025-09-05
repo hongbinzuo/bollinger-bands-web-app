@@ -26,7 +26,7 @@ class IntradayAnalyzer:
         })
         
         # 支持的时间周期
-        self.timeframes = ['1m', '3m', '15m', '1h', '2h', '4h', '6h', '8h']
+        self.timeframes = ['1m', '3m', '5m', '15m', '1h', '2h', '4h', '6h', '8h']
         
         # 优先时间周期（主要信号）
         self.priority_timeframes = ['15m', '1h']
@@ -101,7 +101,7 @@ class IntradayAnalyzer:
         try:
             # Gate.io的interval格式转换
             interval_map = {
-                '1m': '1m', '3m': '3m', '15m': '15m',
+                '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m',
                 '1h': '1h', '2h': '2h', '4h': '4h',
                 '6h': '6h', '8h': '8h'
             }
@@ -151,6 +151,22 @@ class IntradayAnalyzer:
             return data.ewm(span=period, adjust=False).mean()
         except Exception as e:
             logger.error(f"计算EMA失败: {e}")
+            return pd.Series()
+    
+    def calculate_ema89(self, data: pd.Series) -> pd.Series:
+        """计算89周期指数移动平均线"""
+        try:
+            return data.ewm(span=89, adjust=False).mean()
+        except Exception as e:
+            logger.error(f"计算EMA89失败: {e}")
+            return pd.Series()
+    
+    def calculate_ema233(self, data: pd.Series) -> pd.Series:
+        """计算233周期指数移动平均线"""
+        try:
+            return data.ewm(span=233, adjust=False).mean()
+        except Exception as e:
+            logger.error(f"计算EMA233失败: {e}")
             return pd.Series()
     
     def calculate_ma(self, data: pd.Series, period: int = 365) -> pd.Series:
@@ -400,6 +416,86 @@ class IntradayAnalyzer:
                 
         except Exception as e:
             logger.error(f"保存缓存失败: {e}")
+    
+    def get_chart_data(self, symbol: str, base_timeframe: str = '5m', limit: int = 200) -> Dict:
+        """获取图表数据（多时间周期EMA）"""
+        try:
+            logger.info(f"获取 {symbol} 图表数据，基础时间周期: {base_timeframe}")
+            
+            # 获取基础时间周期的K线数据
+            df_base = self.get_klines_data(symbol, base_timeframe, limit)
+            
+            if df_base.empty or len(df_base) < 100:
+                return {
+                    'success': False,
+                    'error': '基础数据不足',
+                    'symbol': symbol,
+                    'timeframe': base_timeframe
+                }
+            
+            # 计算基础时间周期的所有EMA
+            ema89 = self.calculate_ema89(df_base['close'])
+            ema233 = self.calculate_ema233(df_base['close'])
+            ema365 = self.calculate_ema(df_base['close'], 365)
+            
+            # 准备基础数据
+            base_data = {
+                'timestamps': df_base.index.strftime('%Y-%m-%d %H:%M:%S').tolist(),
+                'prices': df_base['close'].tolist(),
+                'ema89': ema89.tolist(),
+                'ema233': ema233.tolist(),
+                'ema365': ema365.tolist()
+            }
+            
+            # 获取其他时间周期的EMA365数据
+            other_timeframes = ['1m', '2m', '3m']
+            timeframe_data = {}
+            
+            for tf in other_timeframes:
+                try:
+                    df_tf = self.get_klines_data(symbol, tf, limit * 2)  # 获取更多数据点
+                    
+                    if not df_tf.empty and len(df_tf) >= 100:
+                        ema365_tf = self.calculate_ema(df_tf['close'], 365)
+                        
+                        # 对齐时间戳（取最近的数据点）
+                        aligned_data = []
+                        for base_ts in df_base.index:
+                            # 找到最接近的时间点
+                            closest_idx = df_tf.index.get_indexer([base_ts], method='nearest')[0]
+                            if closest_idx >= 0:
+                                aligned_data.append(ema365_tf.iloc[closest_idx])
+                            else:
+                                aligned_data.append(None)
+                        
+                        timeframe_data[tf] = aligned_data
+                    else:
+                        timeframe_data[tf] = [None] * len(df_base)
+                        
+                except Exception as e:
+                    logger.error(f"获取 {tf} 数据失败: {e}")
+                    timeframe_data[tf] = [None] * len(df_base)
+            
+            result = {
+                'success': True,
+                'symbol': symbol,
+                'base_timeframe': base_timeframe,
+                'base_data': base_data,
+                'timeframe_data': timeframe_data,
+                'data_count': len(df_base),
+                'cache_date': datetime.now().isoformat()
+            }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"获取图表数据失败: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'symbol': symbol,
+                'timeframe': base_timeframe
+            }
     
     def clear_cache(self):
         """清除缓存"""

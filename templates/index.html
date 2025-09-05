@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>布林带策略系统</title>
+    <!-- Chart.js 图表库 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -564,6 +567,95 @@
              justify-content: flex-end;
              gap: 10px;
          }
+         
+         /* 图表容器样式 */
+         .chart-container {
+             margin-top: 20px;
+             padding: 20px;
+             background: rgba(0, 0, 0, 0.2);
+             border-radius: 10px;
+             border: 1px solid rgba(255, 255, 255, 0.1);
+         }
+         
+         .chart-header {
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             margin-bottom: 15px;
+             color: white;
+         }
+         
+         .chart-title {
+             font-size: 18px;
+             font-weight: bold;
+             color: white;
+             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+         }
+         
+         .chart-controls {
+             display: flex;
+             gap: 10px;
+             align-items: center;
+         }
+         
+         .chart-controls button {
+             padding: 6px 12px;
+             background: #007bff;
+             color: white;
+             border: none;
+             border-radius: 4px;
+             cursor: pointer;
+             font-size: 12px;
+         }
+         
+         .chart-controls button:hover {
+             background: #0056b3;
+         }
+         
+         .chart-controls button.active {
+             background: #28a745;
+         }
+         
+         .chart-controls select {
+             padding: 6px 10px;
+             border: 1px solid rgba(255, 255, 255, 0.5);
+             border-radius: 4px;
+             background: rgba(0, 0, 0, 0.1);
+             color: white;
+             font-size: 12px;
+         }
+         
+         .chart-wrapper {
+             position: relative;
+             height: 400px;
+             background: rgba(0, 0, 0, 0.3);
+             border-radius: 8px;
+             padding: 10px;
+         }
+         
+         .chart-legend {
+             display: flex;
+             flex-wrap: wrap;
+             gap: 15px;
+             margin-top: 10px;
+             padding: 10px;
+             background: rgba(0, 0, 0, 0.2);
+             border-radius: 5px;
+         }
+         
+         .legend-item {
+             display: flex;
+             align-items: center;
+             gap: 5px;
+             font-size: 12px;
+             color: white;
+         }
+         
+         .legend-color {
+             width: 12px;
+             height: 2px;
+             border-radius: 1px;
+         }
     </style>
 </head>
 <body>
@@ -803,6 +895,33 @@
                     </table>
                 </div>
             </div>
+            
+            <!-- 图表区域 -->
+            <div id="chartSection" class="chart-container" style="display: none;">
+                <div class="chart-header">
+                    <div class="chart-title">📈 EMA多时间周期图表</div>
+                    <div class="chart-controls">
+                        <select id="chartSymbolSelect" onchange="updateChartSymbol()">
+                            <option value="">选择币种</option>
+                        </select>
+                        <select id="chartTimeframeSelect" onchange="updateChartTimeframe()">
+                            <option value="5m">5分钟</option>
+                            <option value="15m">15分钟</option>
+                            <option value="1h">1小时</option>
+                        </select>
+                        <button onclick="refreshChart()">🔄 刷新</button>
+                        <button onclick="toggleChartVisibility()">👁️ 显示/隐藏</button>
+                    </div>
+                </div>
+                
+                <div class="chart-wrapper">
+                    <canvas id="emaChart"></canvas>
+                </div>
+                
+                <div class="chart-legend" id="chartLegend">
+                    <!-- 图例将通过JavaScript动态生成 -->
+                </div>
+            </div>
         </div>
 
         <!-- 挂单管理Tab -->
@@ -931,6 +1050,12 @@
           let intradayResults = [];
           let intradaySignals = [];
           let filteredIntradayResults = [];
+          
+          // 图表相关变量
+          let emaChart = null;
+          let currentChartSymbol = '';
+          let currentChartTimeframe = '5m';
+          let chartData = null;
 
         // 显示Tab
         function showTab(tabName) {
@@ -1659,6 +1784,10 @@
             // 初始化视频背景
             initVideoBackground();
             
+            // 初始化图表
+            initChart();
+            initChartSymbolSelect();
+            
             // 初始化动画背景（默认隐藏）
             const animatedBg = document.querySelector('.animated-background');
             if (animatedBg) {
@@ -1840,6 +1969,7 @@
                             <td>${consistency}</td>
                             <td>
                                 <button class="action-btn action-btn-buy" onclick="viewIntradayDetails('${symbol}')">详细</button>
+                                <button class="action-btn action-btn-sell" onclick="showChart('${symbol}')">图表</button>
                             </td>
                         </tr>
                     `;
@@ -2021,6 +2151,322 @@
             } catch (error) {
                 showStatus('请求失败: ' + error.message, 'error');
             }
+        }
+        
+        // ==================== 图表相关函数 ====================
+        
+        // 初始化图表
+        function initChart() {
+            const ctx = document.getElementById('emaChart').getContext('2d');
+            
+            emaChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: false // 使用自定义图例
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: 'white',
+                            bodyColor: 'white',
+                            borderColor: 'rgba(255, 255, 255, 0.2)',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute',
+                                displayFormats: {
+                                    minute: 'HH:mm',
+                                    hour: 'MM-dd HH:mm'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: 'white'
+                            }
+                        },
+                        y: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: 'white',
+                                callback: function(value) {
+                                    return value.toFixed(2);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 获取图表数据
+        async function getChartData(symbol, timeframe = '5m') {
+            if (!symbol) {
+                showStatus('请选择币种', 'error');
+                return null;
+            }
+            
+            showStatus(`正在获取 ${symbol} 图表数据...`, 'success');
+            
+            try {
+                const response = await fetch('/intraday/get_chart_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        base_timeframe: timeframe,
+                        limit: 200
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    chartData = data;
+                    showStatus(`${symbol} 图表数据获取成功`, 'success');
+                    return data;
+                } else {
+                    showStatus('获取图表数据失败: ' + data.error, 'error');
+                    return null;
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error.message, 'error');
+                return null;
+            }
+        }
+        
+        // 更新图表
+        function updateChart(data) {
+            if (!data || !emaChart) return;
+            
+            const baseData = data.base_data;
+            const timeframeData = data.timeframe_data;
+            
+            // 准备时间标签
+            const labels = baseData.timestamps.map(ts => new Date(ts));
+            
+            // 定义颜色
+            const colors = {
+                '1m': '#ff6b6b',    // 红色
+                '2m': '#4ecdc4',    // 青色
+                '3m': '#45b7d1',    // 蓝色
+                '5m': '#96ceb4',    // 绿色
+                'ema89': '#feca57', // 黄色
+                'ema233': '#ff9ff3', // 粉色
+                'ema365': '#54a0ff'  // 蓝色
+            };
+            
+            // 准备数据集
+            const datasets = [];
+            
+            // 添加价格线
+            datasets.push({
+                label: '价格',
+                data: baseData.prices.map((price, index) => ({
+                    x: labels[index],
+                    y: price
+                })),
+                borderColor: '#ffffff',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                borderWidth: 2,
+                pointRadius: 0,
+                tension: 0.1
+            });
+            
+            // 添加多时间周期EMA365
+            Object.entries(timeframeData).forEach(([timeframe, values]) => {
+                if (values && values.some(v => v !== null)) {
+                    datasets.push({
+                        label: `${timeframe} EMA365`,
+                        data: values.map((value, index) => ({
+                            x: labels[index],
+                            y: value
+                        })).filter(point => point.y !== null),
+                        borderColor: colors[timeframe],
+                        backgroundColor: colors[timeframe] + '20',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.1
+                    });
+                }
+            });
+            
+            // 添加EMA89, EMA233, EMA365
+            if (baseData.ema89 && baseData.ema89.some(v => v !== null)) {
+                datasets.push({
+                    label: 'EMA89',
+                    data: baseData.ema89.map((value, index) => ({
+                        x: labels[index],
+                        y: value
+                    })).filter(point => point.y !== null),
+                    borderColor: colors.ema89,
+                    backgroundColor: colors.ema89 + '20',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.1
+                });
+            }
+            
+            if (baseData.ema233 && baseData.ema233.some(v => v !== null)) {
+                datasets.push({
+                    label: 'EMA233',
+                    data: baseData.ema233.map((value, index) => ({
+                        x: labels[index],
+                        y: value
+                    })).filter(point => point.y !== null),
+                    borderColor: colors.ema233,
+                    backgroundColor: colors.ema233 + '20',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.1
+                });
+            }
+            
+            if (baseData.ema365 && baseData.ema365.some(v => v !== null)) {
+                datasets.push({
+                    label: 'EMA365',
+                    data: baseData.ema365.map((value, index) => ({
+                        x: labels[index],
+                        y: value
+                    })).filter(point => point.y !== null),
+                    borderColor: colors.ema365,
+                    backgroundColor: colors.ema365 + '20',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.1
+                });
+            }
+            
+            // 更新图表数据
+            emaChart.data.labels = labels;
+            emaChart.data.datasets = datasets;
+            emaChart.update();
+            
+            // 更新图例
+            updateChartLegend(datasets);
+        }
+        
+        // 更新图表图例
+        function updateChartLegend(datasets) {
+            const legendContainer = document.getElementById('chartLegend');
+            let html = '';
+            
+            datasets.forEach(dataset => {
+                html += `
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: ${dataset.borderColor}"></div>
+                        <span>${dataset.label}</span>
+                    </div>
+                `;
+            });
+            
+            legendContainer.innerHTML = html;
+        }
+        
+        // 显示图表
+        function showChart(symbol) {
+            currentChartSymbol = symbol;
+            const chartSection = document.getElementById('chartSection');
+            chartSection.style.display = 'block';
+            
+            // 更新币种选择器
+            const symbolSelect = document.getElementById('chartSymbolSelect');
+            symbolSelect.value = symbol;
+            
+            // 获取图表数据并更新
+            getChartData(symbol, currentChartTimeframe).then(data => {
+                if (data) {
+                    updateChart(data);
+                }
+            });
+        }
+        
+        // 更新图表币种
+        function updateChartSymbol() {
+            const symbolSelect = document.getElementById('chartSymbolSelect');
+            const symbol = symbolSelect.value;
+            
+            if (symbol) {
+                currentChartSymbol = symbol;
+                getChartData(symbol, currentChartTimeframe).then(data => {
+                    if (data) {
+                        updateChart(data);
+                    }
+                });
+            }
+        }
+        
+        // 更新图表时间周期
+        function updateChartTimeframe() {
+            const timeframeSelect = document.getElementById('chartTimeframeSelect');
+            const timeframe = timeframeSelect.value;
+            
+            if (currentChartSymbol) {
+                currentChartTimeframe = timeframe;
+                getChartData(currentChartSymbol, timeframe).then(data => {
+                    if (data) {
+                        updateChart(data);
+                    }
+                });
+            }
+        }
+        
+        // 刷新图表
+        function refreshChart() {
+            if (currentChartSymbol) {
+                getChartData(currentChartSymbol, currentChartTimeframe).then(data => {
+                    if (data) {
+                        updateChart(data);
+                    }
+                });
+            } else {
+                showStatus('请先选择币种', 'error');
+            }
+        }
+        
+        // 切换图表显示/隐藏
+        function toggleChartVisibility() {
+            const chartSection = document.getElementById('chartSection');
+            if (chartSection.style.display === 'none') {
+                chartSection.style.display = 'block';
+                if (currentChartSymbol) {
+                    refreshChart();
+                }
+            } else {
+                chartSection.style.display = 'none';
+            }
+        }
+        
+        // 初始化币种选择器
+        function initChartSymbolSelect() {
+            const symbolSelect = document.getElementById('chartSymbolSelect');
+            const mainSymbols = ['BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'LINK', 'UNI', 'AVAX', 'MATIC', 'ATOM'];
+            
+            mainSymbols.forEach(symbol => {
+                const option = document.createElement('option');
+                option.value = symbol;
+                option.textContent = symbol;
+                symbolSelect.appendChild(option);
+            });
         }
     </script>
 </body>

@@ -303,3 +303,43 @@ def get_symbol_signals():
             'success': False,
             'error': str(e)
         }), 500
+
+@intraday_bp.route('/get_chart_data', methods=['POST'])
+def get_chart_data():
+    """获取图表数据（多时间周期EMA）"""
+    try:
+        data = request.get_json()
+        symbol = data.get('symbol', '').strip().upper()
+        base_timeframe = data.get('base_timeframe', '5m')
+        limit = data.get('limit', 200)
+        
+        if not symbol:
+            return jsonify({
+                'success': False,
+                'error': '请提供币种符号'
+            }), 400
+        
+        # 确保币种以USDT结尾
+        if not symbol.endswith('USDT'):
+            symbol += 'USDT'
+        
+        # 验证基础时间周期
+        if base_timeframe not in intraday_analyzer.timeframes:
+            return jsonify({
+                'success': False,
+                'error': f'不支持的基础时间周期: {base_timeframe}'
+            }), 400
+        
+        logger.info(f"获取 {symbol} 图表数据，基础时间周期: {base_timeframe}")
+        
+        # 获取图表数据
+        result = intraday_analyzer.get_chart_data(symbol, base_timeframe, limit)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"获取图表数据失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
