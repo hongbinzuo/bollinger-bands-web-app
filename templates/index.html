@@ -2263,6 +2263,67 @@
         
         // ==================== 图表相关函数 ====================
         
+        // 价格标签插件
+        const priceLabelsPlugin = {
+            id: 'priceLabels',
+            afterDatasetsDraw: function(chart) {
+                const ctx = chart.ctx;
+                const datasets = chart.data.datasets;
+                
+                datasets.forEach((dataset, datasetIndex) => {
+                    if (dataset.label && (dataset.label.startsWith('价格:') || dataset.label.includes('信号:'))) {
+                        const meta = chart.getDatasetMeta(datasetIndex);
+                        const data = dataset.data;
+                        
+                        data.forEach((point, index) => {
+                            if (meta.data[index]) {
+                                const element = meta.data[index];
+                                const x = element.x;
+                                const y = element.y;
+                                
+                                ctx.save();
+                                
+                                if (dataset.label.startsWith('价格:')) {
+                                    // 绘制价格标签
+                                    const price = dataset.label.replace('价格: ', '');
+                                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                                    ctx.fillRect(x - 25, y - 15, 50, 20);
+                                    ctx.fillStyle = '#ffd700';
+                                    ctx.font = 'bold 12px Arial';
+                                    ctx.textAlign = 'center';
+                                    ctx.fillText(price, x, y - 2);
+                                } else if (dataset.label.includes('信号:')) {
+                                    // 绘制信号描述
+                                    const signalText = dataset.label.split('信号: ')[1];
+                                    const isBuy = dataset.label.includes('买入');
+                                    const bgColor = isBuy ? 'rgba(0, 255, 0, 0.8)' : 'rgba(255, 0, 0, 0.8)';
+                                    const textColor = '#ffffff';
+                                    
+                                    // 计算文本宽度
+                                    ctx.font = 'bold 10px Arial';
+                                    const textWidth = ctx.measureText(signalText).width;
+                                    
+                                    // 绘制背景
+                                    ctx.fillStyle = bgColor;
+                                    ctx.fillRect(x - textWidth/2 - 5, y - 25, textWidth + 10, 18);
+                                    
+                                    // 绘制文本
+                                    ctx.fillStyle = textColor;
+                                    ctx.textAlign = 'center';
+                                    ctx.fillText(signalText, x, y - 12);
+                                }
+                                
+                                ctx.restore();
+                            }
+                        });
+                    }
+                });
+            }
+        };
+        
+        // 注册插件
+        Chart.register(priceLabelsPlugin);
+        
         // 初始化图表
         function initChart() {
             const ctx = document.getElementById('emaChart').getContext('2d');
@@ -2290,6 +2351,16 @@
                             bodyColor: 'white',
                             borderColor: 'rgba(255, 255, 255, 0.2)',
                             borderWidth: 1
+                        },
+                        // 添加价格标签插件
+                        priceLabels: {
+                            enabled: true,
+                            color: '#ffd700',
+                            fontSize: 12,
+                            fontWeight: 'bold',
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            padding: 4,
+                            borderRadius: 4
                         }
                     },
                     scales: {
@@ -2550,43 +2621,77 @@
                 });
             }
             
-            // 添加交叉点位标记
-            if (crossPoints && crossPoints.price_crosses) {
-                // 添加价格与均线交叉点
-                crossPoints.price_crosses.forEach(cross => {
-                    datasets.push({
-                        label: `交叉点: ${cross.indicator}`,
-                        data: [{
-                            x: new Date(cross.timestamp),
-                            y: cross.price
-                        }],
-                        borderColor: cross.type === 'golden_cross' ? '#00ff00' : '#ff0000',
-                        backgroundColor: cross.type === 'golden_cross' ? '#00ff00' : '#ff0000',
-                        borderWidth: 3,
-                        pointRadius: 8,
-                        pointHoverRadius: 12,
-                        showLine: false,
-                        pointStyle: cross.type === 'golden_cross' ? 'triangle' : 'triangleDown'
+            // 处理交叉点位，添加价格标签和买卖信号
+            if (crossPoints) {
+                // 合并所有交叉点并按时间排序
+                const allCrosses = [];
+                
+                if (crossPoints.price_crosses) {
+                    crossPoints.price_crosses.forEach(cross => {
+                        allCrosses.push({
+                            ...cross,
+                            type: 'price_cross',
+                            displayPrice: cross.price
+                        });
                     });
-                });
-            }
-            
-            if (crossPoints && crossPoints.indicator_crosses) {
-                // 添加均线与均线交叉点
-                crossPoints.indicator_crosses.forEach(cross => {
+                }
+                
+                if (crossPoints.indicator_crosses) {
+                    crossPoints.indicator_crosses.forEach(cross => {
+                        allCrosses.push({
+                            ...cross,
+                            type: 'indicator_cross',
+                            displayPrice: cross.price
+                        });
+                    });
+                }
+                
+                // 按时间排序
+                allCrosses.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                // 处理重叠的价格标签
+                const filteredCrosses = filterOverlappingPrices(allCrosses);
+                
+                // 添加价格标签
+                filteredCrosses.forEach(cross => {
                     datasets.push({
-                        label: `交叉点: ${cross.indicator1} & ${cross.indicator2}`,
+                        label: `价格: ${cross.displayPrice}`,
                         data: [{
                             x: new Date(cross.timestamp),
-                            y: cross.price
+                            y: cross.displayPrice
                         }],
-                        borderColor: cross.type === 'golden_cross' ? '#ffff00' : '#ff8800',
-                        backgroundColor: cross.type === 'golden_cross' ? '#ffff00' : '#ff8800',
-                        borderWidth: 3,
-                        pointRadius: 6,
-                        pointHoverRadius: 10,
+                        borderColor: 'transparent',
+                        backgroundColor: 'transparent',
+                        borderWidth: 0,
+                        pointRadius: 0,
+                        pointHoverRadius: 0,
                         showLine: false,
                         pointStyle: 'circle'
+                    });
+                });
+                
+                // 添加买卖信号
+                const tradingSignals = generateTradingSignals(crossPoints);
+                tradingSignals.forEach(signal => {
+                    const isStrongSignal = signal.description.includes('多头排列') || signal.description.includes('空头排列');
+                    const signalSize = isStrongSignal ? 12 : 8;
+                    const signalColor = signal.type === 'buy' ? 
+                        (isStrongSignal ? '#00ff00' : '#90ee90') : 
+                        (isStrongSignal ? '#ff0000' : '#ffa0a0');
+                    
+                    datasets.push({
+                        label: `${signal.type === 'buy' ? '买入' : '卖出'}信号: ${signal.description}`,
+                        data: [{
+                            x: new Date(signal.timestamp),
+                            y: signal.price
+                        }],
+                        borderColor: signalColor,
+                        backgroundColor: signalColor,
+                        borderWidth: isStrongSignal ? 4 : 3,
+                        pointRadius: signalSize,
+                        pointHoverRadius: signalSize + 4,
+                        showLine: false,
+                        pointStyle: signal.type === 'buy' ? 'triangle' : 'triangleDown'
                     });
                 });
             }
@@ -2777,6 +2882,140 @@
             } else {
                 document.getElementById('indicatorCrossPoints').classList.add('active');
             }
+        }
+        
+        // 处理重叠的价格标签
+        function filterOverlappingPrices(crosses) {
+            if (crosses.length === 0) return [];
+            
+            const filtered = [];
+            const minDistance = 0.02; // 最小距离（2%）
+            
+            for (let i = 0; i < crosses.length; i++) {
+                const current = crosses[i];
+                let shouldAdd = true;
+                
+                // 检查是否与已添加的点太近
+                for (let j = 0; j < filtered.length; j++) {
+                    const existing = filtered[j];
+                    const priceDiff = Math.abs(current.displayPrice - existing.displayPrice) / existing.displayPrice;
+                    const timeDiff = Math.abs(new Date(current.timestamp) - new Date(existing.timestamp)) / (1000 * 60 * 60); // 小时
+                    
+                    // 如果价格和时间都很接近，则跳过
+                    if (priceDiff < minDistance && timeDiff < 24) {
+                        shouldAdd = false;
+                        break;
+                    }
+                }
+                
+                if (shouldAdd) {
+                    filtered.push(current);
+                }
+            }
+            
+            return filtered;
+        }
+        
+        // 生成买卖信号
+        function generateTradingSignals(crossPoints) {
+            const signals = [];
+            
+            if (!crossPoints || !crossPoints.indicator_crosses) {
+                return signals;
+            }
+            
+            // 分析EMA排列和交叉点
+            const emaCrosses = crossPoints.indicator_crosses.filter(cross => 
+                cross.indicator1.includes('EMA') && cross.indicator2.includes('EMA')
+            );
+            
+            // 按时间排序
+            emaCrosses.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+            // 分析每个交叉点
+            emaCrosses.forEach(cross => {
+                const { indicator1, indicator2, type, timestamp, price } = cross;
+                
+                // 买入信号条件
+                if (isBuySignal(indicator1, indicator2, type, crossPoints)) {
+                    signals.push({
+                        timestamp: timestamp,
+                        price: price,
+                        type: 'buy',
+                        description: getBuySignalDescription(indicator1, indicator2, type)
+                    });
+                }
+                
+                // 卖出信号条件
+                if (isSellSignal(indicator1, indicator2, type, crossPoints)) {
+                    signals.push({
+                        timestamp: timestamp,
+                        price: price,
+                        type: 'sell',
+                        description: getSellSignalDescription(indicator1, indicator2, type)
+                    });
+                }
+            });
+            
+            return signals;
+        }
+        
+        // 判断是否为买入信号
+        function isBuySignal(indicator1, indicator2, type, crossPoints) {
+            // 条件1：EMA89突破EMA144/233/365，形成多头排列
+            if (indicator1 === 'EMA89' && (indicator2 === 'EMA144' || indicator2 === 'EMA233' || indicator2 === 'EMA365')) {
+                if (type === 'golden_cross') {
+                    return true; // EMA89上穿其他EMA
+                }
+            }
+            
+            // 条件2：市场回调至EMA233或EMA144，支撑反弹
+            if ((indicator1 === 'EMA144' || indicator1 === 'EMA233') && indicator2 === '价格') {
+                if (type === 'golden_cross') {
+                    return true; // 价格从下方突破EMA支撑位
+                }
+            }
+            
+            return false;
+        }
+        
+        // 判断是否为卖出信号
+        function isSellSignal(indicator1, indicator2, type, crossPoints) {
+            // 条件1：EMA89跌破EMA144/233/365，形成空头排列
+            if (indicator1 === 'EMA89' && (indicator2 === 'EMA144' || indicator2 === 'EMA233' || indicator2 === 'EMA365')) {
+                if (type === 'death_cross') {
+                    return true; // EMA89下穿其他EMA
+                }
+            }
+            
+            // 条件2：市场回调至EMA233或EMA144，未突破，形成下行压力
+            if ((indicator1 === 'EMA144' || indicator1 === 'EMA233') && indicator2 === '价格') {
+                if (type === 'death_cross') {
+                    return true; // 价格从上方跌破EMA阻力位
+                }
+            }
+            
+            return false;
+        }
+        
+        // 获取买入信号描述
+        function getBuySignalDescription(indicator1, indicator2, type) {
+            if (indicator1 === 'EMA89') {
+                return `EMA89突破${indicator2}，多头排列形成`;
+            } else if (indicator1 === 'EMA144' || indicator1 === 'EMA233') {
+                return `价格突破${indicator1}支撑位，反弹信号`;
+            }
+            return '买入信号';
+        }
+        
+        // 获取卖出信号描述
+        function getSellSignalDescription(indicator1, indicator2, type) {
+            if (indicator1 === 'EMA89') {
+                return `EMA89跌破${indicator2}，空头排列形成`;
+            } else if (indicator1 === 'EMA144' || indicator1 === 'EMA233') {
+                return `价格跌破${indicator1}阻力位，下行压力`;
+            }
+            return '卖出信号';
         }
     </script>
 </body>
