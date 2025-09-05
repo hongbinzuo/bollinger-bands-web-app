@@ -581,7 +581,7 @@ class IntradayAnalyzer:
         except Exception as e:
             logger.error(f"保存缓存失败: {e}")
     
-    def get_chart_data(self, symbol: str, base_timeframe: str = '5m', limit: int = 200) -> Dict:
+    def get_chart_data(self, symbol: str, base_timeframe: str = '5m', limit: int = 500) -> Dict:
         """获取图表数据（多时间周期EMA）"""
         try:
             logger.info(f"获取 {symbol} 图表数据，基础时间周期: {base_timeframe}")
@@ -608,18 +608,22 @@ class IntradayAnalyzer:
             ma233 = self.calculate_ma233(df_base['close'])
             ma365 = self.calculate_ma365(df_base['close'])
             
-            # 准备基础数据
+            # 准备基础数据（处理NaN值）
+            def clean_series(series):
+                """清理Series中的NaN值，转换为None"""
+                return [None if pd.isna(val) else val for val in series.tolist()]
+            
             base_data = {
                 'timestamps': df_base.index.strftime('%Y-%m-%d %H:%M:%S').tolist(),
-                'prices': df_base['close'].tolist(),
-                'ema89': ema89.tolist(),
-                'ema144': ema144.tolist(),
-                'ema233': ema233.tolist(),
-                'ema365': ema365.tolist(),
-                'ma89': ma89.tolist(),
-                'ma144': ma144.tolist(),
-                'ma233': ma233.tolist(),
-                'ma365': ma365.tolist()
+                'prices': clean_series(df_base['close']),
+                'ema89': clean_series(ema89),
+                'ema144': clean_series(ema144),
+                'ema233': clean_series(ema233),
+                'ema365': clean_series(ema365),
+                'ma89': clean_series(ma89),
+                'ma144': clean_series(ma144),
+                'ma233': clean_series(ma233),
+                'ma365': clean_series(ma365)
             }
             
             # 检测交叉点位
@@ -680,7 +684,8 @@ class IntradayAnalyzer:
                             # 找到最接近的时间点
                             closest_idx = df_tf.index.get_indexer([base_ts], method='nearest')[0]
                             if closest_idx >= 0:
-                                aligned_data.append(ema365_tf.iloc[closest_idx])
+                                val = ema365_tf.iloc[closest_idx]
+                                aligned_data.append(None if pd.isna(val) else val)
                             else:
                                 aligned_data.append(None)
                         
