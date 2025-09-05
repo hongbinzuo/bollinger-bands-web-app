@@ -206,6 +206,85 @@
             color: white;
             font-size: 14px;
         }
+        
+        /* 超短交易详情样式 */
+        .signal-details {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+        
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #2a2a2a;
+            border-radius: 5px;
+            border-left: 3px solid #007bff;
+        }
+        
+        .detail-item label {
+            font-weight: bold;
+            color: #ccc;
+        }
+        
+        .detail-item span {
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        .trading-signals {
+            margin-bottom: 20px;
+        }
+        
+        .signal-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #333;
+        }
+        
+        .signal-item:last-child {
+            border-bottom: none;
+        }
+        
+        .signal-label {
+            color: #ccc;
+            font-weight: bold;
+        }
+        
+        .signal-value {
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        .strategy-explanation {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 3px solid #28a745;
+        }
+        
+        .strategy-explanation h6 {
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+        
+        .strategy-explanation p {
+            margin: 8px 0;
+            color: #ccc;
+            line-height: 1.5;
+        }
         .btn:hover {
             background: #0056b3;
         }
@@ -799,6 +878,7 @@
         <div class="tabs">
             <button class="tab active" onclick="showTab('analysis')">📊 币种分析</button>
             <button class="tab" onclick="showTab('intraday')">⚡ 日内交易</button>
+            <button class="tab" onclick="showTab('ultraShort')">🚀 日内超短</button>
             <button class="tab" onclick="showTab('orders')">📋 挂单管理</button>
             <button class="tab" onclick="showTab('positions')">💰 分批仓位</button>
             <button class="tab" onclick="showTab('management')">⚙️ 系统管理</button>
@@ -1029,6 +1109,54 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- 日内超短交易Tab -->
+        <div id="ultraShort" class="tab-content">
+            <h3>🚀 日内超短交易策略</h3>
+            <div class="help-text">
+                <strong>超短策略说明：</strong>基于1小时EMA365/MA365区间突破，在区间上沿做空，止盈目标为1分钟EMA233。适用于快速进出场交易。
+            </div>
+            
+            <div class="form-group">
+                <button class="btn btn-success" onclick="analyzeUltraShortSymbols()">分析超短机会</button>
+                <button class="btn btn-info" onclick="analyzeUltraShortCustom()">分析自定义币种</button>
+                <button class="btn btn-warning" onclick="clearUltraShortCache()">清除缓存</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="ultraShortSymbolsInput">自定义币种 (用逗号分隔):</label>
+                <input type="text" id="ultraShortSymbolsInput" placeholder="例如: ETH, BTC, SOL" class="form-control">
+            </div>
+            
+            <!-- 超短交易信号表格 -->
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>币种</th>
+                            <th>1h区间</th>
+                            <th>当前价格</th>
+                            <th>交易机会</th>
+                            <th>入场价格</th>
+                            <th>止盈目标</th>
+                            <th>风险收益比</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ultraShortSignalsTableBody">
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: #666;">暂无超短交易信号</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 超短交易详情 -->
+            <div id="ultraShortDetails" class="details-container" style="display: none;">
+                <h4>超短交易详情</h4>
+                <div id="ultraShortDetailsContent"></div>
             </div>
         </div>
 
@@ -2253,6 +2381,214 @@
                 const data = await response.json();
                 if (data.success) {
                     showStatus('日内交易缓存已清除', 'success');
+                } else {
+                    showStatus('清除缓存失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // ==================== 日内超短交易相关函数 ====================
+        
+        // 分析主要币种的超短交易信号
+        async function analyzeUltraShortSymbols() {
+            const mainSymbols = ['BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'LINK', 'UNI', 'AVAX', 'MATIC', 'ATOM'];
+            showStatus(`正在分析主要币种超短交易信号...`, 'success');
+            
+            try {
+                const response = await fetch('/ultra_short/get_signals', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbols: mainSymbols })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showUltraShortSignals(data.signals);
+                    showStatus(`超短交易信号分析完成，共处理 ${data.total} 个币种`, 'success');
+                } else {
+                    showStatus('超短交易分析失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 分析自定义币种的超短交易信号
+        async function analyzeUltraShortCustom() {
+            const symbols = document.getElementById('ultraShortSymbolsInput').value.trim();
+            if (!symbols) {
+                showStatus('请输入要分析的币种', 'error');
+                return;
+            }
+
+            const symbolList = symbols.split(',').map(s => s.trim()).filter(s => s);
+            showStatus(`正在分析 ${symbolList.length} 个自定义币种超短交易信号...`, 'success');
+            
+            try {
+                const response = await fetch('/ultra_short/get_signals', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbols: symbolList })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showUltraShortSignals(data.signals);
+                    showStatus(`超短交易信号分析完成，共处理 ${data.total} 个币种`, 'success');
+                } else {
+                    showStatus('超短交易分析失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 显示超短交易信号
+        function showUltraShortSignals(signals) {
+            const tbody = document.getElementById('ultraShortSignalsTableBody');
+            
+            if (signals.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #666;">暂无超短交易信号</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            signals.forEach(signal => {
+                let opportunityClass = 'warning';
+                let opportunityText = signal.trading_opportunity;
+                
+                if (signal.trading_opportunity.includes('做空机会') && !signal.trading_opportunity.includes('不足')) {
+                    opportunityClass = 'danger';
+                } else if (signal.trading_opportunity.includes('做多机会') && !signal.trading_opportunity.includes('不足')) {
+                    opportunityClass = 'success';
+                } else if (signal.trading_opportunity.includes('做空机会')) {
+                    opportunityClass = 'info';
+                } else if (signal.trading_opportunity.includes('做多机会')) {
+                    opportunityClass = 'info';
+                }
+                
+                // 计算潜在收益
+                let potentialProfit = 0;
+                if (signal.entry_price > 0) {
+                    if (signal.trading_opportunity.includes('做空')) {
+                        potentialProfit = signal.entry_price - signal.profit_target;
+                    } else if (signal.trading_opportunity.includes('做多')) {
+                        potentialProfit = signal.profit_target - signal.entry_price;
+                    }
+                }
+                
+                html += `
+                    <tr>
+                        <td><strong>${signal.symbol}</strong></td>
+                        <td>${signal.interval_low} - ${signal.interval_high}</td>
+                        <td>${signal.current_price}</td>
+                        <td><span class="status-${opportunityClass}">${opportunityText}</span></td>
+                        <td><strong>${signal.entry_price || '-'}</strong></td>
+                        <td><strong>${signal.profit_target}</strong></td>
+                        <td>${signal.risk_reward_ratio}</td>
+                        <td>
+                            <button class="btn btn-sm btn-info" onclick="showUltraShortDetails('${signal.symbol}')">详情</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+        
+        // 显示超短交易详情
+        async function showUltraShortDetails(symbol) {
+            try {
+                const response = await fetch('/ultra_short/get_signal_details', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbol: symbol })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    const detailsContainer = document.getElementById('ultraShortDetails');
+                    const detailsContent = document.getElementById('ultraShortDetailsContent');
+                    
+                    const latest1h = data.chart_data['1h'];
+                    const latest1m = data.chart_data['1m'];
+                    
+                    detailsContent.innerHTML = `
+                        <div class="signal-details">
+                            <h5>${symbol} 超短交易详情</h5>
+                            <div class="details-grid">
+                                <div class="detail-item">
+                                    <label>1小时EMA365:</label>
+                                    <span>${latest1h.ema365[latest1h.ema365.length - 1] || 'N/A'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>1小时MA365:</label>
+                                    <span>${latest1h.ma365[latest1h.ma365.length - 1] || 'N/A'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>1分钟EMA233:</label>
+                                    <span>${latest1m.ema233[latest1m.ema233.length - 1] || 'N/A'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>当前价格:</label>
+                                    <span>${latest1h.prices[latest1h.prices.length - 1] || 'N/A'}</span>
+                                </div>
+                            </div>
+                            <div class="trading-signals">
+                                <h6>交易信号：</h6>
+                                <div class="signal-item">
+                                    <span class="signal-label">做空信号:</span>
+                                    <span class="signal-value">当价格 > ${Math.max(latest1h.ema365[latest1h.ema365.length - 1] || 0, latest1h.ma365[latest1h.ma365.length - 1] || 0).toFixed(2)}</span>
+                                </div>
+                                <div class="signal-item">
+                                    <span class="signal-label">做多信号:</span>
+                                    <span class="signal-value">当价格 < ${Math.min(latest1h.ema365[latest1h.ema365.length - 1] || 0, latest1h.ma365[latest1h.ma365.length - 1] || 0).toFixed(2)}</span>
+                                </div>
+                                <div class="signal-item">
+                                    <span class="signal-label">止盈目标:</span>
+                                    <span class="signal-value">${latest1m.ema233[latest1m.ema233.length - 1] || 'N/A'}</span>
+                                </div>
+                            </div>
+                            <div class="strategy-explanation">
+                                <h6>策略说明：</h6>
+                                <p>1. <strong>做空策略:</strong> 当价格突破1小时EMA365/MA365区间上沿时，在区间上沿做空</p>
+                                <p>2. <strong>做多策略:</strong> 当价格跌破1小时EMA365/MA365区间下沿时，在区间下沿做多</p>
+                                <p>3. <strong>止盈目标:</strong> 统一设置为1分钟EMA233位置</p>
+                                <p>4. <strong>风险控制:</strong> 风险收益比应大于1.5才考虑入场</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    detailsContainer.style.display = 'block';
+                } else {
+                    showStatus('获取详情失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 清除超短交易缓存
+        async function clearUltraShortCache() {
+            try {
+                const response = await fetch('/ultra_short/clear_cache', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showStatus('超短交易缓存已清除', 'success');
                 } else {
                     showStatus('清除缓存失败: ' + data.error, 'error');
                 }

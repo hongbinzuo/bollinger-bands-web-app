@@ -13,11 +13,13 @@ import pickle
 
 # 导入日内交易模块
 from intraday_api import intraday_bp
+from ultra_short_api import ultra_short_bp
 
 app = Flask(__name__)
 
 # 注册日内交易蓝图
 app.register_blueprint(intraday_bp)
+app.register_blueprint(ultra_short_bp)
 
 # 设置日志
 import logging
