@@ -285,6 +285,108 @@
             color: #ccc;
             line-height: 1.5;
         }
+        
+        /* 日志诊断样式 */
+        .logs-container {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+            max-height: 600px;
+            overflow: hidden;
+        }
+        
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .log-count {
+            color: #007bff;
+            font-size: 14px;
+            font-weight: normal;
+        }
+        
+        .log-controls {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .log-controls label {
+            color: #ccc;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .logs-content {
+            background: #0a0a0a;
+            border-radius: 5px;
+            padding: 15px;
+            height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px 8px;
+            border-radius: 3px;
+            border-left: 3px solid #333;
+            word-wrap: break-word;
+        }
+        
+        .log-entry.info {
+            border-left-color: #007bff;
+            background: rgba(0, 123, 255, 0.1);
+        }
+        
+        .log-entry.warning {
+            border-left-color: #ffc107;
+            background: rgba(255, 193, 7, 0.1);
+        }
+        
+        .log-entry.error {
+            border-left-color: #dc3545;
+            background: rgba(220, 53, 69, 0.1);
+        }
+        
+        .log-time {
+            color: #888;
+            font-size: 11px;
+            margin-right: 10px;
+        }
+        
+        .log-level {
+            color: #fff;
+            font-weight: bold;
+            margin-right: 10px;
+            min-width: 60px;
+            display: inline-block;
+        }
+        
+        .log-message {
+            color: #ccc;
+        }
+        
+        .log-entry.info .log-level {
+            color: #007bff;
+        }
+        
+        .log-entry.warning .log-level {
+            color: #ffc107;
+        }
+        
+        .log-entry.error .log-level {
+            color: #dc3545;
+        }
         .btn:hover {
             background: #0056b3;
         }
@@ -879,6 +981,7 @@
             <button class="tab active" onclick="showTab('analysis')">📊 币种分析</button>
             <button class="tab" onclick="showTab('intraday')">⚡ 日内交易</button>
             <button class="tab" onclick="showTab('ultraShort')">🚀 日内超短</button>
+            <button class="tab" onclick="showTab('logs')">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('orders')">📋 挂单管理</button>
             <button class="tab" onclick="showTab('positions')">💰 分批仓位</button>
             <button class="tab" onclick="showTab('management')">⚙️ 系统管理</button>
@@ -1158,6 +1261,58 @@
             <div id="ultraShortDetails" class="details-container" style="display: none;">
                 <h4>超短交易详情</h4>
                 <div id="ultraShortDetailsContent"></div>
+            </div>
+        </div>
+
+        <!-- 日志诊断Tab -->
+        <div id="logs" class="tab-content">
+            <h3>🔍 日志诊断</h3>
+            <div class="help-text">
+                <strong>日志诊断说明：</strong>实时显示系统运行日志，便于调试和问题诊断。包括超短交易分析、数据获取、错误信息等。
+            </div>
+            
+            <div class="form-group">
+                <button class="btn btn-success" onclick="startLogMonitoring()">开始监控日志</button>
+                <button class="btn btn-warning" onclick="clearLogs()">清空日志</button>
+                <button class="btn btn-info" onclick="testUltraShortWithLogs()">测试超短交易(带日志)</button>
+                <button class="btn btn-secondary" onclick="exportLogs()">导出日志</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="logLevelFilter">日志级别过滤:</label>
+                <select id="logLevelFilter" class="form-control" onchange="filterLogs()">
+                    <option value="all">全部</option>
+                    <option value="INFO">INFO</option>
+                    <option value="WARNING">WARNING</option>
+                    <option value="ERROR">ERROR</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="logSearch">搜索日志:</label>
+                <input type="text" id="logSearch" class="form-control" placeholder="输入关键词搜索日志..." onkeyup="searchLogs()">
+            </div>
+            
+            <!-- 日志显示区域 -->
+            <div class="logs-container">
+                <div class="logs-header">
+                    <h4>实时日志 <span id="logCount" class="log-count">(0条)</span></h4>
+                    <div class="log-controls">
+                        <label>
+                            <input type="checkbox" id="autoScroll" checked> 自动滚动
+                        </label>
+                        <label>
+                            <input type="checkbox" id="showTimestamp" checked> 显示时间戳
+                        </label>
+                    </div>
+                </div>
+                <div id="logsContent" class="logs-content">
+                    <div class="log-entry info">
+                        <span class="log-time">[系统启动]</span>
+                        <span class="log-level">INFO</span>
+                        <span class="log-message">日志系统已就绪，等待日志输出...</span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -2669,6 +2824,202 @@
             } catch (error) {
                 showStatus('请求失败: ' + error.message, 'error');
             }
+        }
+        
+        // ==================== 日志诊断相关函数 ====================
+        
+        let logMonitoringInterval = null;
+        let allLogs = [];
+        
+        // 开始监控日志
+        async function startLogMonitoring() {
+            if (logMonitoringInterval) {
+                clearInterval(logMonitoringInterval);
+            }
+            
+            showStatus('开始监控日志...', 'success');
+            addLogEntry('INFO', '开始监控系统日志');
+            
+            // 立即获取一次日志
+            await fetchLogs();
+            
+            // 每2秒获取一次新日志
+            logMonitoringInterval = setInterval(fetchLogs, 2000);
+        }
+        
+        // 获取日志
+        async function fetchLogs() {
+            try {
+                const response = await fetch('/logs/get_logs?limit=50');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // 检查是否有新日志
+                    const newLogs = data.logs.filter(log => 
+                        !allLogs.some(existingLog => 
+                            existingLog.timestamp === log.timestamp && 
+                            existingLog.message === log.message
+                        )
+                    );
+                    
+                    // 添加新日志
+                    newLogs.forEach(log => {
+                        allLogs.push(log);
+                        addLogEntry(log.level, log.message, log.timestamp);
+                    });
+                    
+                    // 限制日志数量
+                    if (allLogs.length > 500) {
+                        allLogs = allLogs.slice(-500);
+                    }
+                    
+                    updateLogCount();
+                }
+            } catch (error) {
+                console.error('获取日志失败:', error);
+            }
+        }
+        
+        // 添加日志条目
+        function addLogEntry(level, message, timestamp = null) {
+            const logsContent = document.getElementById('logsContent');
+            const time = timestamp || new Date().toLocaleTimeString();
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${level.toLowerCase()}`;
+            
+            const showTimestamp = document.getElementById('showTimestamp').checked;
+            const timeStr = showTimestamp ? `[${time}]` : '';
+            
+            logEntry.innerHTML = `
+                <span class="log-time">${timeStr}</span>
+                <span class="log-level">${level}</span>
+                <span class="log-message">${message}</span>
+            `;
+            
+            logsContent.appendChild(logEntry);
+            
+            // 自动滚动
+            if (document.getElementById('autoScroll').checked) {
+                logsContent.scrollTop = logsContent.scrollHeight;
+            }
+        }
+        
+        // 更新日志计数
+        function updateLogCount() {
+            const logCount = document.getElementById('logCount');
+            logCount.textContent = `(${allLogs.length}条)`;
+        }
+        
+        // 清空日志
+        async function clearLogs() {
+            try {
+                const response = await fetch('/logs/clear_logs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    allLogs = [];
+                    document.getElementById('logsContent').innerHTML = '';
+                    addLogEntry('INFO', '日志已清空');
+                    updateLogCount();
+                    showStatus('日志已清空', 'success');
+                }
+            } catch (error) {
+                showStatus('清空日志失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 测试超短交易(带日志)
+        async function testUltraShortWithLogs() {
+            addLogEntry('INFO', '开始测试超短交易分析...');
+            
+            try {
+                const response = await fetch('/ultra_short/get_signals', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbols: ['BTC', 'ETH', 'DOT'] })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    addLogEntry('INFO', `超短交易测试完成，共分析 ${data.total} 个币种`);
+                    showStatus('超短交易测试完成', 'success');
+                } else {
+                    addLogEntry('ERROR', `超短交易测试失败: ${data.error}`);
+                    showStatus('超短交易测试失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                addLogEntry('ERROR', `超短交易测试异常: ${error.message}`);
+                showStatus('测试失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 导出日志
+        async function exportLogs() {
+            try {
+                const levelFilter = document.getElementById('logLevelFilter').value;
+                const searchTerm = document.getElementById('logSearch').value;
+                
+                let url = '/logs/export_logs?';
+                if (levelFilter !== 'all') url += `level=${levelFilter}&`;
+                if (searchTerm) url += `search=${encodeURIComponent(searchTerm)}&`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    // 创建下载链接
+                    const blob = new Blob([data.content], { type: 'text/plain' });
+                    const url2 = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url2;
+                    a.download = `logs_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url2);
+                    
+                    showStatus(`日志已导出，共 ${data.count} 条`, 'success');
+                }
+            } catch (error) {
+                showStatus('导出日志失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 过滤日志
+        function filterLogs() {
+            const levelFilter = document.getElementById('logLevelFilter').value;
+            const searchTerm = document.getElementById('logSearch').value.toLowerCase();
+            const logEntries = document.querySelectorAll('.log-entry');
+            
+            logEntries.forEach(entry => {
+                const level = entry.querySelector('.log-level').textContent;
+                const message = entry.querySelector('.log-message').textContent.toLowerCase();
+                
+                let show = true;
+                
+                if (levelFilter !== 'all' && level !== levelFilter) {
+                    show = false;
+                }
+                
+                if (searchTerm && !message.includes(searchTerm)) {
+                    show = false;
+                }
+                
+                entry.style.display = show ? 'block' : 'none';
+            });
+        }
+        
+        // 搜索日志
+        function searchLogs() {
+            filterLogs();
         }
         
         // ==================== 图表相关函数 ====================

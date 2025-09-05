@@ -33,9 +33,13 @@ def get_ultra_short_signals():
                 signal = analyze_ultra_short_signal(symbol)
                 if signal:
                     signals.append(signal)
+                else:
+                    logger.warning(f"{symbol} 分析失败，返回None")
             except Exception as e:
                 logger.error(f"分析 {symbol} 超短信号失败: {e}")
                 continue
+        
+        logger.info(f"分析完成，共 {len(signals)} 个币种有结果")
         
         return jsonify({
             'success': True,
@@ -53,14 +57,16 @@ def get_ultra_short_signals():
 def analyze_ultra_short_signal(symbol):
     """分析单个币种的超短交易信号"""
     try:
-        # 获取1小时K线数据
-        df_1h = analyzer.get_klines_data(symbol, '1h', 100)
-        if df_1h.empty or len(df_1h) < 50:
+        # 获取1小时K线数据 - 增加数据量确保EMA365/MA365能计算
+        df_1h = analyzer.get_klines_data(symbol, '1h', 500)
+        if df_1h.empty or len(df_1h) < 400:  # 需要足够数据计算365周期指标
+            logger.warning(f"{symbol} 1小时数据不足: {len(df_1h) if not df_1h.empty else 0}")
             return None
         
-        # 获取1分钟K线数据
-        df_1m = analyzer.get_klines_data(symbol, '1m', 100)
-        if df_1m.empty or len(df_1m) < 50:
+        # 获取1分钟K线数据 - 增加数据量确保EMA233能计算
+        df_1m = analyzer.get_klines_data(symbol, '1m', 500)
+        if df_1m.empty or len(df_1m) < 300:  # 需要足够数据计算233周期指标
+            logger.warning(f"{symbol} 1分钟数据不足: {len(df_1m) if not df_1m.empty else 0}")
             return None
         
         # 计算1小时EMA365和MA365
@@ -81,9 +87,13 @@ def analyze_ultra_short_signal(symbol):
         
         # 检查数据有效性
         if pd.isna(current_ema365) or pd.isna(current_ma365) or pd.isna(current_ema233_1m):
+            logger.warning(f"{symbol} 当前指标数据无效: EMA365={current_ema365}, MA365={current_ma365}, EMA233_1m={current_ema233_1m}")
             return None
         if pd.isna(prev_ema365) or pd.isna(prev_ma365):
+            logger.warning(f"{symbol} 上一个K线指标数据无效: prev_EMA365={prev_ema365}, prev_MA365={prev_ma365}")
             return None
+        
+        logger.info(f"{symbol} 数据检查通过: 当前价格={current_price}, 上一个价格={prev_price}")
         
         # 计算当前区间和上一个K线的区间
         current_interval_low = min(current_ema365, current_ma365)
@@ -127,6 +137,7 @@ def analyze_ultra_short_signal(symbol):
             trading_opportunity = "做空机会"
             entry_price = short_entry
             risk_reward_ratio = short_risk_reward_ratio
+            logger.info(f"{symbol} 发现做空机会: 上一个价格={prev_price} > 区间上沿={prev_interval_high}")
             
         # 做多信号：上一个K线向下突破区间下沿
         elif prev_price < prev_interval_low:
@@ -141,8 +152,12 @@ def analyze_ultra_short_signal(symbol):
             trading_opportunity = "做多机会"
             entry_price = long_entry
             risk_reward_ratio = long_risk_reward_ratio
+            logger.info(f"{symbol} 发现做多机会: 上一个价格={prev_price} < 区间下沿={prev_interval_low}")
+        else:
+            logger.info(f"{symbol} 无交易机会: 上一个价格={prev_price}, 区间=[{prev_interval_low}, {prev_interval_high}]")
         
-        return {
+        # 即使无交易机会也返回分析结果，便于调试
+        result = {
             'symbol': symbol,
             'current_price': round(current_price, 2),
             'prev_price': round(prev_price, 2),
@@ -166,6 +181,9 @@ def analyze_ultra_short_signal(symbol):
                 'entry_vs_profit': round(entry_price - profit_target, 2) if entry_price > 0 else 0
             }
         }
+        
+        logger.info(f"{symbol} 分析完成: {trading_opportunity}")
+        return result
         
     except Exception as e:
         logger.error(f"分析 {symbol} 超短信号失败: {e}")
