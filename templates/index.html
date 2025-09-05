@@ -2285,13 +2285,34 @@
                                 
                                 if (dataset.label.startsWith('价格:')) {
                                     // 绘制价格标签
-                                    const price = dataset.label.replace('价格: ', '');
-                                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                                    ctx.fillRect(x - 25, y - 15, 50, 20);
-                                    ctx.fillStyle = '#ffd700';
+                                    const price = dataset.label.replace('价格: ', '').split(' (')[0];
+                                    const signalDesc = dataset.label.includes('(') ? 
+                                        dataset.label.split('(')[1].replace(')', '') : '';
+                                    
+                                    // 使用自定义颜色或默认颜色
+                                    const labelBg = dataset.labelBg || 'rgba(0, 0, 0, 0.7)';
+                                    const labelColor = dataset.labelColor || '#ffd700';
+                                    
+                                    // 计算文本宽度
                                     ctx.font = 'bold 12px Arial';
+                                    const priceWidth = ctx.measureText(price).width;
+                                    const descWidth = signalDesc ? ctx.measureText(signalDesc).width : 0;
+                                    const maxWidth = Math.max(priceWidth, descWidth);
+                                    
+                                    // 绘制背景
+                                    ctx.fillStyle = labelBg;
+                                    ctx.fillRect(x - maxWidth/2 - 5, y - 25, maxWidth + 10, 20);
+                                    
+                                    // 绘制价格文本
+                                    ctx.fillStyle = labelColor;
                                     ctx.textAlign = 'center';
-                                    ctx.fillText(price, x, y - 2);
+                                    ctx.fillText(price, x, y - 12);
+                                    
+                                    // 绘制信号描述（如果有）
+                                    if (signalDesc) {
+                                        ctx.font = '10px Arial';
+                                        ctx.fillText(signalDesc, x, y - 2);
+                                    }
                                 } else if (dataset.label.includes('信号:')) {
                                     // 绘制信号描述
                                     const signalText = dataset.label.split('信号: ')[1];
@@ -2650,12 +2671,24 @@
                 allCrosses.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
                 
                 // 处理重叠的价格标签
-                const filteredCrosses = filterOverlappingPrices(allCrosses);
+                const filteredCrosses = filterOverlappingPrices(allCrosses, data.base_data);
                 
                 // 添加价格标签
                 filteredCrosses.forEach(cross => {
+                    // 根据信号类型设置标签颜色
+                    let labelColor = '#ffd700'; // 默认金色
+                    let labelBg = 'rgba(0, 0, 0, 0.7)';
+                    
+                    if (cross.signalType === 'sell') {
+                        labelColor = '#ff6b6b'; // 红色
+                        labelBg = 'rgba(255, 0, 0, 0.8)';
+                    } else if (cross.signalType === 'buy') {
+                        labelColor = '#51cf66'; // 绿色
+                        labelBg = 'rgba(0, 255, 0, 0.8)';
+                    }
+                    
                     datasets.push({
-                        label: `价格: ${cross.displayPrice}`,
+                        label: `价格: ${cross.displayPrice} (${cross.signalDescription})`,
                         data: [{
                             x: new Date(cross.timestamp),
                             y: cross.displayPrice
@@ -2666,7 +2699,9 @@
                         pointRadius: 0,
                         pointHoverRadius: 0,
                         showLine: false,
-                        pointStyle: 'circle'
+                        pointStyle: 'circle',
+                        labelColor: labelColor,
+                        labelBg: labelBg
                     });
                 });
                 
@@ -2904,8 +2939,70 @@
             }
         }
         
+        // 分析局部顶底排列
+        function analyzeLocalTopBottom(cross, chartData) {
+            try {
+                const crossTime = new Date(cross.timestamp);
+                const crossIndex = chartData.timestamps.findIndex(ts => 
+                    Math.abs(new Date(ts) - crossTime) < 60000 // 1分钟内
+                );
+                
+                if (crossIndex < 10 || crossIndex >= chartData.prices.length - 10) {
+                    return { isLocalTop: false, isLocalBottom: false, confidence: 0 };
+                }
+                
+                // 获取交叉点前后的价格数据
+                const beforePrices = chartData.prices.slice(Math.max(0, crossIndex - 10), crossIndex);
+                const afterPrices = chartData.prices.slice(crossIndex, Math.min(chartData.prices.length, crossIndex + 10));
+                const currentPrice = chartData.prices[crossIndex];
+                
+                // 分析EMA排列
+                const ema89 = chartData.ema89[crossIndex];
+                const ema144 = chartData.ema144[crossIndex];
+                const ema233 = chartData.ema233[crossIndex];
+                const ema365 = chartData.ema365[crossIndex];
+                
+                // 判断EMA排列
+                const isBullishArrangement = ema89 > ema144 && ema144 > ema233 && ema233 > ema365;
+                const isBearishArrangement = ema89 < ema144 && ema144 < ema233 && ema233 < ema365;
+                
+                // 分析价格位置
+                const beforeMax = Math.max(...beforePrices.filter(p => p !== null));
+                const beforeMin = Math.min(...beforePrices.filter(p => p !== null));
+                const afterMax = Math.max(...afterPrices.filter(p => p !== null));
+                const afterMin = Math.min(...afterPrices.filter(p => p !== null));
+                
+                // 判断局部顶底
+                let isLocalTop = false;
+                let isLocalBottom = false;
+                let confidence = 0;
+                
+                // 局部顶部判断：价格在交叉点附近达到局部高点，且EMA排列偏空
+                if (currentPrice >= beforeMax * 0.98 && currentPrice >= afterMax * 0.98) {
+                    if (isBearishArrangement || ema89 < ema233) {
+                        isLocalTop = true;
+                        confidence = 0.8;
+                    }
+                }
+                
+                // 局部底部判断：价格在交叉点附近达到局部低点，且EMA排列偏多
+                if (currentPrice <= beforeMin * 1.02 && currentPrice <= afterMin * 1.02) {
+                    if (isBullishArrangement || ema89 > ema233) {
+                        isLocalBottom = true;
+                        confidence = 0.8;
+                    }
+                }
+                
+                return { isLocalTop, isLocalBottom, confidence, emaArrangement: isBullishArrangement ? 'bullish' : 'bearish' };
+                
+            } catch (error) {
+                console.error('分析局部顶底失败:', error);
+                return { isLocalTop: false, isLocalBottom: false, confidence: 0 };
+            }
+        }
+        
         // 处理重叠的价格标签
-        function filterOverlappingPrices(crosses) {
+        function filterOverlappingPrices(crosses, chartData) {
             if (crosses.length === 0) return [];
             
             const filtered = [];
@@ -2914,6 +3011,27 @@
             for (let i = 0; i < crosses.length; i++) {
                 const current = crosses[i];
                 let shouldAdd = true;
+                
+                // 分析局部顶底
+                const topBottomAnalysis = analyzeLocalTopBottom(current, chartData);
+                
+                // 根据分析结果调整显示价格
+                if (topBottomAnalysis.isLocalTop && topBottomAnalysis.confidence > 0.6) {
+                    // 局部顶部：显示最高价格，适合做空
+                    current.displayPrice = getLocalMaxPrice(current, chartData);
+                    current.signalType = 'sell';
+                    current.signalDescription = '局部顶部，适合做空';
+                } else if (topBottomAnalysis.isLocalBottom && topBottomAnalysis.confidence > 0.6) {
+                    // 局部底部：显示原价格，适合做多
+                    current.displayPrice = current.price;
+                    current.signalType = 'buy';
+                    current.signalDescription = '局部底部，适合做多';
+                } else {
+                    // 中性：显示原价格
+                    current.displayPrice = current.price;
+                    current.signalType = 'neutral';
+                    current.signalDescription = '中性信号';
+                }
                 
                 // 检查是否与已添加的点太近
                 for (let j = 0; j < filtered.length; j++) {
@@ -2934,6 +3052,30 @@
             }
             
             return filtered;
+        }
+        
+        // 获取局部最高价格
+        function getLocalMaxPrice(cross, chartData) {
+            try {
+                const crossTime = new Date(cross.timestamp);
+                const crossIndex = chartData.timestamps.findIndex(ts => 
+                    Math.abs(new Date(ts) - crossTime) < 60000
+                );
+                
+                if (crossIndex < 5 || crossIndex >= chartData.prices.length - 5) {
+                    return cross.price;
+                }
+                
+                // 获取交叉点前后10个点的价格
+                const startIndex = Math.max(0, crossIndex - 10);
+                const endIndex = Math.min(chartData.prices.length, crossIndex + 10);
+                const localPrices = chartData.prices.slice(startIndex, endIndex).filter(p => p !== null);
+                
+                return Math.max(...localPrices);
+            } catch (error) {
+                console.error('获取局部最高价格失败:', error);
+                return cross.price;
+            }
         }
         
         // 生成买卖信号
