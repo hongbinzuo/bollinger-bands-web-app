@@ -656,6 +656,93 @@
              height: 2px;
              border-radius: 1px;
          }
+         
+         /* 交叉点位信息面板样式 */
+         .cross-points-panel {
+             margin-top: 15px;
+             padding: 15px;
+             background: rgba(0, 0, 0, 0.3);
+             border-radius: 8px;
+             border: 1px solid rgba(255, 255, 255, 0.1);
+         }
+         
+         .cross-points-panel h4 {
+             color: white;
+             margin: 0 0 15px 0;
+             font-size: 16px;
+         }
+         
+         .cross-points-tabs {
+             display: flex;
+             gap: 10px;
+             margin-bottom: 15px;
+         }
+         
+         .cross-tab {
+             padding: 8px 16px;
+             background: rgba(255, 255, 255, 0.1);
+             color: white;
+             border: 1px solid rgba(255, 255, 255, 0.2);
+             border-radius: 4px;
+             cursor: pointer;
+             font-size: 12px;
+         }
+         
+         .cross-tab:hover {
+             background: rgba(255, 255, 255, 0.2);
+         }
+         
+         .cross-tab.active {
+             background: #007bff;
+             border-color: #007bff;
+         }
+         
+         .cross-tab-content {
+             display: none;
+         }
+         
+         .cross-tab-content.active {
+             display: block;
+         }
+         
+         .cross-points-list {
+             max-height: 200px;
+             overflow-y: auto;
+         }
+         
+         .cross-point-item {
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             padding: 8px 12px;
+             margin-bottom: 8px;
+             background: rgba(255, 255, 255, 0.05);
+             border-radius: 4px;
+             border-left: 3px solid;
+             font-size: 12px;
+         }
+         
+         .cross-point-item.golden-cross {
+             border-left-color: #00ff00;
+         }
+         
+         .cross-point-item.death-cross {
+             border-left-color: #ff0000;
+         }
+         
+         .cross-point-info {
+             color: white;
+         }
+         
+         .cross-point-price {
+             font-weight: bold;
+             color: #ffd700;
+         }
+         
+         .cross-point-time {
+             color: #ccc;
+             font-size: 11px;
+         }
     </style>
 </head>
 <body>
@@ -920,6 +1007,27 @@
                 
                 <div class="chart-legend" id="chartLegend">
                     <!-- 图例将通过JavaScript动态生成 -->
+                </div>
+                
+                <!-- 交叉点位信息面板 -->
+                <div class="cross-points-panel" id="crossPointsPanel" style="display: none;">
+                    <h4>🎯 交叉点位信息</h4>
+                    <div class="cross-points-tabs">
+                        <button class="cross-tab active" onclick="showCrossTab('price')">价格交叉</button>
+                        <button class="cross-tab" onclick="showCrossTab('indicator')">均线交叉</button>
+                    </div>
+                    <div class="cross-points-content">
+                        <div id="priceCrossPoints" class="cross-tab-content active">
+                            <div class="cross-points-list" id="priceCrossList">
+                                <!-- 价格交叉点列表 -->
+                            </div>
+                        </div>
+                        <div id="indicatorCrossPoints" class="cross-tab-content">
+                            <div class="cross-points-list" id="indicatorCrossList">
+                                <!-- 均线交叉点列表 -->
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2260,6 +2368,7 @@
             
             const baseData = data.base_data;
             const timeframeData = data.timeframe_data;
+            const crossPoints = data.cross_points;
             
             // 准备时间标签
             const labels = baseData.timestamps.map(ts => new Date(ts));
@@ -2271,14 +2380,19 @@
                 '3m': '#45b7d1',    // 蓝色
                 '5m': '#96ceb4',    // 绿色
                 'ema89': '#feca57', // 黄色
+                'ema144': '#ff6b9d', // 粉红色
                 'ema233': '#ff9ff3', // 粉色
-                'ema365': '#54a0ff'  // 蓝色
+                'ema365': '#54a0ff', // 蓝色
+                'ma89': '#feca57',  // 黄色（虚线）
+                'ma144': '#ff6b9d', // 粉红色（虚线）
+                'ma233': '#ff9ff3', // 粉色（虚线）
+                'ma365': '#54a0ff'  // 蓝色（虚线）
             };
             
             // 准备数据集
             const datasets = [];
             
-            // 添加价格线
+            // 添加价格线（增加粗度）
             datasets.push({
                 label: '价格',
                 data: baseData.prices.map((price, index) => ({
@@ -2287,7 +2401,7 @@
                 })),
                 borderColor: '#ffffff',
                 backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                borderWidth: 2,
+                borderWidth: 3, // 从2增加到3
                 pointRadius: 0,
                 tension: 0.1
             });
@@ -2310,7 +2424,7 @@
                 }
             });
             
-            // 添加EMA89, EMA233, EMA365
+            // 添加EMA89, EMA144, EMA233, EMA365
             if (baseData.ema89 && baseData.ema89.some(v => v !== null)) {
                 datasets.push({
                     label: 'EMA89',
@@ -2320,6 +2434,21 @@
                     })).filter(point => point.y !== null),
                     borderColor: colors.ema89,
                     backgroundColor: colors.ema89 + '20',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.1
+                });
+            }
+            
+            if (baseData.ema144 && baseData.ema144.some(v => v !== null)) {
+                datasets.push({
+                    label: 'EMA144',
+                    data: baseData.ema144.map((value, index) => ({
+                        x: labels[index],
+                        y: value
+                    })).filter(point => point.y !== null),
+                    borderColor: colors.ema144,
+                    backgroundColor: colors.ema144 + '20',
                     borderWidth: 2,
                     pointRadius: 0,
                     tension: 0.1
@@ -2356,6 +2485,112 @@
                 });
             }
             
+            // 添加MA89, MA144, MA233, MA365（虚线）
+            if (baseData.ma89 && baseData.ma89.some(v => v !== null)) {
+                datasets.push({
+                    label: 'MA89',
+                    data: baseData.ma89.map((value, index) => ({
+                        x: labels[index],
+                        y: value
+                    })).filter(point => point.y !== null),
+                    borderColor: colors.ma89,
+                    backgroundColor: colors.ma89 + '20',
+                    borderWidth: 2,
+                    borderDash: [5, 5], // 虚线样式
+                    pointRadius: 0,
+                    tension: 0.1
+                });
+            }
+            
+            if (baseData.ma144 && baseData.ma144.some(v => v !== null)) {
+                datasets.push({
+                    label: 'MA144',
+                    data: baseData.ma144.map((value, index) => ({
+                        x: labels[index],
+                        y: value
+                    })).filter(point => point.y !== null),
+                    borderColor: colors.ma144,
+                    backgroundColor: colors.ma144 + '20',
+                    borderWidth: 2,
+                    borderDash: [5, 5], // 虚线样式
+                    pointRadius: 0,
+                    tension: 0.1
+                });
+            }
+            
+            if (baseData.ma233 && baseData.ma233.some(v => v !== null)) {
+                datasets.push({
+                    label: 'MA233',
+                    data: baseData.ma233.map((value, index) => ({
+                        x: labels[index],
+                        y: value
+                    })).filter(point => point.y !== null),
+                    borderColor: colors.ma233,
+                    backgroundColor: colors.ma233 + '20',
+                    borderWidth: 2,
+                    borderDash: [5, 5], // 虚线样式
+                    pointRadius: 0,
+                    tension: 0.1
+                });
+            }
+            
+            if (baseData.ma365 && baseData.ma365.some(v => v !== null)) {
+                datasets.push({
+                    label: 'MA365',
+                    data: baseData.ma365.map((value, index) => ({
+                        x: labels[index],
+                        y: value
+                    })).filter(point => point.y !== null),
+                    borderColor: colors.ma365,
+                    backgroundColor: colors.ma365 + '20',
+                    borderWidth: 2,
+                    borderDash: [5, 5], // 虚线样式
+                    pointRadius: 0,
+                    tension: 0.1
+                });
+            }
+            
+            // 添加交叉点位标记
+            if (crossPoints && crossPoints.price_crosses) {
+                // 添加价格与均线交叉点
+                crossPoints.price_crosses.forEach(cross => {
+                    datasets.push({
+                        label: `交叉点: ${cross.indicator}`,
+                        data: [{
+                            x: new Date(cross.timestamp),
+                            y: cross.price
+                        }],
+                        borderColor: cross.type === 'golden_cross' ? '#00ff00' : '#ff0000',
+                        backgroundColor: cross.type === 'golden_cross' ? '#00ff00' : '#ff0000',
+                        borderWidth: 3,
+                        pointRadius: 8,
+                        pointHoverRadius: 12,
+                        showLine: false,
+                        pointStyle: cross.type === 'golden_cross' ? 'triangle' : 'triangleDown'
+                    });
+                });
+            }
+            
+            if (crossPoints && crossPoints.indicator_crosses) {
+                // 添加均线与均线交叉点
+                crossPoints.indicator_crosses.forEach(cross => {
+                    datasets.push({
+                        label: `交叉点: ${cross.indicator1} & ${cross.indicator2}`,
+                        data: [{
+                            x: new Date(cross.timestamp),
+                            y: cross.price
+                        }],
+                        borderColor: cross.type === 'golden_cross' ? '#ffff00' : '#ff8800',
+                        backgroundColor: cross.type === 'golden_cross' ? '#ffff00' : '#ff8800',
+                        borderWidth: 3,
+                        pointRadius: 6,
+                        pointHoverRadius: 10,
+                        showLine: false,
+                        pointStyle: 'circle'
+                    });
+                });
+            }
+            
             // 更新图表数据
             emaChart.data.labels = labels;
             emaChart.data.datasets = datasets;
@@ -2363,6 +2598,9 @@
             
             // 更新图例
             updateChartLegend(datasets);
+            
+            // 更新交叉点位信息面板
+            updateCrossPointsInfo(crossPoints);
         }
         
         // 更新图表图例
@@ -2467,6 +2705,78 @@
                 option.textContent = symbol;
                 symbolSelect.appendChild(option);
             });
+        }
+        
+        // 更新交叉点位信息面板
+        function updateCrossPointsInfo(crossPoints) {
+            const panel = document.getElementById('crossPointsPanel');
+            const priceList = document.getElementById('priceCrossList');
+            const indicatorList = document.getElementById('indicatorCrossList');
+            
+            if (!crossPoints || (!crossPoints.price_crosses.length && !crossPoints.indicator_crosses.length)) {
+                panel.style.display = 'none';
+                return;
+            }
+            
+            panel.style.display = 'block';
+            
+            // 更新价格交叉点列表
+            priceList.innerHTML = '';
+            if (crossPoints.price_crosses && crossPoints.price_crosses.length > 0) {
+                crossPoints.price_crosses.forEach(cross => {
+                    const item = document.createElement('div');
+                    item.className = `cross-point-item ${cross.type}`;
+                    item.innerHTML = `
+                        <div class="cross-point-info">
+                            <div>价格 × ${cross.indicator}</div>
+                            <div class="cross-point-time">${cross.timestamp}</div>
+                        </div>
+                        <div class="cross-point-price">${cross.price}</div>
+                    `;
+                    priceList.appendChild(item);
+                });
+            } else {
+                priceList.innerHTML = '<div style="color: #ccc; text-align: center; padding: 20px;">暂无价格交叉点</div>';
+            }
+            
+            // 更新均线交叉点列表
+            indicatorList.innerHTML = '';
+            if (crossPoints.indicator_crosses && crossPoints.indicator_crosses.length > 0) {
+                crossPoints.indicator_crosses.forEach(cross => {
+                    const item = document.createElement('div');
+                    item.className = `cross-point-item ${cross.type}`;
+                    item.innerHTML = `
+                        <div class="cross-point-info">
+                            <div>${cross.indicator1} × ${cross.indicator2}</div>
+                            <div class="cross-point-time">${cross.timestamp}</div>
+                        </div>
+                        <div class="cross-point-price">${cross.price}</div>
+                    `;
+                    indicatorList.appendChild(item);
+                });
+            } else {
+                indicatorList.innerHTML = '<div style="color: #ccc; text-align: center; padding: 20px;">暂无均线交叉点</div>';
+            }
+        }
+        
+        // 切换交叉点位标签页
+        function showCrossTab(tabType) {
+            // 更新标签按钮状态
+            document.querySelectorAll('.cross-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 更新内容显示
+            document.querySelectorAll('.cross-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            if (tabType === 'price') {
+                document.getElementById('priceCrossPoints').classList.add('active');
+            } else {
+                document.getElementById('indicatorCrossPoints').classList.add('active');
+            }
         }
     </script>
 </body>

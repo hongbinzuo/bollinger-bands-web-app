@@ -161,6 +161,14 @@ class IntradayAnalyzer:
             logger.error(f"计算EMA89失败: {e}")
             return pd.Series()
     
+    def calculate_ema144(self, data: pd.Series) -> pd.Series:
+        """计算144周期指数移动平均线"""
+        try:
+            return data.ewm(span=144, adjust=False).mean()
+        except Exception as e:
+            logger.error(f"计算EMA144失败: {e}")
+            return pd.Series()
+    
     def calculate_ema233(self, data: pd.Series) -> pd.Series:
         """计算233周期指数移动平均线"""
         try:
@@ -176,6 +184,162 @@ class IntradayAnalyzer:
         except Exception as e:
             logger.error(f"计算MA失败: {e}")
             return pd.Series()
+    
+    def calculate_ma89(self, data: pd.Series) -> pd.Series:
+        """计算89周期简单移动平均线"""
+        try:
+            return data.rolling(window=89).mean()
+        except Exception as e:
+            logger.error(f"计算MA89失败: {e}")
+            return pd.Series()
+    
+    def calculate_ma144(self, data: pd.Series) -> pd.Series:
+        """计算144周期简单移动平均线"""
+        try:
+            return data.rolling(window=144).mean()
+        except Exception as e:
+            logger.error(f"计算MA144失败: {e}")
+            return pd.Series()
+    
+    def calculate_ma233(self, data: pd.Series) -> pd.Series:
+        """计算233周期简单移动平均线"""
+        try:
+            return data.rolling(window=233).mean()
+        except Exception as e:
+            logger.error(f"计算MA233失败: {e}")
+            return pd.Series()
+    
+    def calculate_ma365(self, data: pd.Series) -> pd.Series:
+        """计算365周期简单移动平均线"""
+        try:
+            return data.rolling(window=365).mean()
+        except Exception as e:
+            logger.error(f"计算MA365失败: {e}")
+            return pd.Series()
+    
+    def detect_cross_points(self, prices: pd.Series, indicators: dict, tolerance: float = 0.001) -> dict:
+        """检测交叉点位（误差在千分之1以内）"""
+        try:
+            cross_points = {
+                'price_crosses': [],  # 价格与均线交叉
+                'indicator_crosses': []  # 均线与均线交叉
+            }
+            
+            # 检测价格与各均线的交叉
+            for indicator_name, indicator_data in indicators.items():
+                if indicator_data is None or len(indicator_data) < 2:
+                    continue
+                    
+                for i in range(1, len(prices)):
+                    if pd.isna(prices.iloc[i]) or pd.isna(prices.iloc[i-1]) or \
+                       pd.isna(indicator_data.iloc[i]) or pd.isna(indicator_data.iloc[i-1]):
+                        continue
+                    
+                    # 检查是否发生交叉
+                    price_prev = prices.iloc[i-1]
+                    price_curr = prices.iloc[i]
+                    ind_prev = indicator_data.iloc[i-1]
+                    ind_curr = indicator_data.iloc[i]
+                    
+                    # 计算交叉点
+                    if (price_prev <= ind_prev and price_curr >= ind_curr) or \
+                       (price_prev >= ind_prev and price_curr <= ind_curr):
+                        
+                        # 计算精确交叉点
+                        cross_price = self._calculate_cross_price(
+                            price_prev, price_curr, ind_prev, ind_curr
+                        )
+                        
+                        # 验证误差是否在容忍范围内
+                        if self._validate_cross_accuracy(cross_price, price_curr, ind_curr, tolerance):
+                            cross_points['price_crosses'].append({
+                                'timestamp': prices.index[i],
+                                'price': cross_price,
+                                'indicator': indicator_name,
+                                'type': 'golden_cross' if price_curr > ind_curr else 'death_cross',
+                                'index': i
+                            })
+            
+            # 检测均线与均线的交叉
+            indicator_names = list(indicators.keys())
+            for i in range(len(indicator_names)):
+                for j in range(i + 1, len(indicator_names)):
+                    ind1_name = indicator_names[i]
+                    ind2_name = indicator_names[j]
+                    ind1_data = indicators[ind1_name]
+                    ind2_data = indicators[ind2_name]
+                    
+                    if ind1_data is None or ind2_data is None or len(ind1_data) < 2:
+                        continue
+                    
+                    for k in range(1, len(ind1_data)):
+                        if pd.isna(ind1_data.iloc[k]) or pd.isna(ind1_data.iloc[k-1]) or \
+                           pd.isna(ind2_data.iloc[k]) or pd.isna(ind2_data.iloc[k-1]):
+                            continue
+                        
+                        ind1_prev = ind1_data.iloc[k-1]
+                        ind1_curr = ind1_data.iloc[k]
+                        ind2_prev = ind2_data.iloc[k-1]
+                        ind2_curr = ind2_data.iloc[k]
+                        
+                        # 检查是否发生交叉
+                        if (ind1_prev <= ind2_prev and ind1_curr >= ind2_curr) or \
+                           (ind1_prev >= ind2_prev and ind1_curr <= ind2_curr):
+                            
+                            # 计算精确交叉点
+                            cross_price = self._calculate_cross_price(
+                                ind1_prev, ind1_curr, ind2_prev, ind2_curr
+                            )
+                            
+                            # 验证误差是否在容忍范围内
+                            if self._validate_cross_accuracy(cross_price, ind1_curr, ind2_curr, tolerance):
+                                cross_points['indicator_crosses'].append({
+                                    'timestamp': ind1_data.index[k],
+                                    'price': cross_price,
+                                    'indicator1': ind1_name,
+                                    'indicator2': ind2_name,
+                                    'type': 'golden_cross' if ind1_curr > ind2_curr else 'death_cross',
+                                    'index': k
+                                })
+            
+            return cross_points
+            
+        except Exception as e:
+            logger.error(f"检测交叉点位失败: {e}")
+            return {'price_crosses': [], 'indicator_crosses': []}
+    
+    def _calculate_cross_price(self, y1_prev: float, y1_curr: float, y2_prev: float, y2_curr: float) -> float:
+        """计算两条线的精确交叉点价格"""
+        try:
+            # 使用线性插值计算交叉点
+            # 假设时间间隔为1，计算交叉点的y值
+            if abs(y1_curr - y1_prev - (y2_curr - y2_prev)) < 1e-10:
+                # 平行线，返回当前值
+                return (y1_curr + y2_curr) / 2
+            
+            # 计算交叉点
+            t = (y2_prev - y1_prev) / ((y1_curr - y1_prev) - (y2_curr - y2_prev))
+            cross_price = y1_prev + t * (y1_curr - y1_prev)
+            
+            return cross_price
+            
+        except Exception as e:
+            logger.error(f"计算交叉点价格失败: {e}")
+            return (y1_curr + y2_curr) / 2
+    
+    def _validate_cross_accuracy(self, cross_price: float, val1: float, val2: float, tolerance: float) -> bool:
+        """验证交叉点精度是否在容忍范围内"""
+        try:
+            # 计算交叉点与两条线的距离
+            dist1 = abs(cross_price - val1) / val1 if val1 != 0 else float('inf')
+            dist2 = abs(cross_price - val2) / val2 if val2 != 0 else float('inf')
+            
+            # 检查是否在容忍范围内
+            return dist1 <= tolerance and dist2 <= tolerance
+            
+        except Exception as e:
+            logger.error(f"验证交叉点精度失败: {e}")
+            return False
     
     def calculate_anchor_point(self, ema: float, ma: float) -> float:
         """计算锚点（EMA365和MA365的中间值）"""
@@ -433,19 +597,71 @@ class IntradayAnalyzer:
                     'timeframe': base_timeframe
                 }
             
-            # 计算基础时间周期的所有EMA
+            # 计算基础时间周期的所有EMA和MA
             ema89 = self.calculate_ema89(df_base['close'])
+            ema144 = self.calculate_ema144(df_base['close'])
             ema233 = self.calculate_ema233(df_base['close'])
             ema365 = self.calculate_ema(df_base['close'], 365)
+            
+            ma89 = self.calculate_ma89(df_base['close'])
+            ma144 = self.calculate_ma144(df_base['close'])
+            ma233 = self.calculate_ma233(df_base['close'])
+            ma365 = self.calculate_ma365(df_base['close'])
             
             # 准备基础数据
             base_data = {
                 'timestamps': df_base.index.strftime('%Y-%m-%d %H:%M:%S').tolist(),
                 'prices': df_base['close'].tolist(),
                 'ema89': ema89.tolist(),
+                'ema144': ema144.tolist(),
                 'ema233': ema233.tolist(),
-                'ema365': ema365.tolist()
+                'ema365': ema365.tolist(),
+                'ma89': ma89.tolist(),
+                'ma144': ma144.tolist(),
+                'ma233': ma233.tolist(),
+                'ma365': ma365.tolist()
             }
+            
+            # 检测交叉点位
+            indicators = {
+                'EMA89': ema89,
+                'EMA144': ema144,
+                'EMA233': ema233,
+                'EMA365': ema365,
+                'MA89': ma89,
+                'MA144': ma144,
+                'MA233': ma233,
+                'MA365': ma365
+            }
+            
+            cross_points = self.detect_cross_points(df_base['close'], indicators)
+            
+            # 格式化交叉点位数据
+            formatted_cross_points = {
+                'price_crosses': [],
+                'indicator_crosses': []
+            }
+            
+            # 格式化价格与均线交叉点
+            for cross in cross_points['price_crosses']:
+                formatted_cross_points['price_crosses'].append({
+                    'timestamp': cross['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+                    'price': round(cross['price'], 2),
+                    'indicator': cross['indicator'],
+                    'type': cross['type'],
+                    'index': cross['index']
+                })
+            
+            # 格式化均线与均线交叉点
+            for cross in cross_points['indicator_crosses']:
+                formatted_cross_points['indicator_crosses'].append({
+                    'timestamp': cross['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+                    'price': round(cross['price'], 2),
+                    'indicator1': cross['indicator1'],
+                    'indicator2': cross['indicator2'],
+                    'type': cross['type'],
+                    'index': cross['index']
+                })
             
             # 获取其他时间周期的EMA365数据
             other_timeframes = ['1m', '2m', '3m']
@@ -482,6 +698,7 @@ class IntradayAnalyzer:
                 'base_timeframe': base_timeframe,
                 'base_data': base_data,
                 'timeframe_data': timeframe_data,
+                'cross_points': formatted_cross_points,
                 'data_count': len(df_base),
                 'cache_date': datetime.now().isoformat()
             }
