@@ -2478,14 +2478,18 @@
                 let opportunityClass = 'warning';
                 let opportunityText = signal.trading_opportunity;
                 
-                if (signal.trading_opportunity.includes('做空机会') && !signal.trading_opportunity.includes('不足')) {
+                if (signal.trading_opportunity === '做空机会') {
                     opportunityClass = 'danger';
-                } else if (signal.trading_opportunity.includes('做多机会') && !signal.trading_opportunity.includes('不足')) {
+                } else if (signal.trading_opportunity === '做多机会') {
                     opportunityClass = 'success';
+                } else if (signal.trading_opportunity.includes('做空机会') && signal.trading_opportunity.includes('一般')) {
+                    opportunityClass = 'info';
+                } else if (signal.trading_opportunity.includes('做多机会') && signal.trading_opportunity.includes('一般')) {
+                    opportunityClass = 'info';
                 } else if (signal.trading_opportunity.includes('做空机会')) {
-                    opportunityClass = 'info';
+                    opportunityClass = 'secondary';
                 } else if (signal.trading_opportunity.includes('做多机会')) {
-                    opportunityClass = 'info';
+                    opportunityClass = 'secondary';
                 }
                 
                 // 计算潜在收益

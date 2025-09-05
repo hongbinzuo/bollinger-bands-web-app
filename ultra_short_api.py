@@ -123,12 +123,21 @@ def analyze_ultra_short_signal(symbol):
         entry_price = 0
         risk_reward_ratio = 0
         
-        if current_price > short_entry and short_risk_reward_ratio > 1.5:
+        # 降低风险收益比要求，显示更多机会
+        if current_price > short_entry and short_risk_reward_ratio > 1.0:
             trading_opportunity = "做空机会"
             entry_price = short_entry
             risk_reward_ratio = short_risk_reward_ratio
-        elif current_price < long_entry and long_risk_reward_ratio > 1.5:
+        elif current_price < long_entry and long_risk_reward_ratio > 1.0:
             trading_opportunity = "做多机会"
+            entry_price = long_entry
+            risk_reward_ratio = long_risk_reward_ratio
+        elif current_price > short_entry and short_risk_reward_ratio > 0.5:
+            trading_opportunity = "做空机会(风险收益比一般)"
+            entry_price = short_entry
+            risk_reward_ratio = short_risk_reward_ratio
+        elif current_price < long_entry and long_risk_reward_ratio > 0.5:
+            trading_opportunity = "做多机会(风险收益比一般)"
             entry_price = long_entry
             risk_reward_ratio = long_risk_reward_ratio
         elif current_price > short_entry:
@@ -156,7 +165,12 @@ def analyze_ultra_short_signal(symbol):
             'ma365_1h': round(current_ma365, 2),
             'ema233_1m': round(current_ema233_1m, 2),
             'short_risk_reward': short_risk_reward_ratio,
-            'long_risk_reward': long_risk_reward_ratio
+            'long_risk_reward': long_risk_reward_ratio,
+            'debug_info': {
+                'price_vs_short': round(current_price - short_entry, 2),
+                'price_vs_long': round(current_price - long_entry, 2),
+                'price_vs_profit': round(current_price - profit_target, 2)
+            }
         }
         
     except Exception as e:
