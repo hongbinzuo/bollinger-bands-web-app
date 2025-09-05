@@ -1120,8 +1120,9 @@
             </div>
             
             <div class="form-group">
-                <button class="btn btn-success" onclick="analyzeUltraShortSymbols()">分析超短机会</button>
+                <button class="btn btn-success" onclick="analyzeUltraShortSymbols()">分析超短机会 (币安前200)</button>
                 <button class="btn btn-info" onclick="analyzeUltraShortCustom()">分析自定义币种</button>
+                <button class="btn btn-secondary" onclick="getTopSymbols()">获取币种列表</button>
                 <button class="btn btn-warning" onclick="clearUltraShortCache()">清除缓存</button>
             </div>
             
@@ -2393,16 +2394,30 @@
         
         // 分析主要币种的超短交易信号
         async function analyzeUltraShortSymbols() {
-            const mainSymbols = ['BTC', 'ETH', 'SOL', 'ADA', 'DOT', 'LINK', 'UNI', 'AVAX', 'MATIC', 'ATOM'];
-            showStatus(`正在分析主要币种超短交易信号...`, 'success');
+            showStatus(`正在获取币安前200个币种...`, 'success');
             
             try {
+                // 首先获取币安前200个币种
+                const symbolsResponse = await fetch('/ultra_short/get_top_symbols', {
+                    method: 'GET'
+                });
+                
+                const symbolsData = await symbolsResponse.json();
+                if (!symbolsData.success) {
+                    showStatus('获取币种列表失败: ' + symbolsData.error, 'error');
+                    return;
+                }
+                
+                const symbols = symbolsData.symbols;
+                showStatus(`获取到 ${symbols.length} 个币种，开始分析超短交易信号...`, 'success');
+                
+                // 分析超短交易信号
                 const response = await fetch('/ultra_short/get_signals', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ symbols: mainSymbols })
+                    body: JSON.stringify({ symbols: symbols })
                 });
 
                 const data = await response.json();
@@ -2570,6 +2585,61 @@
                     detailsContainer.style.display = 'block';
                 } else {
                     showStatus('获取详情失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 获取币安前200个币种列表
+        async function getTopSymbols() {
+            showStatus('正在获取币安前200个币种...', 'success');
+            
+            try {
+                const response = await fetch('/ultra_short/get_top_symbols', {
+                    method: 'GET'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    const symbols = data.symbols;
+                    const top10 = data.top_10;
+                    
+                    showStatus(`成功获取 ${symbols.length} 个币种，前10个: ${top10.join(', ')}`, 'success');
+                    
+                    // 显示币种列表
+                    const symbolsList = symbols.join(', ');
+                    document.getElementById('ultraShortSymbolsInput').value = symbolsList;
+                    
+                    // 显示币种统计信息
+                    const detailsContainer = document.getElementById('ultraShortDetails');
+                    const detailsContent = document.getElementById('ultraShortDetailsContent');
+                    
+                    detailsContent.innerHTML = `
+                        <div class="signal-details">
+                            <h5>币安前200个USDT交易对</h5>
+                            <div class="details-grid">
+                                <div class="detail-item">
+                                    <label>总币种数量:</label>
+                                    <span>${symbols.length}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>前10个币种:</label>
+                                    <span>${top10.join(', ')}</span>
+                                </div>
+                            </div>
+                            <div class="strategy-explanation">
+                                <h6>说明：</h6>
+                                <p>1. 按24小时交易量排序，取前200个USDT交易对</p>
+                                <p>2. 数据实时从币安API获取</p>
+                                <p>3. 点击"分析超短机会"按钮开始分析这些币种</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    detailsContainer.style.display = 'block';
+                } else {
+                    showStatus('获取币种列表失败: ' + data.error, 'error');
                 }
             } catch (error) {
                 showStatus('请求失败: ' + error.message, 'error');

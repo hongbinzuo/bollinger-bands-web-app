@@ -219,6 +219,51 @@ def get_signal_details():
             'error': str(e)
         })
 
+@ultra_short_bp.route('/get_top_symbols', methods=['GET'])
+def get_top_symbols():
+    """获取币安前200个USDT交易对"""
+    try:
+        import requests
+        
+        # 获取币安24小时交易量数据
+        response = requests.get('https://api.binance.com/api/v3/ticker/24hr', timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # 筛选USDT交易对并按交易量排序
+        usdt_symbols = []
+        for item in data:
+            if item['symbol'].endswith('USDT'):
+                usdt_symbols.append({
+                    'symbol': item['symbol'].replace('USDT', ''),
+                    'volume': float(item['volume']),
+                    'price': float(item['lastPrice'])
+                })
+        
+        # 按交易量降序排序，取前200个
+        usdt_symbols.sort(key=lambda x: x['volume'], reverse=True)
+        top_200 = usdt_symbols[:200]
+        
+        # 提取币种名称
+        symbols = [item['symbol'] for item in top_200]
+        
+        logger.info(f"成功获取币安前200个USDT交易对，总交易量: {sum(item['volume'] for item in top_200):.2f}")
+        
+        return jsonify({
+            'success': True,
+            'symbols': symbols,
+            'total': len(symbols),
+            'top_10': symbols[:10]  # 返回前10个作为预览
+        })
+        
+    except Exception as e:
+        logger.error(f"获取币安前200币种失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @ultra_short_bp.route('/clear_cache', methods=['POST'])
 def clear_cache():
     """清除超短交易缓存"""
