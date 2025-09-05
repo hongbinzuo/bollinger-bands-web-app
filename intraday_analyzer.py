@@ -37,18 +37,61 @@ class IntradayAnalyzer:
         
         # 确保缓存目录存在
         os.makedirs(self.cache_dir, exist_ok=True)
+        
+        # 币种符号映射表（常见币种名称到实际交易符号的映射）
+        self.symbol_mapping = {
+            'BTC': 'BTCUSDT',
+            'ETH': 'ETHUSDT',
+            'SOL': 'SOLUSDT',
+            'ADA': 'ADAUSDT',
+            'DOT': 'DOTUSDT',
+            'LINK': 'LINKUSDT',
+            'UNI': 'UNIUSDT',
+            'AVAX': 'AVAXUSDT',
+            'MATIC': 'MATICUSDT',
+            'ATOM': 'ATOMUSDT',
+            'HUMA': 'HUMAUSDT',  # 添加HUMA映射
+            'PEPE': 'PEPEUSDT',
+            'DOGE': 'DOGEUSDT',
+            'SHIB': 'SHIBUSDT',
+            'XRP': 'XRPUSDT',
+            'LTC': 'LTCUSDT',
+            'BCH': 'BCHUSDT',
+            'ETC': 'ETCUSDT',
+            'TRX': 'TRXUSDT',
+            'BNB': 'BNBUSDT'
+        }
+    
+    def _normalize_symbol(self, symbol: str) -> str:
+        """标准化币种符号"""
+        # 如果已经是完整符号（包含USDT），直接返回
+        if symbol.endswith('USDT'):
+            return symbol.upper()
+        
+        # 从映射表查找
+        if symbol.upper() in self.symbol_mapping:
+            return self.symbol_mapping[symbol.upper()]
+        
+        # 如果没有找到映射，尝试添加USDT后缀
+        return f"{symbol.upper()}USDT"
     
     def get_klines_data(self, symbol: str, interval: str, limit: int = 500) -> pd.DataFrame:
         """获取K线数据"""
         try:
+            # 标准化币种符号
+            normalized_symbol = self._normalize_symbol(symbol)
+            
             # 首先尝试Binance
-            df = self._get_binance_klines(symbol, interval, limit)
+            df = self._get_binance_klines(normalized_symbol, interval, limit)
             
             if df.empty:
                 # 如果Binance失败，尝试Gate.io
-                logger.info(f"Binance获取失败，尝试Gate.io...")
-                gate_symbol = symbol.replace('USDT', '_USDT')
+                logger.info(f"Binance获取 {normalized_symbol} 失败，尝试Gate.io...")
+                gate_symbol = normalized_symbol.replace('USDT', '_USDT')
                 df = self._get_gate_klines(gate_symbol, interval, limit)
+            
+            if df.empty:
+                logger.warning(f"所有交易所都无法获取 {symbol} ({normalized_symbol}) 的K线数据")
             
             return df
             

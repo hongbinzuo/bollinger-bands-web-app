@@ -245,6 +245,42 @@ def get_signal_details():
             'error': str(e)
         })
 
+@ultra_short_bp.route('/validate_symbol', methods=['POST'])
+def validate_symbol():
+    """验证币种符号是否有效"""
+    try:
+        data = request.get_json()
+        symbol = data.get('symbol')
+        
+        if not symbol:
+            return jsonify({
+                'success': False,
+                'error': '未提供币种'
+            })
+        
+        # 标准化符号
+        normalized_symbol = analyzer._normalize_symbol(symbol)
+        
+        # 尝试获取少量数据验证
+        df_1h = analyzer.get_klines_data(symbol, '1h', 10)
+        
+        is_valid = not df_1h.empty
+        
+        return jsonify({
+            'success': True,
+            'symbol': symbol,
+            'normalized_symbol': normalized_symbol,
+            'is_valid': is_valid,
+            'data_count': len(df_1h) if not df_1h.empty else 0
+        })
+        
+    except Exception as e:
+        logger.error(f"验证币种 {symbol} 失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @ultra_short_bp.route('/get_top_symbols', methods=['GET'])
 def get_top_symbols():
     """获取币安前200个USDT交易对"""

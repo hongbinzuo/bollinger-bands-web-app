@@ -1226,6 +1226,7 @@
                 <button class="btn btn-success" onclick="analyzeUltraShortSymbols()">分析超短机会 (币安前200)</button>
                 <button class="btn btn-info" onclick="analyzeUltraShortCustom()">分析自定义币种</button>
                 <button class="btn btn-secondary" onclick="getTopSymbols()">获取币种列表</button>
+                <button class="btn btn-primary" onclick="validateSymbol()">验证币种</button>
                 <button class="btn btn-warning" onclick="clearUltraShortCache()">清除缓存</button>
             </div>
             
@@ -2802,6 +2803,38 @@
                 }
             } catch (error) {
                 showStatus('请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 验证币种
+        async function validateSymbol() {
+            const symbol = document.getElementById('ultraShortSymbolsInput').value.trim();
+            if (!symbol) {
+                showStatus('请输入要验证的币种', 'error');
+                return;
+            }
+            
+            showStatus(`正在验证币种 ${symbol}...`, 'success');
+            
+            try {
+                const response = await fetch('/ultra_short/validate_symbol', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbol: symbol })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    const status = data.is_valid ? '有效' : '无效';
+                    const color = data.is_valid ? 'success' : 'error';
+                    showStatus(`币种 ${symbol} 验证结果: ${status} (标准化: ${data.normalized_symbol}, 数据量: ${data.data_count})`, color);
+                } else {
+                    showStatus('验证失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showStatus('验证请求失败: ' + error.message, 'error');
             }
         }
         
