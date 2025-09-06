@@ -95,6 +95,7 @@ class MultiTimeframeStrategy:
                         
                         # Gate.io数据格式转换 - 检查实际数据列数
                         logger.info(f"Gate.io返回数据列数: {len(data[0]) if data else 0}")
+                        logger.info(f"Gate.io返回数据示例: {data[0] if data else 'None'}")
                         
                         # Gate.io实际返回格式：[timestamp, volume, close, high, low, open, amount, count]
                         if len(data[0]) == 8:
@@ -109,13 +110,24 @@ class MultiTimeframeStrategy:
                             logger.error(f"Gate.io数据格式异常，列数: {len(data[0])}")
                             continue
                         
+                        # 检查列名是否存在
+                        logger.info(f"DataFrame列名: {list(df.columns)}")
+                        
                         # 转换数据类型
-                        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
-                        df['open'] = df['open'].astype(float)
-                        df['high'] = df['high'].astype(float)
-                        df['low'] = df['low'].astype(float)
-                        df['close'] = df['close'].astype(float)
-                        df['volume'] = df['volume'].astype(float)
+                        if 'timestamp' in df.columns:
+                            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
+                        else:
+                            logger.error("timestamp列不存在")
+                            continue
+                            
+                        # 确保所有必需的列都存在
+                        required_columns = ['open', 'high', 'low', 'close', 'volume']
+                        for col in required_columns:
+                            if col in df.columns:
+                                df[col] = df[col].astype(float)
+                            else:
+                                logger.error(f"必需列 {col} 不存在")
+                                continue
                         
                         # 重新排列列顺序
                         df = df[['open', 'high', 'low', 'close', 'volume']]
