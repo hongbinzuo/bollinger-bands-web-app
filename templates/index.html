@@ -1286,7 +1286,7 @@
             </div>
             
             <div class="form-group">
-                <button class="btn btn-primary" onclick="analyzeMultiTimeframeSymbols()">分析前100币种</button>
+                <button class="btn btn-primary" onclick="analyzeMultiTimeframeSymbols()">分析前200币种</button>
                 <button class="btn btn-info" onclick="getMultiTimeframeTopSymbols()">获取币种列表</button>
                 <button class="btn btn-warning" onclick="clearMultiTimeframeCache()">清除EMA记录</button>
                 <button class="btn btn-secondary" onclick="validateMultiTimeframeSymbol()">验证币种</button>
@@ -4182,7 +4182,7 @@
             }
         }
 
-        // 获取前100个币种列表
+        // 获取前200个币种列表
         async function getMultiTimeframeTopSymbols() {
             try {
                 const response = await fetch('/multi_timeframe/get_top_symbols');
