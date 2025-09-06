@@ -361,11 +361,11 @@ def get_top_symbols():
             'UST', 'DUSD', 'VAI', 'MIM', 'FEI', 'TRIBE', 'ALUSD', 'FLOAT', 'RAI'
         }
         
-        # 筛选USDT交易对并按交易量排序，过滤稳定币
+        # 筛选USDT.P永续合约交易对并按交易量排序，过滤稳定币
         usdt_symbols = []
         for item in data:
-            if item['symbol'].endswith('USDT'):
-                symbol = item['symbol'].replace('USDT', '')
+            if item['symbol'].endswith('USDT_PERP'):  # 币安永续合约后缀
+                symbol = item['symbol'].replace('USDT_PERP', '')
                 # 过滤稳定币
                 if symbol not in stablecoins:
                     usdt_symbols.append({
@@ -381,7 +381,7 @@ def get_top_symbols():
         # 提取币种名称
         symbols = [item['symbol'] for item in top_400]
         
-        logger.info(f"成功获取币安前400个USDT交易对，总交易量: {sum(item['volume'] for item in top_400):.2f}")
+        logger.info(f"成功获取币安前400个USDT.P永续合约交易对，总交易量: {sum(item['volume'] for item in top_400):.2f}")
         
         return jsonify({
             'success': True,
@@ -391,7 +391,7 @@ def get_top_symbols():
         })
         
     except Exception as e:
-        logger.error(f"获取币安前400币种失败: {e}")
+        logger.error(f"获取币安前400个USDT.P永续合约币种失败: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
