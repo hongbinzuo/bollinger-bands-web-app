@@ -107,8 +107,15 @@ class MultiTimeframeStrategy:
                                 'timestamp', 'volume', 'close', 'high', 'low', 'open'
                             ])
                         else:
-                            logger.error(f"Gate.io数据格式异常，列数: {len(data[0])}")
-                            continue
+                            # 如果列数不匹配，尝试直接使用索引访问
+                            logger.warning(f"列数不匹配，尝试直接索引访问")
+                            df = pd.DataFrame(data)
+                            # 手动设置列名
+                            if len(data[0]) >= 6:
+                                df.columns = ['timestamp', 'volume', 'close', 'high', 'low', 'open'] + [f'col_{i}' for i in range(6, len(data[0]))]
+                            else:
+                                logger.error(f"Gate.io数据格式异常，列数: {len(data[0])}")
+                                continue
                         
                         # 检查列名是否存在
                         logger.info(f"DataFrame列名: {list(df.columns)}")
