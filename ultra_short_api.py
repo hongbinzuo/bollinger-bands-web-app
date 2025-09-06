@@ -3,6 +3,7 @@ import logging
 from intraday_analyzer import IntradayAnalyzer
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +141,7 @@ def analyze_ultra_short_signal(symbol):
         if prev_price > prev_interval_high:
             # 做空逻辑：在区间上沿做空，止盈到1分钟EMA233
             entry_price = prev_interval_high  # 入场价：区间上沿
-            stop_loss = prev_price            # 止损价：突破点
+            stop_loss = current_price         # 止损价：当前价格（更合理的止损）
             take_profit = current_ema233_1m   # 止盈价：1分钟EMA233
             
             # 计算做空风险收益比
@@ -160,7 +161,7 @@ def analyze_ultra_short_signal(symbol):
         elif prev_price < prev_interval_low:
             # 做多逻辑：在区间下沿做多，止盈到1分钟EMA233
             entry_price = prev_interval_low   # 入场价：区间下沿
-            stop_loss = prev_price            # 止损价：跌破点
+            stop_loss = current_price         # 止损价：当前价格（更合理的止损）
             take_profit = current_ema233_1m   # 止盈价：1分钟EMA233
             
             # 计算做多风险收益比
@@ -193,6 +194,9 @@ def analyze_ultra_short_signal(symbol):
                 # 对于极小价格，使用科学计数法
                 return f"{price:.2e}"
         
+        # 获取信号出现时间（上一个K线的时间）
+        signal_time = df_1h.index[-2].strftime('%Y-%m-%d %H:%M:%S') if len(df_1h) >= 2 else "未知"
+        
         # 即使无交易机会也返回分析结果，便于调试
         result = {
             'symbol': symbol,
@@ -211,6 +215,7 @@ def analyze_ultra_short_signal(symbol):
             'profit_target': format_price(profit_target),
             'risk_reward_ratio': risk_reward_ratio,
             'trading_opportunity': trading_opportunity,
+            'signal_time': signal_time,  # 添加信号出现时间
             'ema365_1h': format_price(current_ema365),
             'ma365_1h': format_price(current_ma365),
             'ema233_1m': format_price(current_ema233_1m),
@@ -221,7 +226,8 @@ def analyze_ultra_short_signal(symbol):
                 'data_1h_count': len(df_1h),
                 'data_1m_count': len(df_1m),
                 'risk_calculation': f"风险={format_price(short_risk) if 'short_risk' in locals() else format_price(long_risk) if 'long_risk' in locals() else '0'}",
-                'reward_calculation': f"收益={format_price(short_reward) if 'short_reward' in locals() else format_price(long_reward) if 'long_reward' in locals() else '0'}"
+                'reward_calculation': f"收益={format_price(short_reward) if 'short_reward' in locals() else format_price(long_reward) if 'long_reward' in locals() else '0'}",
+                'signal_delay_minutes': f"信号延迟约{((datetime.now() - df_1h.index[-2]).total_seconds() / 60):.0f}分钟" if len(df_1h) >= 2 else "未知"
             }
         }
         

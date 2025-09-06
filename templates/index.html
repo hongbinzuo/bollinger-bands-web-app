@@ -1259,12 +1259,13 @@
                             <th>止损价格</th>
                             <th>止盈价格</th>
                             <th>风险收益比</th>
+                            <th>信号时间</th>
                             <th>操作</th>
                         </tr>
                     </thead>
                     <tbody id="ultraShortSignalsTableBody">
                         <tr>
-                            <td colspan="9" style="text-align: center; color: #666;">暂无超短交易信号</td>
+                            <td colspan="10" style="text-align: center; color: #666;">暂无超短交易信号</td>
                         </tr>
                     </tbody>
                 </table>
@@ -2655,7 +2656,7 @@
             
             if (filteredSignals.length === 0) {
                 const filterText = minRiskReward === 0 ? '暂无超短交易信号' : `暂无风险收益比${minRiskReward}及以上的超短交易信号`;
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #666;">${filterText}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: #666;">${filterText}</td></tr>`;
                 return;
             }
             
@@ -2710,6 +2711,7 @@
                         <td><strong>${signal.stop_loss || '-'}</strong></td>
                         <td><strong>${signal.take_profit || signal.profit_target}</strong></td>
                         <td class="${ratioClass}"><strong>${signal.risk_reward_ratio}</strong></td>
+                        <td><small>${signal.signal_time || '-'}</small></td>
                         <td>
                             <button class="btn btn-sm btn-info" onclick="showUltraShortDetails('${signal.symbol}')">详情</button>
                         </td>
