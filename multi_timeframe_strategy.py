@@ -204,12 +204,20 @@ class MultiTimeframeStrategy:
         try:
             # 获取主时间框架数据
             df = self.get_klines_data(symbol, timeframe, 1000)
-            if df.empty or len(df) < 610:  # 需要足够的数据计算EMA610
+            if df.empty:
+                return {
+                    'symbol': symbol,
+                    'timeframe': timeframe,
+                    'status': 'no_data',
+                    'message': f'无法获取{symbol} {timeframe}数据'
+                }
+            
+            if len(df) < 610:  # 需要足够的数据计算EMA610
                 return {
                     'symbol': symbol,
                     'timeframe': timeframe,
                     'status': 'insufficient_data',
-                    'message': f'数据不足: {len(df)}条'
+                    'message': f'数据不足: {len(df)}条，需要至少610条'
                 }
             
             # 计算指标
@@ -306,18 +314,41 @@ class MultiTimeframeStrategy:
             results.append(result)
         return results
     
+    def validate_symbol(self, symbol: str) -> bool:
+        """验证币种是否存在"""
+        try:
+            # 尝试获取少量数据来验证币种
+            df = self.get_klines_data(symbol, '1h', 5)
+            return not df.empty
+        except Exception as e:
+            logger.warning(f"验证币种{symbol}失败: {e}")
+            return False
+    
     def analyze_multiple_symbols(self, symbols: List[str]) -> Dict:
         """分析多个币种"""
         all_results = {}
+        valid_symbols = []
         
+        # 先验证币种
+        logger.info(f"开始验证{len(symbols)}个币种...")
         for symbol in symbols:
+            if self.validate_symbol(symbol):
+                valid_symbols.append(symbol)
+                logger.info(f"✅ {symbol} 验证通过")
+            else:
+                logger.warning(f"❌ {symbol} 验证失败，跳过")
+        
+        logger.info(f"验证完成: {len(valid_symbols)}/{len(symbols)} 个币种有效")
+        
+        # 分析有效币种
+        for symbol in valid_symbols:
             logger.info(f"分析币种: {symbol}")
             results = self.analyze_all_timeframes(symbol)
             all_results[symbol] = results
             
             # 避免请求过于频繁
             import time
-            time.sleep(0.1)
+            time.sleep(0.2)
         
         return all_results
     

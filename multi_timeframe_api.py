@@ -8,7 +8,7 @@ from multi_timeframe_strategy import MultiTimeframeStrategy
 import json
 
 # 创建蓝图
-multi_timeframe_bp = Blueprint('multi_timeframe', __name__)
+multi_timeframe_bp = Blueprint('multi_timeframe', __name__, url_prefix='/multi_timeframe')
 
 # 创建策略实例
 strategy = MultiTimeframeStrategy()
@@ -70,12 +70,13 @@ def analyze_multiple_symbols():
         
         logger.info(f"开始分析 {len(processed_symbols)} 个币种")
         
-        # 分析所有币种
+        # 分析所有币种（包含验证）
         all_results = strategy.analyze_multiple_symbols(processed_symbols)
         
         # 统计结果
         total_signals = 0
         successful_signals = 0
+        valid_symbols = len(all_results)
         
         for symbol, results in all_results.items():
             for result in results:
@@ -86,6 +87,7 @@ def analyze_multiple_symbols():
         return jsonify({
             'success': True,
             'total_symbols': len(processed_symbols),
+            'valid_symbols': valid_symbols,
             'total_signals': total_signals,
             'successful_signals': successful_signals,
             'results': all_results
@@ -181,6 +183,34 @@ def get_strategy_info():
             'ema_usage_limit': '每个EMA级别只用一次'
         }
     })
+
+@multi_timeframe_bp.route('/validate_symbol', methods=['POST'])
+def validate_symbol():
+    """验证币种是否存在"""
+    try:
+        data = request.get_json()
+        symbol = data.get('symbol', '').upper()
+        
+        if not symbol:
+            return jsonify({'error': '请提供币种'}), 400
+        
+        # 确保币种以USDT结尾
+        if not symbol.endswith('USDT'):
+            symbol += 'USDT'
+        
+        # 验证币种
+        is_valid = strategy.validate_symbol(symbol)
+        
+        return jsonify({
+            'success': True,
+            'symbol': symbol,
+            'is_valid': is_valid,
+            'message': f'{symbol} {"存在" if is_valid else "不存在"}'
+        })
+        
+    except Exception as e:
+        logger.error(f"验证币种失败: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @multi_timeframe_bp.route('/clear_ema_usage', methods=['POST'])
 def clear_ema_usage():

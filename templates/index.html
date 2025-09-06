@@ -1289,6 +1289,7 @@
                 <button class="btn btn-primary" onclick="analyzeMultiTimeframeSymbols()">分析前100币种</button>
                 <button class="btn btn-info" onclick="getMultiTimeframeTopSymbols()">获取币种列表</button>
                 <button class="btn btn-warning" onclick="clearMultiTimeframeCache()">清除EMA记录</button>
+                <button class="btn btn-secondary" onclick="validateMultiTimeframeSymbol()">验证币种</button>
             </div>
             
             <div class="form-group">
@@ -4212,6 +4213,43 @@
                 }
             } catch (error) {
                 showStatus(`清除失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 验证币种
+        async function validateMultiTimeframeSymbol() {
+            const symbolInput = document.getElementById('multiTimeframeSymbolInput').value.trim();
+            if (!symbolInput) {
+                showStatus('请输入要验证的币种', 'warning');
+                return;
+            }
+            
+            const symbol = symbolInput.split(',')[0].trim().toUpperCase(); // 只验证第一个币种
+            
+            try {
+                showStatus(`正在验证币种: ${symbol}...`, 'info');
+                
+                const response = await fetch('/multi_timeframe/validate_symbol', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbol: symbol })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.is_valid) {
+                        showStatus(`✅ ${data.symbol} 验证通过，可以正常交易`, 'success');
+                    } else {
+                        showStatus(`❌ ${data.symbol} 验证失败，该币种不存在或无法获取数据`, 'error');
+                    }
+                } else {
+                    showStatus(`验证失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`验证失败: ${error.message}`, 'error');
             }
         }
 
