@@ -93,10 +93,21 @@ class MultiTimeframeStrategy:
                             logger.warning(f"Gate.io返回空数据: {symbol} {interval}")
                             continue
                         
-                        # Gate.io数据格式转换
-                        df = pd.DataFrame(data, columns=[
-                            'timestamp', 'volume', 'close', 'high', 'low', 'open'
-                        ])
+                        # Gate.io数据格式转换 - 检查实际数据列数
+                        logger.info(f"Gate.io返回数据列数: {len(data[0]) if data else 0}")
+                        
+                        # Gate.io实际返回格式：[timestamp, volume, close, high, low, open, amount, count]
+                        if len(data[0]) == 8:
+                            df = pd.DataFrame(data, columns=[
+                                'timestamp', 'volume', 'close', 'high', 'low', 'open', 'amount', 'count'
+                            ])
+                        elif len(data[0]) == 6:
+                            df = pd.DataFrame(data, columns=[
+                                'timestamp', 'volume', 'close', 'high', 'low', 'open'
+                            ])
+                        else:
+                            logger.error(f"Gate.io数据格式异常，列数: {len(data[0])}")
+                            continue
                         
                         # 转换数据类型
                         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
