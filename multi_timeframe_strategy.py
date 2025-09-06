@@ -28,9 +28,110 @@ class MultiTimeframeStrategy:
         self.ema_usage = {}
         
     def get_klines_data(self, symbol: str, interval: str, limit: int = 1000) -> pd.DataFrame:
-        """获取K线数据"""
+        """获取K线数据 - 优先使用Gate.io API"""
+        import time
+        
         try:
-            # 使用币安期货API，增加重试机制
+            # 首先尝试Gate.io API
+            gate_result = self._get_gate_klines(symbol, interval, limit)
+            if not gate_result.empty:
+                return gate_result
+            
+            # Gate.io失败时，尝试币安期货API作为备用
+            logger.info(f"Gate.io获取失败，尝试币安期货API: {symbol} {interval}")
+            binance_result = self._get_binance_futures_klines(symbol, interval, limit)
+            if not binance_result.empty:
+                return binance_result
+            
+            # 最后尝试币安现货API
+            logger.info(f"币安期货API失败，尝试币安现货API: {symbol} {interval}")
+            return self._get_binance_spot_klines(symbol, interval, limit)
+                
+        except Exception as e:
+            logger.error(f"获取{symbol} {interval}数据异常: {e}")
+            return pd.DataFrame()
+    
+    def _get_gate_klines(self, symbol: str, interval: str, limit: int) -> pd.DataFrame:
+        """使用Gate.io API获取K线数据"""
+        import time
+        
+        try:
+            # 转换币种格式：BTCUSDT -> BTC_USDT
+            gate_symbol = symbol.replace('USDT', '_USDT')
+            
+            # 转换时间间隔格式
+            interval_map = {
+                '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m',
+                '1h': '1h', '2h': '2h', '4h': '4h', '6h': '6h', '8h': '8h', '12h': '12h',
+                '1d': '1d', '3d': '3d', '1w': '1w'
+            }
+            gate_interval = interval_map.get(interval, interval)
+            
+            url = f"https://api.gateio.ws/api/v4/spot/candlesticks"
+            params = {
+                'currency_pair': gate_symbol,
+                'interval': gate_interval,
+                'limit': min(limit, 1000)  # Gate.io限制最大1000
+            }
+            
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json'
+            })
+            
+            for attempt in range(3):
+                try:
+                    if attempt > 0:
+                        time.sleep(1)
+                    
+                    response = session.get(url, params=params, timeout=30)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        if not data:
+                            logger.warning(f"Gate.io返回空数据: {symbol} {interval}")
+                            continue
+                        
+                        # Gate.io数据格式转换
+                        df = pd.DataFrame(data, columns=[
+                            'timestamp', 'volume', 'close', 'high', 'low', 'open'
+                        ])
+                        
+                        # 转换数据类型
+                        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
+                        df['open'] = df['open'].astype(float)
+                        df['high'] = df['high'].astype(float)
+                        df['low'] = df['low'].astype(float)
+                        df['close'] = df['close'].astype(float)
+                        df['volume'] = df['volume'].astype(float)
+                        
+                        # 重新排列列顺序
+                        df = df[['open', 'high', 'low', 'close', 'volume']]
+                        df.set_index('timestamp', inplace=True)
+                        
+                        logger.info(f"Gate.io成功获取 {symbol} {interval} 数据: {len(df)} 条")
+                        return df
+                    else:
+                        logger.warning(f"Gate.io获取{symbol} {interval}失败: {response.status_code}")
+                        continue
+                        
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"Gate.io网络请求异常: {e}")
+                    continue
+            
+            logger.error(f"Gate.io获取{symbol} {interval}数据最终失败")
+            return pd.DataFrame()
+            
+        except Exception as e:
+            logger.error(f"Gate.io获取数据异常: {e}")
+            return pd.DataFrame()
+    
+    def _get_binance_futures_klines(self, symbol: str, interval: str, limit: int) -> pd.DataFrame:
+        """使用币安期货API获取K线数据（备用）"""
+        import time
+        
+        try:
             url = f"https://fapi.binance.com/fapi/v1/klines"
             params = {
                 'symbol': symbol,
@@ -38,17 +139,23 @@ class MultiTimeframeStrategy:
                 'limit': limit
             }
             
-            # 设置更长的超时时间和重试
             session = requests.Session()
             session.headers.update({
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             })
             
-            for attempt in range(3):  # 重试3次
+            for attempt in range(2):  # 减少重试次数
                 try:
+                    if attempt > 0:
+                        time.sleep(2)
+                    
                     response = session.get(url, params=params, timeout=30)
+                    
                     if response.status_code == 200:
                         data = response.json()
+                        if not data:
+                            continue
+                            
                         df = pd.DataFrame(data, columns=[ 
                             'timestamp', 'open', 'high', 'low', 'close', 'volume',
                             'close_time', 'quote_volume', 'trades', 'taker_buy_base',
@@ -63,27 +170,72 @@ class MultiTimeframeStrategy:
                         df['close'] = df['close'].astype(float)
                         df['volume'] = df['volume'].astype(float)
                         
+                        df = df[['open', 'high', 'low', 'close', 'volume']]
                         df.set_index('timestamp', inplace=True)
+                        
+                        logger.info(f"币安期货API成功获取 {symbol} {interval} 数据: {len(df)} 条")
                         return df
                     else:
-                        logger.warning(f"获取{symbol} {interval}数据失败: {response.status_code}, 重试 {attempt + 1}/3")
-                        if attempt < 2:  # 不是最后一次重试
-                            import time
-                            time.sleep(1)
+                        logger.warning(f"币安期货API获取{symbol} {interval}失败: {response.status_code}")
                         continue
+                        
                 except requests.exceptions.RequestException as e:
-                    logger.warning(f"网络请求异常: {e}, 重试 {attempt + 1}/3")
-                    if attempt < 2:
-                        import time
-                        time.sleep(2)
+                    logger.warning(f"币安期货API网络请求异常: {e}")
                     continue
             
-            logger.error(f"获取{symbol} {interval}数据最终失败")
             return pd.DataFrame()
+            
+        except Exception as e:
+            logger.error(f"币安期货API获取数据异常: {e}")
+            return pd.DataFrame()
+    
+    def _get_binance_spot_klines(self, symbol: str, interval: str, limit: int) -> pd.DataFrame:
+        """使用币安现货API获取K线数据（最后备用）"""
+        import time
+        
+        try:
+            url = f"https://api.binance.com/api/v3/klines"
+            params = {
+                'symbol': symbol,
+                'interval': interval,
+                'limit': limit
+            }
+            
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+            
+            response = session.get(url, params=params, timeout=30)
+            if response.status_code == 200:
+                data = response.json()
+                df = pd.DataFrame(data, columns=[
+                    'open_time', 'open', 'high', 'low', 'close', 'volume',
+                    'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+                    'taker_buy_quote', 'ignore'
+                ])
+                
+                # 转换数据类型
+                df['timestamp'] = pd.to_datetime(df['open_time'], unit='ms')
+                df['open'] = df['open'].astype(float)
+                df['high'] = df['high'].astype(float)
+                df['low'] = df['low'].astype(float)
+                df['close'] = df['close'].astype(float)
+                df['volume'] = df['volume'].astype(float)
+                
+                df = df[['open', 'high', 'low', 'close', 'volume']]
+                df.set_index('timestamp', inplace=True)
+                
+                logger.info(f"币安现货API成功获取 {symbol} {interval} 数据: {len(df)} 条")
+                return df
+            else:
+                logger.error(f"币安现货API也失败: {response.status_code}")
+                return pd.DataFrame()
                 
         except Exception as e:
-            logger.error(f"获取{symbol} {interval}数据异常: {e}")
+            logger.error(f"币安现货API获取数据异常: {e}")
             return pd.DataFrame()
+    
     
     def calculate_ema(self, prices: pd.Series, period: int) -> pd.Series:
         """计算EMA指标（纯Python实现）"""
@@ -255,14 +407,27 @@ class MultiTimeframeStrategy:
         }
     
     def analyze_multiple_symbols(self, symbols: List[str]) -> Dict:
-        """分析多个币种"""
+        """分析多个币种 - 添加请求间隔控制"""
+        import time
         all_results = {}
         
-        for symbol in symbols:
+        for i, symbol in enumerate(symbols):
             try:
-                logger.info(f"开始分析币种: {symbol}")
+                logger.info(f"开始分析币种: {symbol} ({i+1}/{len(symbols)})")
+                
+                # 添加请求间隔，避免API频率限制
+                if i > 0:
+                    delay = 0.5  # 每个请求间隔0.5秒
+                    time.sleep(delay)
+                
                 result = self.analyze_symbol(symbol)
                 all_results[symbol] = result['results']
+                
+                # 每10个币种后增加额外延迟
+                if (i + 1) % 10 == 0:
+                    logger.info(f"已处理 {i+1} 个币种，休息2秒...")
+                    time.sleep(2)
+                    
             except Exception as e:
                 logger.error(f"分析币种{symbol}失败: {e}")
                 all_results[symbol] = [{
