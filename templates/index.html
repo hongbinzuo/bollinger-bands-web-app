@@ -1223,7 +1223,7 @@
             </div>
             
             <div class="form-group">
-                <button class="btn btn-success" onclick="analyzeUltraShortSymbols()">分析超短机会 (USDT.P前400)</button>
+                <button class="btn btn-success" onclick="analyzeUltraShortSymbols()">分析超短机会 (期货前400)</button>
                 <button class="btn btn-info" onclick="analyzeUltraShortCustom()">分析自定义币种</button>
                 <button class="btn btn-secondary" onclick="getTopSymbols()">获取币种列表</button>
                 <button class="btn btn-primary" onclick="validateSymbol()">验证币种</button>
@@ -2577,7 +2577,7 @@
                 }
                 
                 const symbols = symbolsData.symbols;
-                showStatus(`获取到 ${symbols.length} 个USDT.P永续合约币种，开始分析超短交易信号...`, 'success');
+                showStatus(`获取到 ${symbols.length} 个币安期货永续合约币种，开始分析超短交易信号...`, 'success');
                 
                 // 分析超短交易信号
                 const response = await fetch('/ultra_short/get_signals', {
