@@ -374,14 +374,14 @@ def get_top_symbols():
                         'price': float(item['lastPrice'])
                     })
         
-        # 按交易量降序排序，取前200个
+        # 按交易量降序排序，取前400个
         usdt_symbols.sort(key=lambda x: x['volume'], reverse=True)
-        top_200 = usdt_symbols[:200]
+        top_400 = usdt_symbols[:400]
         
         # 提取币种名称
-        symbols = [item['symbol'] for item in top_200]
+        symbols = [item['symbol'] for item in top_400]
         
-        logger.info(f"成功获取币安前200个USDT交易对，总交易量: {sum(item['volume'] for item in top_200):.2f}")
+        logger.info(f"成功获取币安前400个USDT交易对，总交易量: {sum(item['volume'] for item in top_400):.2f}")
         
         return jsonify({
             'success': True,
@@ -391,7 +391,7 @@ def get_top_symbols():
         })
         
     except Exception as e:
-        logger.error(f"获取币安前200币种失败: {e}")
+        logger.error(f"获取币安前400币种失败: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
