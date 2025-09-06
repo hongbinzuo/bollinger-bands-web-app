@@ -1,7 +1,3 @@
-"""
-多时间框架策略API接口
-"""
-
 from flask import Blueprint, request, jsonify
 import logging
 from multi_timeframe_strategy import MultiTimeframeStrategy
