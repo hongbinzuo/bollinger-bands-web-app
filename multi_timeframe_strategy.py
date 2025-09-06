@@ -80,7 +80,7 @@ class MultiTimeframeStrategy:
                 'Accept': 'application/json'
             })
             
-            for attempt in range(3):
+            for attempt in range(2):  # 减少重试次数
                 try:
                     if attempt > 0:
                         time.sleep(1)
@@ -91,11 +91,7 @@ class MultiTimeframeStrategy:
                         data = response.json()
                         if not data:
                             logger.warning(f"Gate.io返回空数据: {symbol} {interval}")
-                            continue
-                        
-                        # Gate.io数据格式转换 - 直接使用索引访问
-                        logger.info(f"Gate.io返回数据列数: {len(data[0]) if data else 0}")
-                        logger.info(f"Gate.io返回数据示例: {data[0] if data else 'None'}")
+                            return pd.DataFrame()
                         
                         # 直接创建DataFrame，不指定列名
                         df = pd.DataFrame(data)
@@ -113,8 +109,6 @@ class MultiTimeframeStrategy:
                             extra_columns = [f'col_{i}' for i in range(6, len(data[0]))]
                             df.columns = base_columns + extra_columns
                         
-                        logger.info(f"DataFrame列名: {list(df.columns)}")
-                        
                         # 转换数据类型
                         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
                         df['open'] = df['open'].astype(float)
@@ -129,6 +123,10 @@ class MultiTimeframeStrategy:
                         
                         logger.info(f"Gate.io成功获取 {symbol} {interval} 数据: {len(df)} 条")
                         return df
+                    elif response.status_code == 400:
+                        # 币种不存在，直接返回空DataFrame
+                        logger.warning(f"Gate.io币种不存在: {symbol} {interval}")
+                        return pd.DataFrame()
                     else:
                         logger.warning(f"Gate.io获取{symbol} {interval}失败: {response.status_code}")
                         continue
@@ -137,7 +135,6 @@ class MultiTimeframeStrategy:
                     logger.warning(f"Gate.io网络请求异常: {e}")
                     continue
             
-            logger.error(f"Gate.io获取{symbol} {interval}数据最终失败")
             return pd.DataFrame()
             
         except Exception as e:
@@ -193,6 +190,10 @@ class MultiTimeframeStrategy:
                         
                         logger.info(f"币安期货API成功获取 {symbol} {interval} 数据: {len(df)} 条")
                         return df
+                    elif response.status_code == 400:
+                        # 币种不存在，直接返回空DataFrame
+                        logger.warning(f"币安期货API币种不存在: {symbol} {interval}")
+                        return pd.DataFrame()
                     else:
                         logger.warning(f"币安期货API获取{symbol} {interval}失败: {response.status_code}")
                         continue
@@ -247,6 +248,10 @@ class MultiTimeframeStrategy:
                 
                 logger.info(f"币安现货API成功获取 {symbol} {interval} 数据: {len(df)} 条")
                 return df
+            elif response.status_code == 400:
+                # 币种不存在，直接返回空DataFrame
+                logger.warning(f"币安现货API币种不存在: {symbol} {interval}")
+                return pd.DataFrame()
             else:
                 logger.error(f"币安现货API也失败: {response.status_code}")
                 return pd.DataFrame()
