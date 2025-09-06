@@ -136,12 +136,12 @@ def analyze_ultra_short_signal(symbol):
         entry_price = 0
         risk_reward_ratio = 0
         
-        # 做空信号：上一个K线向上突破区间上沿
+        # 做空信号：价格突破1h EMA365/MA365区间上沿
         if prev_price > prev_interval_high:
-            # 做空逻辑：在区间上沿做空，止盈到EMA233
-            entry_price = short_entry  # 入场价：区间上沿
-            stop_loss = prev_price     # 止损价：上一个K线收盘价（突破点）
-            take_profit = profit_target  # 止盈价：1分钟EMA233
+            # 做空逻辑：在区间上沿做空，止盈到1分钟EMA233
+            entry_price = prev_interval_high  # 入场价：区间上沿
+            stop_loss = prev_price            # 止损价：突破点
+            take_profit = current_ema233_1m   # 止盈价：1分钟EMA233
             
             # 计算做空风险收益比
             short_risk = stop_loss - entry_price      # 风险：止损价 - 入场价
@@ -154,14 +154,14 @@ def analyze_ultra_short_signal(symbol):
             
             trading_opportunity = "做空机会"
             risk_reward_ratio = short_risk_reward_ratio
-            logger.info(f"{symbol} 发现做空机会: 入场={entry_price}, 止损={stop_loss}, 止盈={take_profit}, 风险收益比={risk_reward_ratio}")
+            logger.info(f"{symbol} 发现做空机会: 突破上沿={prev_interval_high}, 入场={entry_price}, 止损={stop_loss}, 止盈={take_profit}, 风险收益比={risk_reward_ratio}")
             
-        # 做多信号：上一个K线向下突破区间下沿
+        # 做多信号：价格跌破1h EMA365/MA365区间下沿
         elif prev_price < prev_interval_low:
-            # 做多逻辑：在区间下沿做多，止盈到EMA233
-            entry_price = long_entry   # 入场价：区间下沿
-            stop_loss = prev_price     # 止损价：上一个K线收盘价（突破点）
-            take_profit = profit_target  # 止盈价：1分钟EMA233
+            # 做多逻辑：在区间下沿做多，止盈到1分钟EMA233
+            entry_price = prev_interval_low   # 入场价：区间下沿
+            stop_loss = prev_price            # 止损价：跌破点
+            take_profit = current_ema233_1m   # 止盈价：1分钟EMA233
             
             # 计算做多风险收益比
             long_risk = entry_price - stop_loss      # 风险：入场价 - 止损价
@@ -174,7 +174,7 @@ def analyze_ultra_short_signal(symbol):
             
             trading_opportunity = "做多机会"
             risk_reward_ratio = long_risk_reward_ratio
-            logger.info(f"{symbol} 发现做多机会: 入场={entry_price}, 止损={stop_loss}, 止盈={take_profit}, 风险收益比={risk_reward_ratio}")
+            logger.info(f"{symbol} 发现做多机会: 跌破下沿={prev_interval_low}, 入场={entry_price}, 止损={stop_loss}, 止盈={take_profit}, 风险收益比={risk_reward_ratio}")
         else:
             logger.info(f"{symbol} 无交易机会: 上一个价格={prev_price}, 区间=[{prev_interval_low}, {prev_interval_high}]")
         
@@ -352,15 +352,27 @@ def get_top_symbols():
         
         data = response.json()
         
-        # 筛选USDT交易对并按交易量排序
+        # 稳定币过滤列表（只过滤主要稳定币和算法稳定币）
+        stablecoins = {
+            # 主要稳定币
+            'USDT', 'USDC', 'BUSD', 'TUSD', 'USDP', 'USDD', 'DAI', 'FRAX', 'LUSD', 'SUSD',
+            'GUSD', 'HUSD', 'PAX', 'PAXG', 'USDS', 'USDK', 'USDN',
+            # 算法稳定币
+            'UST', 'DUSD', 'VAI', 'MIM', 'FEI', 'TRIBE', 'ALUSD', 'FLOAT', 'RAI'
+        }
+        
+        # 筛选USDT交易对并按交易量排序，过滤稳定币
         usdt_symbols = []
         for item in data:
             if item['symbol'].endswith('USDT'):
-                usdt_symbols.append({
-                    'symbol': item['symbol'].replace('USDT', ''),
-                    'volume': float(item['volume']),
-                    'price': float(item['lastPrice'])
-                })
+                symbol = item['symbol'].replace('USDT', '')
+                # 过滤稳定币
+                if symbol not in stablecoins:
+                    usdt_symbols.append({
+                        'symbol': symbol,
+                        'volume': float(item['volume']),
+                        'price': float(item['lastPrice'])
+                    })
         
         # 按交易量降序排序，取前200个
         usdt_symbols.sort(key=lambda x: x['volume'], reverse=True)
