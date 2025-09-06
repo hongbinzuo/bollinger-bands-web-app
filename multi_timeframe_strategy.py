@@ -93,48 +93,35 @@ class MultiTimeframeStrategy:
                             logger.warning(f"Gate.io返回空数据: {symbol} {interval}")
                             continue
                         
-                        # Gate.io数据格式转换 - 检查实际数据列数
+                        # Gate.io数据格式转换 - 直接使用索引访问
                         logger.info(f"Gate.io返回数据列数: {len(data[0]) if data else 0}")
                         logger.info(f"Gate.io返回数据示例: {data[0] if data else 'None'}")
                         
-                        # Gate.io实际返回格式：[timestamp, volume, close, high, low, open, amount, count]
-                        if len(data[0]) == 8:
-                            df = pd.DataFrame(data, columns=[
-                                'timestamp', 'volume', 'close', 'high', 'low', 'open', 'amount', 'count'
-                            ])
-                        elif len(data[0]) == 6:
-                            df = pd.DataFrame(data, columns=[
-                                'timestamp', 'volume', 'close', 'high', 'low', 'open'
-                            ])
-                        else:
-                            # 如果列数不匹配，尝试直接使用索引访问
-                            logger.warning(f"列数不匹配，尝试直接索引访问")
-                            df = pd.DataFrame(data)
-                            # 手动设置列名
-                            if len(data[0]) >= 6:
-                                df.columns = ['timestamp', 'volume', 'close', 'high', 'low', 'open'] + [f'col_{i}' for i in range(6, len(data[0]))]
-                            else:
-                                logger.error(f"Gate.io数据格式异常，列数: {len(data[0])}")
-                                continue
+                        # 直接创建DataFrame，不指定列名
+                        df = pd.DataFrame(data)
                         
-                        # 检查列名是否存在
+                        # 根据实际列数设置列名
+                        if len(data[0]) == 8:
+                            # Gate.io格式：[timestamp, volume, close, high, low, open, amount, count]
+                            df.columns = ['timestamp', 'volume', 'close', 'high', 'low', 'open', 'amount', 'count']
+                        elif len(data[0]) == 6:
+                            # 简化格式：[timestamp, volume, close, high, low, open]
+                            df.columns = ['timestamp', 'volume', 'close', 'high', 'low', 'open']
+                        else:
+                            # 通用格式：前6列固定，后面的列用数字命名
+                            base_columns = ['timestamp', 'volume', 'close', 'high', 'low', 'open']
+                            extra_columns = [f'col_{i}' for i in range(6, len(data[0]))]
+                            df.columns = base_columns + extra_columns
+                        
                         logger.info(f"DataFrame列名: {list(df.columns)}")
                         
                         # 转换数据类型
-                        if 'timestamp' in df.columns:
-                            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
-                        else:
-                            logger.error("timestamp列不存在")
-                            continue
-                            
-                        # 确保所有必需的列都存在
-                        required_columns = ['open', 'high', 'low', 'close', 'volume']
-                        for col in required_columns:
-                            if col in df.columns:
-                                df[col] = df[col].astype(float)
-                            else:
-                                logger.error(f"必需列 {col} 不存在")
-                                continue
+                        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
+                        df['open'] = df['open'].astype(float)
+                        df['high'] = df['high'].astype(float)
+                        df['low'] = df['low'].astype(float)
+                        df['close'] = df['close'].astype(float)
+                        df['volume'] = df['volume'].astype(float)
                         
                         # 重新排列列顺序
                         df = df[['open', 'high', 'low', 'close', 'volume']]
@@ -186,6 +173,7 @@ class MultiTimeframeStrategy:
                         if not data:
                             continue
                             
+                        # 币安期货API返回12列数据
                         df = pd.DataFrame(data, columns=[ 
                             'timestamp', 'open', 'high', 'low', 'close', 'volume',
                             'close_time', 'quote_volume', 'trades', 'taker_buy_base',
@@ -239,6 +227,7 @@ class MultiTimeframeStrategy:
             response = session.get(url, params=params, timeout=30)
             if response.status_code == 200:
                 data = response.json()
+                # 币安现货API返回12列数据
                 df = pd.DataFrame(data, columns=[
                     'open_time', 'open', 'high', 'low', 'close', 'volume',
                     'close_time', 'quote_volume', 'trades', 'taker_buy_base',
