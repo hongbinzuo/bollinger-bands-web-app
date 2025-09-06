@@ -138,61 +138,90 @@ def analyze_ultra_short_signal(symbol):
         
         # 做空信号：上一个K线向上突破区间上沿
         if prev_price > prev_interval_high:
+            # 做空逻辑：在区间上沿做空，止盈到EMA233
+            entry_price = short_entry  # 入场价：区间上沿
+            stop_loss = prev_price     # 止损价：上一个K线收盘价（突破点）
+            take_profit = profit_target  # 止盈价：1分钟EMA233
+            
             # 计算做空风险收益比
-            short_risk = prev_price - short_entry  # 风险：入场价到当前价的距离
-            short_reward = short_entry - profit_target  # 收益：入场价到止盈目标的距离
+            short_risk = stop_loss - entry_price      # 风险：止损价 - 入场价
+            short_reward = entry_price - take_profit  # 收益：入场价 - 止盈价
+            
             if short_risk > 0:
                 short_risk_reward_ratio = round(short_reward / short_risk, 2)
             else:
                 short_risk_reward_ratio = 0
             
             trading_opportunity = "做空机会"
-            entry_price = short_entry
             risk_reward_ratio = short_risk_reward_ratio
-            logger.info(f"{symbol} 发现做空机会: 上一个价格={prev_price} > 区间上沿={prev_interval_high}")
+            logger.info(f"{symbol} 发现做空机会: 入场={entry_price}, 止损={stop_loss}, 止盈={take_profit}, 风险收益比={risk_reward_ratio}")
             
         # 做多信号：上一个K线向下突破区间下沿
         elif prev_price < prev_interval_low:
+            # 做多逻辑：在区间下沿做多，止盈到EMA233
+            entry_price = long_entry   # 入场价：区间下沿
+            stop_loss = prev_price     # 止损价：上一个K线收盘价（突破点）
+            take_profit = profit_target  # 止盈价：1分钟EMA233
+            
             # 计算做多风险收益比
-            long_risk = long_entry - prev_price  # 风险：入场价到当前价的距离
-            long_reward = profit_target - long_entry  # 收益：入场价到止盈目标的距离
+            long_risk = entry_price - stop_loss      # 风险：入场价 - 止损价
+            long_reward = take_profit - entry_price  # 收益：止盈价 - 入场价
+            
             if long_risk > 0:
                 long_risk_reward_ratio = round(long_reward / long_risk, 2)
             else:
                 long_risk_reward_ratio = 0
             
             trading_opportunity = "做多机会"
-            entry_price = long_entry
             risk_reward_ratio = long_risk_reward_ratio
-            logger.info(f"{symbol} 发现做多机会: 上一个价格={prev_price} < 区间下沿={prev_interval_low}")
+            logger.info(f"{symbol} 发现做多机会: 入场={entry_price}, 止损={stop_loss}, 止盈={take_profit}, 风险收益比={risk_reward_ratio}")
         else:
             logger.info(f"{symbol} 无交易机会: 上一个价格={prev_price}, 区间=[{prev_interval_low}, {prev_interval_high}]")
+        
+        # 智能格式化价格显示
+        def format_price(price):
+            """根据价格大小智能格式化显示"""
+            if price == 0:
+                return "0"
+            elif price >= 1:
+                return f"{price:.4f}"
+            elif price >= 0.01:
+                return f"{price:.6f}"
+            elif price >= 0.0001:
+                return f"{price:.8f}"
+            else:
+                # 对于极小价格，使用科学计数法
+                return f"{price:.2e}"
         
         # 即使无交易机会也返回分析结果，便于调试
         result = {
             'symbol': symbol,
-            'current_price': round(current_price, 2),
-            'prev_price': round(prev_price, 2),
-            'interval_low': round(current_interval_low, 2),
-            'interval_high': round(current_interval_high, 2),
-            'prev_interval_low': round(prev_interval_low, 2),
-            'prev_interval_high': round(prev_interval_high, 2),
+            'current_price': format_price(current_price),
+            'prev_price': format_price(prev_price),
+            'interval_low': format_price(current_interval_low),
+            'interval_high': format_price(current_interval_high),
+            'prev_interval_low': format_price(prev_interval_low),
+            'prev_interval_high': format_price(prev_interval_high),
             'breakout_status': breakout_status,
-            'short_entry': round(short_entry, 2),
-            'long_entry': round(long_entry, 2),
-            'entry_price': round(entry_price, 2),
-            'profit_target': round(profit_target, 2),
+            'short_entry': format_price(short_entry),
+            'long_entry': format_price(long_entry),
+            'entry_price': format_price(entry_price),
+            'stop_loss': format_price(stop_loss) if 'stop_loss' in locals() else "0",
+            'take_profit': format_price(take_profit) if 'take_profit' in locals() else "0",
+            'profit_target': format_price(profit_target),
             'risk_reward_ratio': risk_reward_ratio,
             'trading_opportunity': trading_opportunity,
-            'ema365_1h': round(current_ema365, 2),
-            'ma365_1h': round(current_ma365, 2),
-            'ema233_1m': round(current_ema233_1m, 2),
+            'ema365_1h': format_price(current_ema365),
+            'ma365_1h': format_price(current_ma365),
+            'ema233_1m': format_price(current_ema233_1m),
             'debug_info': {
-                'prev_price_vs_prev_interval_high': round(prev_price - prev_interval_high, 2),
-                'prev_price_vs_prev_interval_low': round(prev_price - prev_interval_low, 2),
-                'entry_vs_profit': round(entry_price - profit_target, 2) if entry_price > 0 else 0,
+                'prev_price_vs_prev_interval_high': format_price(prev_price - prev_interval_high),
+                'prev_price_vs_prev_interval_low': format_price(prev_price - prev_interval_low),
+                'entry_vs_profit': format_price(entry_price - profit_target) if entry_price > 0 else "0",
                 'data_1h_count': len(df_1h),
-                'data_1m_count': len(df_1m)
+                'data_1m_count': len(df_1m),
+                'risk_calculation': f"风险={format_price(short_risk) if 'short_risk' in locals() else format_price(long_risk) if 'long_risk' in locals() else '0'}",
+                'reward_calculation': f"收益={format_price(short_reward) if 'short_reward' in locals() else format_price(long_reward) if 'long_reward' in locals() else '0'}"
             }
         }
         
@@ -231,18 +260,34 @@ def get_signal_details():
         ma365_1h = analyzer.calculate_ma365(df_1h['close'])
         ema233_1m = analyzer.calculate_ema233(df_1m['close'])
         
+        # 智能格式化价格显示
+        def format_price(price):
+            """根据价格大小智能格式化显示"""
+            if price is None or pd.isna(price):
+                return None
+            if price == 0:
+                return 0
+            elif price >= 1:
+                return round(price, 4)
+            elif price >= 0.01:
+                return round(price, 6)
+            elif price >= 0.0001:
+                return round(price, 8)
+            else:
+                return round(price, 10)
+        
         # 准备图表数据
         chart_data = {
             '1h': {
                 'timestamps': df_1h.index.strftime('%Y-%m-%d %H:%M:%S').tolist(),
-                'prices': df_1h['close'].tolist(),
-                'ema365': [None if pd.isna(val) else val for val in ema365_1h.tolist()],
-                'ma365': [None if pd.isna(val) else val for val in ma365_1h.tolist()]
+                'prices': [format_price(val) for val in df_1h['close'].tolist()],
+                'ema365': [format_price(val) for val in ema365_1h.tolist()],
+                'ma365': [format_price(val) for val in ma365_1h.tolist()]
             },
             '1m': {
                 'timestamps': df_1m.index.strftime('%Y-%m-%d %H:%M:%S').tolist(),
-                'prices': df_1m['close'].tolist(),
-                'ema233': [None if pd.isna(val) else val for val in ema233_1m.tolist()]
+                'prices': [format_price(val) for val in df_1m['close'].tolist()],
+                'ema233': [format_price(val) for val in ema233_1m.tolist()]
             }
         }
         

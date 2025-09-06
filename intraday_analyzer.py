@@ -603,13 +603,28 @@ class IntradayAnalyzer:
             # 生成信号
             signal_data = self.generate_signal(current_price, anchor_point)
             
+            # 智能格式化价格显示
+            def format_price(price):
+                """根据价格大小智能格式化显示"""
+                if price == 0:
+                    return "0"
+                elif price >= 1:
+                    return f"{price:.4f}"
+                elif price >= 0.01:
+                    return f"{price:.6f}"
+                elif price >= 0.0001:
+                    return f"{price:.8f}"
+                else:
+                    # 对于极小价格，使用科学计数法
+                    return f"{price:.2e}"
+            
             result = {
                 'symbol': symbol,
                 'timeframe': timeframe,
-                'current_price': round(current_price, 6),
-                'ema365': round(current_ema365, 6),
-                'ma365': round(current_ma365, 6),
-                'anchor_point': round(anchor_point, 6),
+                'current_price': format_price(current_price),
+                'ema365': format_price(current_ema365),
+                'ma365': format_price(current_ma365),
+                'anchor_point': format_price(anchor_point),
                 'signal': signal_data['signal'],
                 'signal_type': signal_data['signal_type'],
                 'strength': signal_data['strength'],
@@ -757,23 +772,40 @@ class IntradayAnalyzer:
             ma233 = self.calculate_ma233(df_base['close'])
             ma365 = self.calculate_ma365(df_base['close'])
             
-            # 准备基础数据（处理NaN值）
+            # 准备基础数据（处理NaN值和价格格式化）
             def clean_series(series):
                 """清理Series中的NaN值，转换为None"""
                 return [None if pd.isna(val) else val for val in series.tolist()]
             
+            def format_price_series(series):
+                """格式化价格序列显示"""
+                def format_price(price):
+                    if price is None or pd.isna(price):
+                        return None
+                    if price == 0:
+                        return 0
+                    elif price >= 1:
+                        return round(price, 4)
+                    elif price >= 0.01:
+                        return round(price, 6)
+                    elif price >= 0.0001:
+                        return round(price, 8)
+                    else:
+                        return round(price, 10)
+                return [format_price(val) for val in series.tolist()]
+            
             base_data = {
                 'timestamps': df_base.index.strftime('%Y-%m-%d %H:%M:%S').tolist(),
-                'prices': clean_series(df_base['close']),
+                'prices': format_price_series(df_base['close']),
                 'volumes': clean_series(df_base['volume']),
-                'ema89': clean_series(ema89),
-                'ema144': clean_series(ema144),
-                'ema233': clean_series(ema233),
-                'ema365': clean_series(ema365),
-                'ma89': clean_series(ma89),
-                'ma144': clean_series(ma144),
-                'ma233': clean_series(ma233),
-                'ma365': clean_series(ma365)
+                'ema89': format_price_series(ema89),
+                'ema144': format_price_series(ema144),
+                'ema233': format_price_series(ema233),
+                'ema365': format_price_series(ema365),
+                'ma89': format_price_series(ma89),
+                'ma144': format_price_series(ma144),
+                'ma233': format_price_series(ma233),
+                'ma365': format_price_series(ma365)
             }
             
             # 检测交叉点位
@@ -800,7 +832,7 @@ class IntradayAnalyzer:
             for cross in cross_points['price_crosses']:
                 formatted_cross_points['price_crosses'].append({
                     'timestamp': cross['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
-                    'price': round(cross['price'], 2),
+                    'price': format_price(cross['price']),
                     'indicator': cross['indicator'],
                     'type': cross['type'],
                     'index': cross['index']
@@ -810,7 +842,7 @@ class IntradayAnalyzer:
             for cross in cross_points['indicator_crosses']:
                 formatted_cross_points['indicator_crosses'].append({
                     'timestamp': cross['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
-                    'price': round(cross['price'], 2),
+                    'price': format_price(cross['price']),
                     'indicator1': cross['indicator1'],
                     'indicator2': cross['indicator2'],
                     'type': cross['type'],
@@ -835,7 +867,18 @@ class IntradayAnalyzer:
                             closest_idx = df_tf.index.get_indexer([base_ts], method='nearest')[0]
                             if closest_idx >= 0:
                                 val = ema365_tf.iloc[closest_idx]
-                                aligned_data.append(None if pd.isna(val) else val)
+                                if pd.isna(val):
+                                    aligned_data.append(None)
+                                else:
+                                    # 格式化价格
+                                    if val >= 1:
+                                        aligned_data.append(round(val, 4))
+                                    elif val >= 0.01:
+                                        aligned_data.append(round(val, 6))
+                                    elif val >= 0.0001:
+                                        aligned_data.append(round(val, 8))
+                                    else:
+                                        aligned_data.append(round(val, 10))
                             else:
                                 aligned_data.append(None)
                         

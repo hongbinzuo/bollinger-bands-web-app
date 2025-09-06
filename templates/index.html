@@ -1231,6 +1231,17 @@
             </div>
             
             <div class="form-group">
+                <label for="riskRewardFilter">风险收益比过滤:</label>
+                <select id="riskRewardFilter" class="form-control" style="width: 200px; display: inline-block;">
+                    <option value="1.5">≥ 1.5 (优质机会)</option>
+                    <option value="1.0">≥ 1.0 (一般机会)</option>
+                    <option value="0.5">≥ 0.5 (风险较高)</option>
+                    <option value="0">显示全部</option>
+                </select>
+                <button class="btn btn-sm btn-outline-primary" onclick="applyRiskRewardFilter()">应用过滤</button>
+            </div>
+            
+            <div class="form-group">
                 <label for="ultraShortSymbolsInput">自定义币种 (用逗号分隔):</label>
                 <input type="text" id="ultraShortSymbolsInput" placeholder="例如: ETH, BTC, SOL" class="form-control">
             </div>
@@ -1245,14 +1256,15 @@
                             <th>当前价格</th>
                             <th>交易机会</th>
                             <th>入场价格</th>
-                            <th>止盈目标</th>
+                            <th>止损价格</th>
+                            <th>止盈价格</th>
                             <th>风险收益比</th>
                             <th>操作</th>
                         </tr>
                     </thead>
                     <tbody id="ultraShortSignalsTableBody">
                         <tr>
-                            <td colspan="8" style="text-align: center; color: #666;">暂无超短交易信号</td>
+                            <td colspan="9" style="text-align: center; color: #666;">暂无超短交易信号</td>
                         </tr>
                     </tbody>
                 </table>
@@ -2578,7 +2590,7 @@
 
                 const data = await response.json();
                 if (data.success) {
-                    showUltraShortSignals(data.signals);
+                    showUltraShortSignals(data.signals, 1.5); // 默认显示风险收益比≥1.5的信号
                     showStatus(`超短交易信号分析完成，共处理 ${data.total} 个币种`, 'success');
                 } else {
                     showStatus('超短交易分析失败: ' + data.error, 'error');
@@ -2610,7 +2622,7 @@
 
                 const data = await response.json();
                 if (data.success) {
-                    showUltraShortSignals(data.signals);
+                    showUltraShortSignals(data.signals, 1.5); // 默认显示风险收益比≥1.5的信号
                     showStatus(`超短交易信号分析完成，共处理 ${data.total} 个币种`, 'success');
                 } else {
                     showStatus('超短交易分析失败: ' + data.error, 'error');
@@ -2620,17 +2632,35 @@
             }
         }
         
+        // 全局变量存储所有信号
+        let allUltraShortSignals = [];
+        
+        // 应用风险收益比过滤
+        function applyRiskRewardFilter() {
+            const filterValue = parseFloat(document.getElementById('riskRewardFilter').value);
+            showUltraShortSignals(allUltraShortSignals, filterValue);
+        }
+        
         // 显示超短交易信号
-        function showUltraShortSignals(signals) {
+        function showUltraShortSignals(signals, minRiskReward = 1.5) {
             const tbody = document.getElementById('ultraShortSignalsTableBody');
             
-            if (signals.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #666;">暂无超短交易信号</td></tr>';
+            // 保存所有信号到全局变量
+            allUltraShortSignals = signals;
+            
+            // 过滤风险收益比
+            const filteredSignals = signals.filter(signal => {
+                return signal.risk_reward_ratio >= minRiskReward;
+            });
+            
+            if (filteredSignals.length === 0) {
+                const filterText = minRiskReward === 0 ? '暂无超短交易信号' : `暂无风险收益比${minRiskReward}及以上的超短交易信号`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #666;">${filterText}</td></tr>`;
                 return;
             }
             
             let html = '';
-            signals.forEach(signal => {
+            filteredSignals.forEach(signal => {
                 let opportunityClass = 'warning';
                 let opportunityText = signal.trading_opportunity;
                 
@@ -2658,6 +2688,18 @@
                     }
                 }
                 
+                // 根据风险收益比设置颜色
+                let ratioClass = '';
+                if (signal.risk_reward_ratio > 2) {
+                    ratioClass = 'text-success font-weight-bold';
+                } else if (signal.risk_reward_ratio > 1) {
+                    ratioClass = 'text-warning';
+                } else if (signal.risk_reward_ratio > 0) {
+                    ratioClass = 'text-danger';
+                } else {
+                    ratioClass = 'text-muted';
+                }
+                
                 html += `
                     <tr>
                         <td><strong>${signal.symbol}</strong></td>
@@ -2665,8 +2707,9 @@
                         <td>${signal.current_price}</td>
                         <td><span class="status-${opportunityClass}">${opportunityText}</span></td>
                         <td><strong>${signal.entry_price || '-'}</strong></td>
-                        <td><strong>${signal.profit_target}</strong></td>
-                        <td>${signal.risk_reward_ratio}</td>
+                        <td><strong>${signal.stop_loss || '-'}</strong></td>
+                        <td><strong>${signal.take_profit || signal.profit_target}</strong></td>
+                        <td class="${ratioClass}"><strong>${signal.risk_reward_ratio}</strong></td>
                         <td>
                             <button class="btn btn-sm btn-info" onclick="showUltraShortDetails('${signal.symbol}')">详情</button>
                         </td>
@@ -2675,6 +2718,12 @@
             });
             
             tbody.innerHTML = html;
+            
+            // 更新状态显示
+            const totalCount = signals.length;
+            const filteredCount = filteredSignals.length;
+            const filterText = minRiskReward === 0 ? '显示全部' : `风险收益比≥${minRiskReward}`;
+            showStatus(`超短交易信号: 总计${totalCount}个，${filterText}显示${filteredCount}个`, 'success');
         }
         
         // 显示超短交易详情
