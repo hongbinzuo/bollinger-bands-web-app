@@ -182,3 +182,107 @@ class MultiTimeframeStrategy:
                         })
         
         return available_levels
+    
+    def analyze_symbol(self, symbol: str) -> Dict:
+        """分析单个币种的所有时间框架"""
+        results = []
+        
+        for timeframe in self.timeframes:
+            try:
+                # 获取K线数据
+                df = self.get_klines_data(symbol, timeframe, 1000)
+                if df.empty or len(df) < 200:
+                    results.append({
+                        'timeframe': timeframe,
+                        'status': 'error',
+                        'message': f'数据不足: {len(df)} 条'
+                    })
+                    continue
+                
+                # 计算技术指标
+                df = self.calculate_emas(df)
+                df = self.calculate_bollinger_bands(df)
+                
+                # 判断趋势
+                if self.is_bullish_trend(df):
+                    trend = 'bullish'
+                    trend_strength = 'strong' if df['ema144'].iloc[-1] > df['ema233'].iloc[-1] * 1.01 else 'weak'
+                elif self.is_bearish_trend(df):
+                    trend = 'bearish'
+                    trend_strength = 'strong' if df['ema144'].iloc[-1] < df['ema233'].iloc[-1] * 0.99 else 'weak'
+                else:
+                    trend = 'neutral'
+                    trend_strength = 'weak'
+                
+                # 寻找回踩机会
+                pullback_levels = self.find_ema_pullback_levels(df, trend)
+                
+                # 计算止盈目标
+                take_profit_timeframe = self.take_profit_timeframes.get(timeframe, '15m')
+                tp_df = self.get_klines_data(symbol, take_profit_timeframe, 200)
+                take_profit_price = None
+                if not tp_df.empty:
+                    tp_df = self.calculate_bollinger_bands(tp_df)
+                    take_profit_price = tp_df['bb_middle'].iloc[-1] if 'bb_middle' in tp_df.columns else None
+                
+                results.append({
+                    'timeframe': timeframe,
+                    'status': 'success',
+                    'trend': trend,
+                    'trend_strength': trend_strength,
+                    'current_price': df['close'].iloc[-1],
+                    'ema144': df['ema144'].iloc[-1],
+                    'ema233': df['ema233'].iloc[-1],
+                    'pullback_levels': pullback_levels,
+                    'take_profit_timeframe': take_profit_timeframe,
+                    'take_profit_price': take_profit_price,
+                    'signal_count': len(pullback_levels)
+                })
+                
+            except Exception as e:
+                logger.error(f"分析{symbol} {timeframe}失败: {e}")
+                results.append({
+                    'timeframe': timeframe,
+                    'status': 'error',
+                    'message': str(e)
+                })
+        
+        return {
+            'symbol': symbol,
+            'results': results,
+            'total_timeframes': len(self.timeframes),
+            'successful_timeframes': sum(1 for r in results if r['status'] == 'success')
+        }
+    
+    def analyze_multiple_symbols(self, symbols: List[str]) -> Dict:
+        """分析多个币种"""
+        all_results = {}
+        
+        for symbol in symbols:
+            try:
+                logger.info(f"开始分析币种: {symbol}")
+                result = self.analyze_symbol(symbol)
+                all_results[symbol] = result['results']
+            except Exception as e:
+                logger.error(f"分析币种{symbol}失败: {e}")
+                all_results[symbol] = [{
+                    'timeframe': 'all',
+                    'status': 'error',
+                    'message': str(e)
+                }]
+        
+        return all_results
+    
+    def analyze_all_timeframes(self, symbol: str) -> List[Dict]:
+        """分析单个币种的所有时间框架（API兼容方法）"""
+        result = self.analyze_symbol(symbol)
+        return result['results']
+    
+    def validate_symbol(self, symbol: str) -> bool:
+        """验证币种是否存在"""
+        try:
+            df = self.get_klines_data(symbol, '1d', 10)
+            return not df.empty
+        except Exception as e:
+            logger.error(f"验证币种{symbol}失败: {e}")
+            return False

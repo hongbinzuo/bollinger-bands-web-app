@@ -4108,10 +4108,10 @@
         // 多时间框架策略相关变量
         let allMultiTimeframeSignals = [];
 
-        // 分析前100个币种的多时间框架策略
+        // 分析前200个币种的多时间框架策略
         async function analyzeMultiTimeframeSymbols() {
             try {
-                showStatus('正在获取前100个币种...', 'info');
+                showStatus('正在获取前200个币种...', 'info');
                 
                 const response = await fetch('/multi_timeframe/get_top_symbols');
                 const data = await response.json();
