@@ -95,11 +95,11 @@ def analyze_multiple_symbols():
 
 @multi_timeframe_bp.route('/get_top_symbols', methods=['GET'])
 def get_top_symbols():
-    """获取前200个币种"""
+    """获取前500个币种"""
     try:
         import requests
         
-        # 使用重试机制获取币安期货前200个币种
+        # 使用重试机制获取币安期货前500个币种
         session = requests.Session()
         session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -127,11 +127,11 @@ def get_top_symbols():
                     stablecoins = {'USDT', 'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FRAX', 'LUSD', 'SUSD', 'GUSD', 'HUSD', 'USDN', 'USDK', 'USDJ', 'USDS'}
                     
                     filtered_symbols = []
-                    for item in sorted_data[:400]:  # 取前400个，然后过滤
+                    for item in sorted_data[:800]:  # 取前800个，然后过滤
                         symbol = item.get('symbol', '')
                         if symbol.endswith('USDT') and not any(coin in symbol for coin in stablecoins):
                             filtered_symbols.append(symbol)
-                            if len(filtered_symbols) >= 200:  # 取前200个
+                            if len(filtered_symbols) >= 500:  # 取前500个
                                 break
                     
                     logger.info(f"过滤后得到 {len(filtered_symbols)} 个币种")
