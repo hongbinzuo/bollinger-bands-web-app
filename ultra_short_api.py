@@ -35,8 +35,20 @@ def get_ultra_short_signals():
                     signals.append(signal)
                 else:
                     logger.warning(f"{symbol} 分析失败，返回None")
+                    # 即使分析失败也添加一个失败记录，便于调试
+                    signals.append({
+                        'symbol': symbol,
+                        'trading_opportunity': '分析失败',
+                        'error': '数据不足或计算失败'
+                    })
             except Exception as e:
                 logger.error(f"分析 {symbol} 超短信号失败: {e}")
+                # 添加错误记录
+                signals.append({
+                    'symbol': symbol,
+                    'trading_opportunity': '分析错误',
+                    'error': str(e)
+                })
                 continue
         
         logger.info(f"分析完成，共 {len(signals)} 个币种有结果")
@@ -57,15 +69,15 @@ def get_ultra_short_signals():
 def analyze_ultra_short_signal(symbol):
     """分析单个币种的超短交易信号"""
     try:
-        # 获取1小时K线数据 - 增加数据量确保EMA365/MA365能计算
+        # 获取1小时K线数据 - 降低数据量要求
         df_1h = analyzer.get_klines_data(symbol, '1h', 500)
-        if df_1h.empty or len(df_1h) < 400:  # 需要足够数据计算365周期指标
+        if df_1h.empty or len(df_1h) < 200:  # 降低到200条，确保有足够数据计算指标
             logger.warning(f"{symbol} 1小时数据不足: {len(df_1h) if not df_1h.empty else 0}")
             return None
         
-        # 获取1分钟K线数据 - 增加数据量确保EMA233能计算
+        # 获取1分钟K线数据 - 降低数据量要求
         df_1m = analyzer.get_klines_data(symbol, '1m', 500)
-        if df_1m.empty or len(df_1m) < 300:  # 需要足够数据计算233周期指标
+        if df_1m.empty or len(df_1m) < 150:  # 降低到150条，确保有足够数据计算指标
             logger.warning(f"{symbol} 1分钟数据不足: {len(df_1m) if not df_1m.empty else 0}")
             return None
         
@@ -178,11 +190,13 @@ def analyze_ultra_short_signal(symbol):
             'debug_info': {
                 'prev_price_vs_prev_interval_high': round(prev_price - prev_interval_high, 2),
                 'prev_price_vs_prev_interval_low': round(prev_price - prev_interval_low, 2),
-                'entry_vs_profit': round(entry_price - profit_target, 2) if entry_price > 0 else 0
+                'entry_vs_profit': round(entry_price - profit_target, 2) if entry_price > 0 else 0,
+                'data_1h_count': len(df_1h),
+                'data_1m_count': len(df_1m)
             }
         }
         
-        logger.info(f"{symbol} 分析完成: {trading_opportunity}")
+        logger.info(f"{symbol} 分析完成: {trading_opportunity} (1h数据: {len(df_1h)}, 1m数据: {len(df_1m)})")
         return result
         
     except Exception as e:

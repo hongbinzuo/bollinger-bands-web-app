@@ -50,7 +50,8 @@ class IntradayAnalyzer:
             'AVAX': 'AVAXUSDT',
             'MATIC': 'MATICUSDT',
             'ATOM': 'ATOMUSDT',
-            'HUMA': 'HUMAUSDT',  # 添加HUMA映射
+            'HUMA': 'HUMAUSDT',
+            'MITO': 'MITOUSDT',  # 添加MITO映射
             'PEPE': 'PEPEUSDT',
             'DOGE': 'DOGEUSDT',
             'SHIB': 'SHIBUSDT',
@@ -59,7 +60,45 @@ class IntradayAnalyzer:
             'BCH': 'BCHUSDT',
             'ETC': 'ETCUSDT',
             'TRX': 'TRXUSDT',
-            'BNB': 'BNBUSDT'
+            'BNB': 'BNBUSDT',
+            'ARB': 'ARBUSDT',
+            'OP': 'OPUSDT',
+            'SUI': 'SUIUSDT',
+            'APT': 'APTUSDT',
+            'NEAR': 'NEARUSDT',
+            'FTM': 'FTMUSDT',
+            'ALGO': 'ALGOUSDT',
+            'VET': 'VETUSDT',
+            'ICP': 'ICPUSDT',
+            'FIL': 'FILUSDT',
+            'THETA': 'THETAUSDT',
+            'EOS': 'EOSUSDT',
+            'AAVE': 'AAVEUSDT',
+            'MKR': 'MKRUSDT',
+            'COMP': 'COMPUSDT',
+            'YFI': 'YFIUSDT',
+            'SNX': 'SNXUSDT',
+            'UMA': 'UMAUSDT',
+            'BAL': 'BALUSDT',
+            'CRV': 'CRVUSDT',
+            '1INCH': '1INCHUSDT',
+            'SUSHI': 'SUSHIUSDT',
+            'CAKE': 'CAKEUSDT',
+            'BAKE': 'BAKEUSDT',
+            'BURGER': 'BURGERUSDT',
+            'ALPHA': 'ALPHAUSDT',
+            'BETA': 'BETAUSDT',
+            'GAMMA': 'GAMMAUSDT',
+            'DELTA': 'DELTAUSDT',
+            'THETA': 'THETAUSDT',
+            'LAMBDA': 'LAMBDAUSDT',
+            'SIGMA': 'SIGMAUSDT',
+            'OMEGA': 'OMEGAUSDT',
+            'PI': 'PIUSDT',
+            'TAU': 'TAUUSDT',
+            'PHI': 'PHIUSDT',
+            'CHI': 'CHIUSDT',
+            'PSI': 'PSIUSDT'
         }
     
     def _normalize_symbol(self, symbol: str) -> str:
@@ -109,10 +148,20 @@ class IntradayAnalyzer:
                 'limit': limit
             }
             
-            response = self.session.get(url, params=params)
+            logger.info(f"正在从Binance获取 {symbol} {interval} K线数据...")
+            response = self.session.get(url, params=params, timeout=10)
+            
+            if response.status_code == 400:
+                logger.warning(f"Binance API返回400错误，币种 {symbol} 可能不存在或参数错误")
+                return pd.DataFrame()
+            
             response.raise_for_status()
             
             data = response.json()
+            
+            if not data:
+                logger.warning(f"Binance返回空数据: {symbol}")
+                return pd.DataFrame()
             
             # 创建DataFrame
             df = pd.DataFrame(data, columns=[
@@ -133,6 +182,7 @@ class IntradayAnalyzer:
             # 只保留需要的列
             df = df[['open', 'high', 'low', 'close', 'volume']]
             
+            logger.info(f"成功从Binance获取 {symbol} 数据，共 {len(df)} 条记录")
             return df
             
         except Exception as e:
