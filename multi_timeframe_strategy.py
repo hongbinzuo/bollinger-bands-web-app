@@ -35,7 +35,7 @@ class MultiTimeframeStrategy:
     def get_klines_data(self, symbol: str, interval: str, limit: int = 1000) -> pd.DataFrame:
         """获取K线数据"""
         try:
-            # 使用币安期货API
+            # 使用币安期货API，增加重试机制
             url = f"https://fapi.binance.com/fapi/v1/klines"
             params = {
                 'symbol': symbol,
@@ -43,28 +43,48 @@ class MultiTimeframeStrategy:
                 'limit': limit
             }
             
-            response = requests.get(url, params=params, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                df = pd.DataFrame(data, columns=[
-                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                    'close_time', 'quote_volume', 'trades', 'taker_buy_base',
-                    'taker_buy_quote', 'ignore'
-                ])
-                
-                # 转换数据类型
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-                df['open'] = df['open'].astype(float)
-                df['high'] = df['high'].astype(float)
-                df['low'] = df['low'].astype(float)
-                df['close'] = df['close'].astype(float)
-                df['volume'] = df['volume'].astype(float)
-                
-                df.set_index('timestamp', inplace=True)
-                return df
-            else:
-                logger.error(f"获取{symbol} {interval}数据失败: {response.status_code}")
-                return pd.DataFrame()
+            # 设置更长的超时时间和重试
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+            
+            for attempt in range(3):  # 重试3次
+                try:
+                    response = session.get(url, params=params, timeout=30)
+                    if response.status_code == 200:
+                        data = response.json()
+                        df = pd.DataFrame(data, columns=[
+                            'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                            'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+                            'taker_buy_quote', 'ignore'
+                        ])
+                        
+                        # 转换数据类型
+                        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                        df['open'] = df['open'].astype(float)
+                        df['high'] = df['high'].astype(float)
+                        df['low'] = df['low'].astype(float)
+                        df['close'] = df['close'].astype(float)
+                        df['volume'] = df['volume'].astype(float)
+                        
+                        df.set_index('timestamp', inplace=True)
+                        return df
+                    else:
+                        logger.warning(f"获取{symbol} {interval}数据失败: {response.status_code}, 重试 {attempt + 1}/3")
+                        if attempt < 2:  # 不是最后一次重试
+                            import time
+                            time.sleep(1)
+                        continue
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"网络请求异常: {e}, 重试 {attempt + 1}/3")
+                    if attempt < 2:
+                        import time
+                        time.sleep(2)
+                    continue
+            
+            logger.error(f"获取{symbol} {interval}数据最终失败")
+            return pd.DataFrame()
                 
         except Exception as e:
             logger.error(f"获取{symbol} {interval}数据异常: {e}")

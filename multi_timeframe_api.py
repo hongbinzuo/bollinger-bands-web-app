@@ -101,32 +101,65 @@ def get_top_symbols():
     try:
         import requests
         
-        # 获取币安期货前100个币种
-        response = requests.get('https://fapi.binance.com/fapi/v1/ticker/24hr', timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            
-            # 按交易量排序
-            sorted_data = sorted(data, key=lambda x: float(x['volume']), reverse=True)
-            
-            # 过滤稳定币
-            stablecoins = {'USDT', 'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FRAX', 'LUSD', 'SUSD', 'GUSD', 'HUSD', 'USDN', 'USDK', 'USDJ', 'USDS'}
-            
-            filtered_symbols = []
-            for item in sorted_data[:200]:  # 取前200个，然后过滤
-                symbol = item['symbol']
-                if symbol.endswith('USDT') and not any(coin in symbol for coin in stablecoins):
-                    filtered_symbols.append(symbol)
-                    if len(filtered_symbols) >= 100:  # 取前100个
-                        break
-            
-            return jsonify({
-                'success': True,
-                'symbols': filtered_symbols,
-                'count': len(filtered_symbols)
-            })
-        else:
-            return jsonify({'error': f'获取币种失败: {response.status_code}'}), 500
+        # 使用重试机制获取币安期货前100个币种
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        
+        for attempt in range(3):
+            try:
+                response = session.get('https://fapi.binance.com/fapi/v1/ticker/24hr', timeout=30)
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    # 按交易量排序
+                    sorted_data = sorted(data, key=lambda x: float(x['volume']), reverse=True)
+                    
+                    # 过滤稳定币
+                    stablecoins = {'USDT', 'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FRAX', 'LUSD', 'SUSD', 'GUSD', 'HUSD', 'USDN', 'USDK', 'USDJ', 'USDS'}
+                    
+                    filtered_symbols = []
+                    for item in sorted_data[:200]:  # 取前200个，然后过滤
+                        symbol = item['symbol']
+                        if symbol.endswith('USDT') and not any(coin in symbol for coin in stablecoins):
+                            filtered_symbols.append(symbol)
+                            if len(filtered_symbols) >= 100:  # 取前100个
+                                break
+                    
+                    return jsonify({
+                        'success': True,
+                        'symbols': filtered_symbols,
+                        'count': len(filtered_symbols)
+                    })
+                else:
+                    logger.warning(f"获取币种失败: {response.status_code}, 重试 {attempt + 1}/3")
+                    if attempt < 2:
+                        import time
+                        time.sleep(1)
+                    continue
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"网络请求异常: {e}, 重试 {attempt + 1}/3")
+                if attempt < 2:
+                    import time
+                    time.sleep(2)
+                continue
+        
+        # 如果网络请求失败，返回默认币种列表
+        default_symbols = [
+            'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'SHIBUSDT',
+            'MATICUSDT', 'LTCUSDT', 'UNIUSDT', 'LINKUSDT', 'ATOMUSDT', 'ETCUSDT', 'XLMUSDT', 'BCHUSDT', 'FILUSDT', 'TRXUSDT',
+            'APTUSDT', 'NEARUSDT', 'ALGOUSDT', 'VETUSDT', 'ICPUSDT', 'FTMUSDT', 'HBARUSDT', 'MANAUSDT', 'SANDUSDT', 'AXSUSDT',
+            'THETAUSDT', 'EGLDUSDT', 'FLOWUSDT', 'XTZUSDT', 'EOSUSDT', 'AAVEUSDT', 'MKRUSDT', 'COMPUSDT', 'YFIUSDT', 'SNXUSDT',
+            'CRVUSDT', '1INCHUSDT', 'SUSHIUSDT', 'ALPHAUSDT', 'ZENUSDT', 'SKLUSDT', 'GRTUSDT', 'BATUSDT', 'ZECUSDT', 'DASHUSDT'
+        ]
+        
+        return jsonify({
+            'success': True,
+            'symbols': default_symbols,
+            'count': len(default_symbols),
+            'note': '使用默认币种列表（网络请求失败）'
+        })
             
     except Exception as e:
         logger.error(f"获取币种失败: {e}")
