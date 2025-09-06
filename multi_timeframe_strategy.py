@@ -9,7 +9,6 @@ import requests
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
-import talib
 
 logger = logging.getLogger(__name__)
 
@@ -71,17 +70,35 @@ class MultiTimeframeStrategy:
             logger.error(f"获取{symbol} {interval}数据异常: {e}")
             return pd.DataFrame()
     
+    def calculate_ema(self, prices: pd.Series, period: int) -> pd.Series:
+        """计算EMA指标（纯Python实现）"""
+        alpha = 2.0 / (period + 1)
+        ema = pd.Series(index=prices.index, dtype=float)
+        ema.iloc[0] = prices.iloc[0]
+        
+        for i in range(1, len(prices)):
+            ema.iloc[i] = alpha * prices.iloc[i] + (1 - alpha) * ema.iloc[i-1]
+        
+        return ema
+    
     def calculate_emas(self, df: pd.DataFrame) -> pd.DataFrame:
         """计算EMA指标"""
         for period in self.ema_periods:
-            df[f'ema{period}'] = talib.EMA(df['close'], timeperiod=period)
+            df[f'ema{period}'] = self.calculate_ema(df['close'], period)
         return df
     
     def calculate_bollinger_bands(self, df: pd.DataFrame, period: int = 20, std: float = 2) -> pd.DataFrame:
-        """计算布林带"""
-        df['bb_upper'], df['bb_middle'], df['bb_lower'] = talib.BBANDS(
-            df['close'], timeperiod=period, nbdevup=std, nbdevdn=std
-        )
+        """计算布林带（纯Python实现）"""
+        # 计算移动平均线（中轨）
+        df['bb_middle'] = df['close'].rolling(window=period).mean()
+        
+        # 计算标准差
+        rolling_std = df['close'].rolling(window=period).std()
+        
+        # 计算上轨和下轨
+        df['bb_upper'] = df['bb_middle'] + (rolling_std * std)
+        df['bb_lower'] = df['bb_middle'] - (rolling_std * std)
+        
         return df
     
     def is_bullish_trend(self, df: pd.DataFrame) -> bool:
