@@ -141,41 +141,43 @@ def analyze_ultra_short_signal(symbol):
         if prev_price > prev_interval_high:
             # 做空逻辑：在区间上沿做空，止盈到1分钟EMA233
             entry_price = prev_interval_high  # 入场价：区间上沿
-            stop_loss = current_price         # 止损价：当前价格（更合理的止损）
             take_profit = current_ema233_1m   # 止盈价：1分钟EMA233
             
-            # 计算做空风险收益比
-            short_risk = stop_loss - entry_price      # 风险：止损价 - 入场价
-            short_reward = entry_price - take_profit  # 收益：入场价 - 止盈价
-            
-            if short_risk > 0:
-                short_risk_reward_ratio = round(short_reward / short_risk, 2)
+            # 验证止盈位置：做空时，1分钟EMA233必须在入场价下方
+            if take_profit < entry_price:
+                # 计算做空收益（无止损，只计算收益）
+                short_reward = entry_price - take_profit  # 收益：入场价 - 止盈价
+                short_risk_reward_ratio = round(short_reward / entry_price * 100, 2)  # 收益率百分比
+                
+                trading_opportunity = "做空机会"
+                risk_reward_ratio = short_risk_reward_ratio
+                logger.info(f"{symbol} 发现做空机会: 突破上沿={prev_interval_high}, 入场={entry_price}, 止盈={take_profit}, 收益率={risk_reward_ratio}%")
             else:
-                short_risk_reward_ratio = 0
-            
-            trading_opportunity = "做空机会"
-            risk_reward_ratio = short_risk_reward_ratio
-            logger.info(f"{symbol} 发现做空机会: 突破上沿={prev_interval_high}, 入场={entry_price}, 止损={stop_loss}, 止盈={take_profit}, 风险收益比={risk_reward_ratio}")
+                # 止盈位置不合理，信号无效
+                trading_opportunity = "无机会"
+                risk_reward_ratio = 0
+                logger.info(f"{symbol} 做空信号无效: EMA233({take_profit})在入场价({entry_price})上方")
             
         # 做多信号：价格跌破1h EMA365/MA365区间下沿
         elif prev_price < prev_interval_low:
             # 做多逻辑：在区间下沿做多，止盈到1分钟EMA233
             entry_price = prev_interval_low   # 入场价：区间下沿
-            stop_loss = current_price         # 止损价：当前价格（更合理的止损）
             take_profit = current_ema233_1m   # 止盈价：1分钟EMA233
             
-            # 计算做多风险收益比
-            long_risk = entry_price - stop_loss      # 风险：入场价 - 止损价
-            long_reward = take_profit - entry_price  # 收益：止盈价 - 入场价
-            
-            if long_risk > 0:
-                long_risk_reward_ratio = round(long_reward / long_risk, 2)
+            # 验证止盈位置：做多时，1分钟EMA233必须在入场价上方
+            if take_profit > entry_price:
+                # 计算做多收益（无止损，只计算收益）
+                long_reward = take_profit - entry_price  # 收益：止盈价 - 入场价
+                long_risk_reward_ratio = round(long_reward / entry_price * 100, 2)  # 收益率百分比
+                
+                trading_opportunity = "做多机会"
+                risk_reward_ratio = long_risk_reward_ratio
+                logger.info(f"{symbol} 发现做多机会: 跌破下沿={prev_interval_low}, 入场={entry_price}, 止盈={take_profit}, 收益率={risk_reward_ratio}%")
             else:
-                long_risk_reward_ratio = 0
-            
-            trading_opportunity = "做多机会"
-            risk_reward_ratio = long_risk_reward_ratio
-            logger.info(f"{symbol} 发现做多机会: 跌破下沿={prev_interval_low}, 入场={entry_price}, 止损={stop_loss}, 止盈={take_profit}, 风险收益比={risk_reward_ratio}")
+                # 止盈位置不合理，信号无效
+                trading_opportunity = "无机会"
+                risk_reward_ratio = 0
+                logger.info(f"{symbol} 做多信号无效: EMA233({take_profit})在入场价({entry_price})下方")
         else:
             logger.info(f"{symbol} 无交易机会: 上一个价格={prev_price}, 区间=[{prev_interval_low}, {prev_interval_high}]")
         
@@ -210,7 +212,6 @@ def analyze_ultra_short_signal(symbol):
             'short_entry': format_price(short_entry),
             'long_entry': format_price(long_entry),
             'entry_price': format_price(entry_price),
-            'stop_loss': format_price(stop_loss) if 'stop_loss' in locals() else "0",
             'take_profit': format_price(take_profit) if 'take_profit' in locals() else "0",
             'profit_target': format_price(profit_target),
             'risk_reward_ratio': risk_reward_ratio,
@@ -225,7 +226,6 @@ def analyze_ultra_short_signal(symbol):
                 'entry_vs_profit': format_price(entry_price - profit_target) if entry_price > 0 else "0",
                 'data_1h_count': len(df_1h),
                 'data_1m_count': len(df_1m),
-                'risk_calculation': f"风险={format_price(short_risk) if 'short_risk' in locals() else format_price(long_risk) if 'long_risk' in locals() else '0'}",
                 'reward_calculation': f"收益={format_price(short_reward) if 'short_reward' in locals() else format_price(long_reward) if 'long_reward' in locals() else '0'}",
                 'signal_delay_minutes': f"信号延迟约{((datetime.now() - df_1h.index[-2]).total_seconds() / 60):.0f}分钟" if len(df_1h) >= 2 else "未知"
             }

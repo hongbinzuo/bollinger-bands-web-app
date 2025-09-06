@@ -15,6 +15,7 @@ import pickle
 from intraday_api import intraday_bp
 from ultra_short_api import ultra_short_bp
 from logs_api import logs_bp
+from multi_timeframe_api import multi_timeframe_bp
 
 app = Flask(__name__)
 
@@ -22,6 +23,7 @@ app = Flask(__name__)
 app.register_blueprint(intraday_bp)
 app.register_blueprint(ultra_short_bp)
 app.register_blueprint(logs_bp)
+app.register_blueprint(multi_timeframe_bp)
 
 # 设置日志
 import logging

@@ -981,6 +981,7 @@
             <button class="tab active" onclick="showTab('analysis')">📊 币种分析</button>
             <button class="tab" onclick="showTab('intraday')">⚡ 日内交易</button>
             <button class="tab" onclick="showTab('ultraShort')">🚀 日内超短</button>
+            <button class="tab" onclick="showTab('multiTimeframe')">📈 多时间框架</button>
             <button class="tab" onclick="showTab('logs')">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('orders')">📋 挂单管理</button>
             <button class="tab" onclick="showTab('positions')">💰 分批仓位</button>
@@ -1231,11 +1232,11 @@
             </div>
             
             <div class="form-group">
-                <label for="riskRewardFilter">风险收益比过滤:</label>
+                <label for="riskRewardFilter">收益率过滤:</label>
                 <select id="riskRewardFilter" class="form-control" style="width: 200px; display: inline-block;">
-                    <option value="1.5">≥ 1.5 (优质机会)</option>
-                    <option value="1.0">≥ 1.0 (一般机会)</option>
-                    <option value="0.5">≥ 0.5 (风险较高)</option>
+                    <option value="1.5">≥ 1.5% (优质机会)</option>
+                    <option value="1.0">≥ 1.0% (一般机会)</option>
+                    <option value="0.5">≥ 0.5% (收益较低)</option>
                     <option value="0">显示全部</option>
                 </select>
                 <button class="btn btn-sm btn-outline-primary" onclick="applyRiskRewardFilter()">应用过滤</button>
@@ -1256,16 +1257,15 @@
                             <th>当前价格</th>
                             <th>交易机会</th>
                             <th>入场价格</th>
-                            <th>止损价格</th>
                             <th>止盈价格</th>
-                            <th>风险收益比</th>
+                            <th>收益率</th>
                             <th>信号时间</th>
                             <th>操作</th>
                         </tr>
                     </thead>
                     <tbody id="ultraShortSignalsTableBody">
                         <tr>
-                            <td colspan="10" style="text-align: center; color: #666;">暂无超短交易信号</td>
+                            <td colspan="9" style="text-align: center; color: #666;">暂无超短交易信号</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1276,6 +1276,65 @@
                 <h4>超短交易详情</h4>
                 <div id="ultraShortDetailsContent"></div>
             </div>
+        </div>
+
+        <!-- 多时间框架策略Tab -->
+        <div id="multiTimeframe" class="tab-content">
+            <h3>📈 多时间框架策略</h3>
+            <div class="help-text">
+                <strong>策略说明：</strong>基于EMA144/233/377/610的多时间框架趋势跟踪策略。从4H开始，依次分析8H/12H/1D/3D/1W，价格回踩均线时开仓，止盈使用对应时间框架的布林中轨。
+            </div>
+            
+            <div class="form-group">
+                <button class="btn btn-primary" onclick="analyzeMultiTimeframeSymbols()">分析前100币种</button>
+                <button class="btn btn-info" onclick="getMultiTimeframeTopSymbols()">获取币种列表</button>
+                <button class="btn btn-warning" onclick="clearMultiTimeframeCache()">清除EMA记录</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="multiTimeframeSymbolInput">自定义币种分析:</label>
+                <input type="text" id="multiTimeframeSymbolInput" class="form-control" placeholder="输入币种，如: BTC, ETH, DOT" style="width: 300px; display: inline-block;">
+                <button class="btn btn-success" onclick="analyzeCustomMultiTimeframeSymbols()">分析</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="multiTimeframeProfitFilter">收益率过滤:</label>
+                <select id="multiTimeframeProfitFilter" class="form-control" style="width: 200px; display: inline-block;">
+                    <option value="1.0">≥ 1.0% (优质机会)</option>
+                    <option value="0.5">≥ 0.5% (一般机会)</option>
+                    <option value="0.2">≥ 0.2% (收益较低)</option>
+                    <option value="0">显示全部</option>
+                </select>
+                <button class="btn btn-sm btn-outline-primary" onclick="applyMultiTimeframeFilter()">应用过滤</button>
+            </div>
+            
+            <!-- 多时间框架信号表格 -->
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>币种</th>
+                            <th>时间框架</th>
+                            <th>趋势</th>
+                            <th>EMA级别</th>
+                            <th>入场价格</th>
+                            <th>止盈价格</th>
+                            <th>收益率</th>
+                            <th>信号类型</th>
+                            <th>信号时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="multiTimeframeSignalsTableBody">
+                        <tr>
+                            <td colspan="10" style="text-align: center; color: #666;">暂无多时间框架交易信号</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 状态显示 -->
+            <div id="multiTimeframeStatus" class="status-message"></div>
         </div>
 
         <!-- 日志诊断Tab -->
@@ -2655,8 +2714,8 @@
             });
             
             if (filteredSignals.length === 0) {
-                const filterText = minRiskReward === 0 ? '暂无超短交易信号' : `暂无风险收益比${minRiskReward}及以上的超短交易信号`;
-                tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: #666;">${filterText}</td></tr>`;
+                const filterText = minRiskReward === 0 ? '暂无超短交易信号' : `暂无收益率${minRiskReward}%及以上的超短交易信号`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #666;">${filterText}</td></tr>`;
                 return;
             }
             
@@ -2708,9 +2767,8 @@
                         <td>${signal.current_price}</td>
                         <td><span class="status-${opportunityClass}">${opportunityText}</span></td>
                         <td><strong>${signal.entry_price || '-'}</strong></td>
-                        <td><strong>${signal.stop_loss || '-'}</strong></td>
                         <td><strong>${signal.take_profit || signal.profit_target}</strong></td>
-                        <td class="${ratioClass}"><strong>${signal.risk_reward_ratio}</strong></td>
+                        <td class="${ratioClass}"><strong>${signal.risk_reward_ratio}%</strong></td>
                         <td><small>${signal.signal_time || '-'}</small></td>
                         <td>
                             <button class="btn btn-sm btn-info" onclick="showUltraShortDetails('${signal.symbol}')">详情</button>
@@ -2724,7 +2782,7 @@
             // 更新状态显示
             const totalCount = signals.length;
             const filteredCount = filteredSignals.length;
-            const filterText = minRiskReward === 0 ? '显示全部' : `风险收益比≥${minRiskReward}`;
+            const filterText = minRiskReward === 0 ? '显示全部' : `收益率≥${minRiskReward}%`;
             showStatus(`超短交易信号: 总计${totalCount}个，${filterText}显示${filteredCount}个`, 'success');
         }
         
@@ -4044,6 +4102,285 @@
                 return `价格跌破${indicator1}阻力位，下行压力`;
             }
             return '卖出信号';
+        }
+
+        // 多时间框架策略相关变量
+        let allMultiTimeframeSignals = [];
+
+        // 分析前100个币种的多时间框架策略
+        async function analyzeMultiTimeframeSymbols() {
+            try {
+                showStatus('正在获取前100个币种...', 'info');
+                
+                const response = await fetch('/multi_timeframe/get_top_symbols');
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`获取到 ${data.count} 个币种，开始分析...`, 'info');
+                    await analyzeMultipleMultiTimeframeSymbols(data.symbols);
+                } else {
+                    showStatus(`获取币种失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`分析失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 分析多个币种的多时间框架策略
+        async function analyzeMultipleMultiTimeframeSymbols(symbols) {
+            try {
+                showStatus(`开始分析 ${symbols.length} 个币种的多时间框架策略...`, 'info');
+                
+                const response = await fetch('/multi_timeframe/analyze_multiple_symbols', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbols: symbols })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // 处理结果
+                    const allSignals = [];
+                    for (const [symbol, results] of Object.entries(data.results)) {
+                        for (const result of results) {
+                            if (result.status === 'success') {
+                                allSignals.push(result);
+                            }
+                        }
+                    }
+                    
+                    allMultiTimeframeSignals = allSignals;
+                    showMultiTimeframeSignals(allSignals, 1.0); // 默认过滤1.0%以上
+                    showStatus(`分析完成: 总计${data.total_signals}个信号，成功${data.successful_signals}个`, 'success');
+                } else {
+                    showStatus(`分析失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`分析失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 分析自定义币种的多时间框架策略
+        async function analyzeCustomMultiTimeframeSymbols() {
+            const symbolInput = document.getElementById('multiTimeframeSymbolInput').value.trim();
+            if (!symbolInput) {
+                showStatus('请输入要分析的币种', 'warning');
+                return;
+            }
+            
+            const symbols = symbolInput.split(',').map(s => s.trim().toUpperCase());
+            
+            try {
+                showStatus(`开始分析自定义币种: ${symbols.join(', ')}`, 'info');
+                await analyzeMultipleMultiTimeframeSymbols(symbols);
+            } catch (error) {
+                showStatus(`分析失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 获取前100个币种列表
+        async function getMultiTimeframeTopSymbols() {
+            try {
+                const response = await fetch('/multi_timeframe/get_top_symbols');
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`获取到 ${data.count} 个币种: ${data.symbols.slice(0, 10).join(', ')}...`, 'success');
+                } else {
+                    showStatus(`获取币种失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`获取币种失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 清除EMA使用记录
+        async function clearMultiTimeframeCache() {
+            try {
+                const response = await fetch('/multi_timeframe/clear_ema_usage', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus('EMA使用记录已清除', 'success');
+                } else {
+                    showStatus(`清除失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`清除失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 显示多时间框架信号
+        function showMultiTimeframeSignals(signals, minProfit = 1.0) {
+            const tbody = document.getElementById('multiTimeframeSignalsTableBody');
+            
+            // 过滤收益率
+            const filteredSignals = signals.filter(signal => {
+                return signal.profit_pct >= minProfit;
+            });
+            
+            if (filteredSignals.length === 0) {
+                const filterText = minProfit === 0 ? '暂无多时间框架交易信号' : `暂无收益率${minProfit}%及以上的多时间框架交易信号`;
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: #666;">${filterText}</td></tr>`;
+                return;
+            }
+            
+            let html = '';
+            filteredSignals.forEach(signal => {
+                let signalTypeClass = 'warning';
+                let signalTypeText = signal.signal_type;
+                
+                if (signal.signal_type === 'long') {
+                    signalTypeClass = 'success';
+                    signalTypeText = '做多';
+                } else if (signal.signal_type === 'short') {
+                    signalTypeClass = 'danger';
+                    signalTypeText = '做空';
+                }
+                
+                let profitClass = 'text-success';
+                if (signal.profit_pct < 0.5) {
+                    profitClass = 'text-warning';
+                } else if (signal.profit_pct < 0.2) {
+                    profitClass = 'text-danger';
+                }
+                
+                html += `
+                    <tr>
+                        <td><strong>${signal.symbol}</strong></td>
+                        <td><span class="badge badge-info">${signal.timeframe}</span></td>
+                        <td>${signal.trend}</td>
+                        <td><span class="badge badge-secondary">EMA${signal.ema_period}</span></td>
+                        <td><strong>${signal.entry_price}</strong></td>
+                        <td><strong>${signal.take_profit}</strong></td>
+                        <td class="${profitClass}"><strong>${signal.profit_pct}%</strong></td>
+                        <td><span class="status-${signalTypeClass}">${signalTypeText}</span></td>
+                        <td><small>${signal.signal_time}</small></td>
+                        <td>
+                            <button class="btn btn-sm btn-info" onclick="showMultiTimeframeDetails('${signal.symbol}', '${signal.timeframe}')">详情</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+            
+            // 更新状态显示
+            const totalCount = signals.length;
+            const filteredCount = filteredSignals.length;
+            const filterText = minProfit === 0 ? '显示全部' : `收益率≥${minProfit}%`;
+            showStatus(`多时间框架信号: 总计${totalCount}个，${filterText}显示${filteredCount}个`, 'success');
+        }
+
+        // 应用多时间框架过滤
+        function applyMultiTimeframeFilter() {
+            const minProfit = parseFloat(document.getElementById('multiTimeframeProfitFilter').value);
+            showMultiTimeframeSignals(allMultiTimeframeSignals, minProfit);
+        }
+
+        // 显示多时间框架详情
+        async function showMultiTimeframeDetails(symbol, timeframe) {
+            try {
+                const response = await fetch('/multi_timeframe/analyze_symbol', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbol: symbol })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const result = data.results.find(r => r.timeframe === timeframe);
+                    if (result) {
+                        showMultiTimeframeDetailsModal(result);
+                    } else {
+                        showStatus(`未找到${symbol} ${timeframe}的详情`, 'warning');
+                    }
+                } else {
+                    showStatus(`获取详情失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`获取详情失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 显示多时间框架详情模态框
+        function showMultiTimeframeDetailsModal(signal) {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.style.display = 'block';
+            
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <span class="close" onclick="this.parentElement.parentElement.remove()">&times;</span>
+                    <h3>多时间框架策略详情 - ${signal.symbol}</h3>
+                    <div class="signal-details">
+                        <div class="details-grid">
+                            <div class="detail-item">
+                                <label>时间框架:</label>
+                                <span>${signal.timeframe}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>趋势方向:</label>
+                                <span>${signal.trend}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>EMA级别:</label>
+                                <span>EMA${signal.ema_period}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>信号类型:</label>
+                                <span>${signal.signal_type === 'long' ? '做多' : '做空'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>入场价格:</label>
+                                <span>${signal.entry_price}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>止盈价格:</label>
+                                <span>${signal.take_profit}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>预期收益率:</label>
+                                <span>${signal.profit_pct}%</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>当前价格:</label>
+                                <span>${signal.current_price}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>EMA144:</label>
+                                <span>${signal.ema144}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>EMA233:</label>
+                                <span>${signal.ema233}</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>信号时间:</label>
+                                <span>${signal.signal_time}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="strategy-explanation">
+                            <h6>策略说明</h6>
+                            <p><strong>趋势判断:</strong> ${signal.trend}</p>
+                            <p><strong>入场条件:</strong> 价格回踩EMA${signal.ema_period}</p>
+                            <p><strong>止盈设置:</strong> 使用${signal.timeframe}对应时间框架的布林中轨</p>
+                            <p><strong>风险控制:</strong> 每个EMA级别只用一次，避免重复信号</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
         }
     </script>
 </body>
