@@ -61,6 +61,25 @@ class MultiTimeframeStrategy:
             logger.error(f"在 get_klines_data 中获取 {symbol} {interval} 数据时发生未知异常: {e}")
             return pd.DataFrame()
     
+    def _try_multiple_symbol_formats(self, symbol: str, exchange: str) -> List[str]:
+        """尝试多种币种格式，返回可能的格式列表"""
+        formats = []
+        
+        # 原始格式
+        formats.append(self._normalize_symbol_for_exchange(symbol, exchange))
+        
+        # 处理1000PEPE -> PEPE的情况
+        if symbol.startswith('1000'):
+            base_symbol = symbol[4:]  # 去掉1000前缀
+            formats.append(self._normalize_symbol_for_exchange(base_symbol, exchange))
+        
+        # 处理PEPE -> 1000PEPE的情况
+        if not symbol.startswith('1000') and len(symbol) <= 6:
+            formats.append(self._normalize_symbol_for_exchange(f"1000{symbol}", exchange))
+        
+        # 去重并返回
+        return list(set(formats))
+
     def _normalize_symbol_for_exchange(self, symbol: str, exchange: str) -> str:
         """标准化币种名称以匹配不同交易所的格式"""
         symbol = symbol.upper()
@@ -120,6 +139,10 @@ class MultiTimeframeStrategy:
             'OMNI': 'OMNIUSDT', 'REZ': 'REZUSDT', 'IO': 'IOUSDT', 'ZRO': 'ZROUSDT', 'ZK': 'ZKUSDT',
             'ZKSYNC': 'ZKSYNCUSDT', 'ZK': 'ZKUSDT', 'ZKSYNC': 'ZKSYNCUSDT', 'ZK': 'ZKUSDT', 'ZKSYNC': 'ZKSYNCUSDT'
         }
+        
+        # 特殊格式处理：处理带斜杠的币种名称
+        if '/' in symbol:
+            symbol = symbol.replace('/', '')
         
         if exchange == 'gate':
             # Gate.io格式：BTCUSDT -> BTC_USDT
@@ -239,107 +262,151 @@ class MultiTimeframeStrategy:
 
     def _get_binance_futures_klines(self, symbol: str, interval: str, limit: int) -> Optional[pd.DataFrame]:
         """使用币安期货API获取K线数据（备用）"""
-        try:
-            # 标准化币种名称
-            binance_symbol = self._normalize_symbol_for_exchange(symbol, 'binance')
-            url = "https://fapi.binance.com/fapi/v1/klines"
-            params = {'symbol': binance_symbol, 'interval': interval, 'limit': limit}
-            
-            with requests.Session() as session:
-                response = session.get(url, params=params, timeout=15)
-                response.raise_for_status()
+        # 尝试多种币种格式
+        symbol_formats = self._try_multiple_symbol_formats(symbol, 'binance')
+        url = "https://fapi.binance.com/fapi/v1/klines"
+        
+        for binance_symbol in symbol_formats:
+            try:
+                params = {'symbol': binance_symbol, 'interval': interval, 'limit': limit}
+                
+                with requests.Session() as session:
+                    response = session.get(url, params=params, timeout=15)
+                    response.raise_for_status()
 
-            data = response.json()
-            if not data:
-                return pd.DataFrame()
+                data = response.json()
+                if not data:
+                    continue
 
-            # 确保数据有12列
-            if len(data[0]) == 12:
-                df = pd.DataFrame(data, columns=[ 
-                    'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                    'close_time', 'quote_volume', 'trades', 'taker_buy_base',
-                    'taker_buy_quote', 'ignore'
-                ])
-            else:
-                # 如果列数不匹配，使用通用方法
-                df = pd.DataFrame(data)
-                if len(data[0]) >= 6:
-                    df.columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume'] + [f'col_{i}' for i in range(6, len(data[0]))]
-            
-            # 检查timestamp列是否存在
-            if 'timestamp' in df.columns:
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            elif 'open_time' in df.columns:
-                df['timestamp'] = pd.to_datetime(df['open_time'], unit='ms')
-            numeric_cols = ['open', 'high', 'low', 'close', 'volume']
-            df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
-            
-            df = df[['open', 'high', 'low', 'close', 'volume']]
-            df.set_index('timestamp', inplace=True)
-            return df.iloc[::-1].copy() # 币安数据也是从旧到新，需要反转
-
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 400:
-                logger.warning(f"Binance Futures API 请求失败 (币种不存在?): {symbol}, Status: {e.response.status_code}")
-            else:
-                logger.error(f"Binance Futures HTTP Error for {symbol}: {e}")
-            return pd.DataFrame()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Binance Futures API 网络请求异常 for {symbol}: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"处理 Binance Futures 数据时发生未知错误 for {symbol}: {e}")
-            return None
+                # 确保数据有12列
+                if len(data[0]) == 12:
+                    df = pd.DataFrame(data, columns=[ 
+                        'timestamp', 'open', 'high', 'low', 'close', 'volume',
+                        'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+                        'taker_buy_quote', 'ignore'
+                    ])
+                else:
+                    # 如果列数不匹配，使用通用方法
+                    df = pd.DataFrame(data)
+                    if len(data[0]) >= 6:
+                        # 确保第一列是timestamp
+                        base_columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume']
+                        extra_columns = [f'col_{i}' for i in range(6, len(data[0]))]
+                        df.columns = base_columns + extra_columns
+                    else:
+                        logger.error(f"币安期货API数据列数不足: {len(data[0])} 列")
+                        continue
+                
+                # 检查timestamp列是否存在并转换
+                if 'timestamp' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                else:
+                    logger.error(f"币安期货API缺少timestamp列，实际列名: {list(df.columns)}")
+                    continue
+                
+                # 转换数值列
+                numeric_cols = ['open', 'high', 'low', 'close', 'volume']
+                for col in numeric_cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+                # 重新排列列顺序并设置索引
+                df = df[['open', 'high', 'low', 'close', 'volume']]
+                df.set_index('timestamp', inplace=True)
+                logger.info(f"币安期货API成功获取 {binance_symbol} 数据")
+                return df.iloc[::-1].copy() # 币安数据也是从旧到新，需要反转
+                
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 400:
+                    logger.warning(f"币安期货API币种 {binance_symbol} 不存在，尝试下一个格式")
+                    continue
+                else:
+                    logger.error(f"Binance Futures HTTP Error for {binance_symbol}: {e}")
+                    continue
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Binance Futures API 网络请求异常 for {binance_symbol}: {e}")
+                continue
+            except Exception as e:
+                logger.error(f"处理 Binance Futures 数据时发生未知错误 for {binance_symbol}: {e}")
+                continue
+        
+        # 所有格式都失败了
+        logger.warning(f"币安期货API所有格式都失败: {symbol}")
+        return pd.DataFrame()
 
     def _get_binance_spot_klines(self, symbol: str, interval: str, limit: int) -> Optional[pd.DataFrame]:
         """使用币安现货API获取K线数据（最后备用）"""
-        try:
-            # 标准化币种名称
-            binance_symbol = self._normalize_symbol_for_exchange(symbol, 'binance')
-            url = "https://api.binance.com/api/v3/klines"
-            params = {'symbol': binance_symbol, 'interval': interval, 'limit': limit}
-
-            with requests.Session() as session:
-                response = session.get(url, params=params, timeout=15)
-                response.raise_for_status()
-            
-            data = response.json()
-            if not data:
-                return pd.DataFrame()
-            
-            # 确保数据有12列
-            if len(data[0]) == 12:
-                df = pd.DataFrame(data, columns=[
-                    'open_time', 'open', 'high', 'low', 'close', 'volume',
-                    'close_time', 'quote_volume', 'trades', 'taker_buy_base',
-                    'taker_buy_quote', 'ignore'
-                ])
-            else:
-                # 如果列数不匹配，使用通用方法
-                df = pd.DataFrame(data)
-                if len(data[0]) >= 6:
-                    df.columns = ['open_time', 'open', 'high', 'low', 'close', 'volume'] + [f'col_{i}' for i in range(6, len(data[0]))]
-            
-            df['timestamp'] = pd.to_datetime(df['open_time'], unit='ms')
-            numeric_cols = ['open', 'high', 'low', 'close', 'volume']
-            df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
-
-            df = df[['open', 'high', 'low', 'close', 'volume']]
-            df.set_index('timestamp', inplace=True)
-            return df.iloc[::-1].copy() # 币安数据也是从旧到新，需要反转
+        # 尝试多种币种格式
+        symbol_formats = self._try_multiple_symbol_formats(symbol, 'binance')
+        url = "https://api.binance.com/api/v3/klines"
         
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 400:
-                logger.warning(f"Binance Spot API 请求失败 (币种不存在?): {symbol}, Status: {e.response.status_code}")
-            else:
-                logger.error(f"Binance Spot HTTP Error for {symbol}: {e}")
-            return pd.DataFrame()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Binance Spot API 网络请求异常 for {symbol}: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"处理 Binance Spot 数据时发生未知错误 for {symbol}: {e}")
-            return None
+        for binance_symbol in symbol_formats:
+            try:
+                params = {'symbol': binance_symbol, 'interval': interval, 'limit': limit}
+
+                with requests.Session() as session:
+                    response = session.get(url, params=params, timeout=15)
+                    response.raise_for_status()
+                
+                data = response.json()
+                if not data:
+                    continue
+                
+                # 确保数据有12列
+                if len(data[0]) == 12:
+                    df = pd.DataFrame(data, columns=[
+                        'open_time', 'open', 'high', 'low', 'close', 'volume',
+                        'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+                        'taker_buy_quote', 'ignore'
+                    ])
+                else:
+                    # 如果列数不匹配，使用通用方法
+                    df = pd.DataFrame(data)
+                    if len(data[0]) >= 6:
+                        # 确保第一列是open_time
+                        base_columns = ['open_time', 'open', 'high', 'low', 'close', 'volume']
+                        extra_columns = [f'col_{i}' for i in range(6, len(data[0]))]
+                        df.columns = base_columns + extra_columns
+                    else:
+                        logger.error(f"币安现货API数据列数不足: {len(data[0])} 列")
+                        continue
+                
+                # 检查open_time列是否存在并转换为timestamp
+                if 'open_time' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['open_time'], unit='ms')
+                else:
+                    logger.error(f"币安现货API缺少open_time列，实际列名: {list(df.columns)}")
+                    continue
+                
+                # 转换数值列
+                numeric_cols = ['open', 'high', 'low', 'close', 'volume']
+                for col in numeric_cols:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+                # 重新排列列顺序并设置索引
+                df = df[['open', 'high', 'low', 'close', 'volume']]
+                df.set_index('timestamp', inplace=True)
+                logger.info(f"币安现货API成功获取 {binance_symbol} 数据")
+                return df.iloc[::-1].copy() # 币安数据也是从旧到新，需要反转
+                
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 400:
+                    logger.warning(f"币安现货API币种 {binance_symbol} 不存在，尝试下一个格式")
+                    continue
+                else:
+                    logger.error(f"Binance Spot HTTP Error for {binance_symbol}: {e}")
+                    continue
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Binance Spot API 网络请求异常 for {binance_symbol}: {e}")
+                continue
+            except Exception as e:
+                logger.error(f"处理 Binance Spot 数据时发生未知错误 for {binance_symbol}: {e}")
+                continue
+        
+        # 所有格式都失败了
+        logger.warning(f"币安现货API所有格式都失败: {symbol}")
+        return pd.DataFrame()
     
     def calculate_emas(self, df: pd.DataFrame) -> pd.DataFrame:
         """【已优化】使用Pandas内置函数计算EMA指标，性能更高"""
