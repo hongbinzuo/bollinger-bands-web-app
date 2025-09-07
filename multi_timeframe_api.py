@@ -82,9 +82,28 @@ def analyze_multiple_symbols():
         # 【已优化】使用更清晰的变量名进行统计
         total_analyses = 0
         successful_analyses = 0
+        all_signals = []
+        
         for symbol, results in all_results.items():
             total_analyses += len(results)
-            successful_analyses += sum(1 for r in results if r.get('status') == 'success')
+            for result in results:
+                if result.get('status') == 'success':
+                    successful_analyses += 1
+                    # 将信号转换为前端期望的格式
+                    for signal in result.get('all_signals', []):
+                        formatted_signal = {
+                            'symbol': symbol,
+                            'timeframe': result['timeframe'],
+                            'trend': result['trend'],
+                            'signal_type': signal.get('signal', 'unknown'),
+                            'entry_price': signal.get('entry_price', result['current_price']),
+                            'take_profit': result.get('take_profit_price', 0),
+                            'profit_pct': 0,  # 暂时设为0，需要计算
+                            'signal_time': result.get('signal_time', ''),
+                            'ema_period': signal.get('ema_period', ''),
+                            'signal_data': signal  # 保留原始信号数据
+                        }
+                        all_signals.append(formatted_signal)
         
         return jsonify({
             'success': True,
@@ -92,7 +111,10 @@ def analyze_multiple_symbols():
             'symbols_processed': len(all_results),
             'total_timeframe_analyses': total_analyses,
             'successful_timeframe_analyses': successful_analyses,
-            'results': all_results
+            'total_signals': len(all_signals),
+            'successful_signals': len(all_signals),
+            'results': all_results,
+            'signals': all_signals  # 添加前端期望的信号格式
         })
         
     except Exception as e:

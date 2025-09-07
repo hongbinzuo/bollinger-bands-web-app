@@ -4143,18 +4143,11 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // 处理结果
-                    const allSignals = [];
-                    for (const [symbol, results] of Object.entries(data.results)) {
-                        for (const result of results) {
-                            if (result.status === 'success') {
-                                allSignals.push(result);
-                            }
-                        }
-                    }
+                    // 使用新的信号格式
+                    const allSignals = data.signals || [];
                     
                     allMultiTimeframeSignals = allSignals;
-                    showMultiTimeframeSignals(allSignals, 1.0); // 默认过滤1.0%以上
+                    showMultiTimeframeSignals(allSignals, 0); // 默认显示所有信号
                     showStatus(`分析完成: 总计${data.total_signals}个信号，成功${data.successful_signals}个`, 'success');
                 } else {
                     showStatus(`分析失败: ${data.error}`, 'error');
@@ -4254,10 +4247,10 @@
         }
 
         // 显示多时间框架信号
-        function showMultiTimeframeSignals(signals, minProfit = 1.0) {
+        function showMultiTimeframeSignals(signals, minProfit = 0) {
             const tbody = document.getElementById('multiTimeframeSignalsTableBody');
             
-            // 过滤收益率
+            // 过滤收益率（暂时不过滤，因为profit_pct都是0）
             const filteredSignals = signals.filter(signal => {
                 return signal.profit_pct >= minProfit;
             });
@@ -4293,12 +4286,12 @@
                         <td><strong>${signal.symbol}</strong></td>
                         <td><span class="badge badge-info">${signal.timeframe}</span></td>
                         <td>${signal.trend}</td>
-                        <td><span class="badge badge-secondary">EMA${signal.ema_period}</span></td>
+                        <td><span class="badge badge-secondary">${signal.ema_period ? 'EMA' + signal.ema_period : signal.signal_data?.type || 'N/A'}</span></td>
                         <td><strong>${signal.entry_price}</strong></td>
-                        <td><strong>${signal.take_profit}</strong></td>
+                        <td><strong>${signal.take_profit || 'N/A'}</strong></td>
                         <td class="${profitClass}"><strong>${signal.profit_pct}%</strong></td>
                         <td><span class="status-${signalTypeClass}">${signalTypeText}</span></td>
-                        <td><small>${signal.signal_time}</small></td>
+                        <td><small>${signal.signal_time || 'N/A'}</small></td>
                         <td>
                             <button class="btn btn-sm btn-info" onclick="showMultiTimeframeDetails('${signal.symbol}', '${signal.timeframe}')">详情</button>
                         </td>
