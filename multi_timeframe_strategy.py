@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class MultiTimeframeStrategy:
     def __init__(self):
         self.timeframes = ['4h', '8h', '12h', '1d', '3d', '1w']
-        self.ema_periods = [89, 144, 233, 377]  # 减小EMA周期，增加89
+        self.ema_periods = [89, 144, 233, 377]  # 89/144/233必须，377可选
         self.bb_period = 20  # 布林带周期
         self.bb_std = 2      # 布林带标准差
         
@@ -423,16 +423,18 @@ class MultiTimeframeStrategy:
         return df
     
     def is_bullish_trend(self, df: pd.DataFrame) -> bool:
-        """判断是否为多头趋势（EMA144 > EMA233）"""
-        if 'ema144' not in df.columns or 'ema233' not in df.columns or len(df) < 1:
+        """判断是否为多头趋势（EMA89 > EMA144 > EMA233，377可选）"""
+        required_emas = ['ema89', 'ema144', 'ema233']
+        if not all(ema in df.columns for ema in required_emas) or len(df) < 1:
             return False
-        return df['ema144'].iloc[0] > df['ema233'].iloc[0]
+        return df['ema89'].iloc[0] > df['ema144'].iloc[0] > df['ema233'].iloc[0]
     
     def is_bearish_trend(self, df: pd.DataFrame) -> bool:
-        """判断是否为空头趋势（EMA144 < EMA233）"""
-        if 'ema144' not in df.columns or 'ema233' not in df.columns or len(df) < 1:
+        """判断是否为空头趋势（EMA89 < EMA144 < EMA233，377可选）"""
+        required_emas = ['ema89', 'ema144', 'ema233']
+        if not all(ema in df.columns for ema in required_emas) or len(df) < 1:
             return False
-        return df['ema144'].iloc[0] < df['ema233'].iloc[0]
+        return df['ema89'].iloc[0] < df['ema144'].iloc[0] < df['ema233'].iloc[0]
     
     def find_ema_pullback_levels(self, df: pd.DataFrame, trend: str) -> List[Dict]:
         """改进：加入趋势确认和量能过滤的回踩信号"""
@@ -446,7 +448,11 @@ class MultiTimeframeStrategy:
         available_levels = []
 
         if trend == 'bullish' and self.is_bullish_trend(df):
-            for period in self.ema_periods:
+            # 优先使用89/144/233，377可选
+            required_periods = [89, 144, 233]
+            optional_periods = [377]
+            
+            for period in required_periods + optional_periods:
                 ema_value = current_candle.get(f'ema{period}')
                 if ema_value is None: continue
                 
@@ -464,7 +470,11 @@ class MultiTimeframeStrategy:
                         })
         
         elif trend == 'bearish' and self.is_bearish_trend(df):
-            for period in self.ema_periods:
+            # 优先使用89/144/233，377可选
+            required_periods = [89, 144, 233]
+            optional_periods = [377]
+            
+            for period in required_periods + optional_periods:
                 ema_value = current_candle.get(f'ema{period}')
                 if ema_value is None: continue
                 
@@ -608,15 +618,16 @@ class MultiTimeframeStrategy:
     
     def analyze_symbol(self, symbol: str) -> Dict:
         """分析单个币种的所有时间框架"""
+        logger.info(f"开始分析币种: {symbol}")
         results = []
         
         for timeframe in self.timeframes:
             try:
                 # 获取K线数据
                 # 由于EMA计算需要历史数据，需要获取比最大EMA周期更多的K线
-                required_data_points = max(self.ema_periods) + 50 
+                required_data_points = 233 + 50  # 只需要233+50=283个数据点，377可选 
                 df = self.get_klines_data(symbol, timeframe, required_data_points)
-                if df.empty or len(df) < max(self.ema_periods):
+                if df.empty or len(df) < 233:  # 只需要233个数据点
                     results.append({
                         'timeframe': timeframe, 'status': 'error',
                         'message': f'数据不足: 仅获取到 {len(df)} 条'
@@ -636,10 +647,10 @@ class MultiTimeframeStrategy:
                 latest_data = df.iloc[0]
                 if self.is_bullish_trend(df):
                     trend = 'bullish'
-                    trend_strength = 'strong' if latest_data['ema144'] > latest_data['ema233'] * 1.01 else 'weak'
+                    trend_strength = 'strong' if latest_data['ema89'] > latest_data['ema144'] * 1.01 else 'weak'
                 elif self.is_bearish_trend(df):
                     trend = 'bearish'
-                    trend_strength = 'strong' if latest_data['ema144'] < latest_data['ema233'] * 0.99 else 'weak'
+                    trend_strength = 'strong' if latest_data['ema89'] < latest_data['ema144'] * 0.99 else 'weak'
                 else:
                     trend = 'neutral'
                     trend_strength = 'weak'
@@ -671,8 +682,8 @@ class MultiTimeframeStrategy:
                     'timeframe': timeframe, 'status': 'success',
                     'trend': trend, 'trend_strength': trend_strength,
                     'current_price': latest_data['close'],
-                    'ema89': latest_data.get('ema89'), 'ema144': latest_data['ema144'], 
-                    'ema233': latest_data['ema233'], 'ema377': latest_data.get('ema377'),
+                    'ema89': latest_data.get('ema89'), 'ema144': latest_data.get('ema144'), 
+                    'ema233': latest_data.get('ema233'), 'ema377': latest_data.get('ema377'),
                     'pullback_levels': pullback_levels,
                     'crossover_signals': crossover_signals,
                     'breakout_signals': breakout_signals,

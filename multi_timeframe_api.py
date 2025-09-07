@@ -64,7 +64,7 @@ def analyze_symbol():
 @multi_timeframe_bp.route('/analyze_multiple_symbols', methods=['POST'])
 def analyze_multiple_symbols():
     """Analyzes multiple symbols."""
-    try:
+    try:    
         data = request.get_json()
         if not data or 'symbols' not in data or not isinstance(data['symbols'], list):
             return jsonify({'error': 'Request body must be JSON with a "symbols" key containing a list.'}), 400
@@ -130,7 +130,12 @@ def get_top_symbols():
                 
                 # 过滤稳定币
                 stablecoin_bases = {'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD'}
-                if base_asset not in stablecoin_bases:
+                
+                # 过滤杠杆代币 (3L, 3S, 5L, 5S)
+                leverage_tokens = ['3L', '3S', '5L', '5S']
+                is_leverage_token = any(base_asset.endswith(token) for token in leverage_tokens)
+                
+                if base_asset not in stablecoin_bases and not is_leverage_token:
                     quote_volume = float(item.get('quote_volume', 0))
                     usdt_pairs.append({
                         'symbol': symbol,
