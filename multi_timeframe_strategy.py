@@ -22,7 +22,7 @@ class MultiTimeframeStrategy:
         self.take_profit_timeframes = {
             '4h': '3m',   # 4小时对应3分钟
             '8h': '5m',   # 8小时对应5分钟
-            '12h': '10m', # 12小时对应10分钟
+            '12h': '15m', # 12小时对应15分钟 (移除10m，Gate.io不支持)
             '1d': '15m',  # 1天对应15分钟
             '3d': '30m',  # 3天对应30分钟
             '1w': '1h'    # 1周对应1小时
@@ -61,6 +61,93 @@ class MultiTimeframeStrategy:
             logger.error(f"在 get_klines_data 中获取 {symbol} {interval} 数据时发生未知异常: {e}")
             return pd.DataFrame()
     
+    def _normalize_symbol_for_exchange(self, symbol: str, exchange: str) -> str:
+        """标准化币种名称以匹配不同交易所的格式"""
+        symbol = symbol.upper()
+        
+        # 币种名称映射表 - 扩展版本
+        symbol_mapping = {
+            # 主流币种
+            'BNB': 'BNBUSDT', 'BTC': 'BTCUSDT', 'ETH': 'ETHUSDT', 'ADA': 'ADAUSDT', 'DOT': 'DOTUSDT',
+            'LINK': 'LINKUSDT', 'LTC': 'LTCUSDT', 'BCH': 'BCHUSDT', 'XLM': 'XLMUSDT', 'EOS': 'EOSUSDT',
+            'TRX': 'TRXUSDT', 'XMR': 'XMRUSDT', 'DASH': 'DASHUSDT', 'NEO': 'NEOUSDT', 'IOTA': 'IOTAUSDT',
+            'ETC': 'ETCUSDT', 'XEM': 'XEMUSDT', 'ZEC': 'ZECUSDT', 'QTUM': 'QTUMUSDT', 'OMG': 'OMGUSDT',
+            
+            # 更多主流币种
+            'XRP': 'XRPUSDT', 'DOGE': 'DOGEUSDT', 'SHIB': 'SHIBUSDT', 'MATIC': 'MATICUSDT', 'AVAX': 'AVAXUSDT',
+            'SOL': 'SOLUSDT', 'ATOM': 'ATOMUSDT', 'FTM': 'FTMUSDT', 'ALGO': 'ALGOUSDT', 'VET': 'VETUSDT',
+            'ICP': 'ICPUSDT', 'FIL': 'FILUSDT', 'THETA': 'THETAUSDT', 'AAVE': 'AAVEUSDT', 'UNI': 'UNIUSDT',
+            'SUSHI': 'SUSHIUSDT', 'COMP': 'COMPUSDT', 'MKR': 'MKRUSDT', 'YFI': 'YFIUSDT', 'SNX': 'SNXUSDT',
+            
+            # DeFi币种
+            'CRV': 'CRVUSDT', '1INCH': '1INCHUSDT', 'BAL': 'BALUSDT', 'KNC': 'KNCUSDT', 'REN': 'RENUSDT',
+            'LRC': 'LRCUSDT', 'ZRX': 'ZRXUSDT', 'BAT': 'BATUSDT', 'ENJ': 'ENJUSDT', 'MANA': 'MANAUSDT',
+            'SAND': 'SANDUSDT', 'AXS': 'AXSUSDT', 'CHZ': 'CHZUSDT', 'FLOW': 'FLOWUSDT', 'NEAR': 'NEARUSDT',
+            
+            # Layer 1币种
+            'LUNA': 'LUNAUSDT', 'FTT': 'FTTUSDT', 'ROSE': 'ROSEUSDT', 'HBAR': 'HBARUSDT', 'EGLD': 'EGLDUSDT',
+            'KAVA': 'KAVAUSDT', 'BAND': 'BANDUSDT', 'ZIL': 'ZILUSDT', 'ONT': 'ONTUSDT', 'ICX': 'ICXUSDT',
+            'WAVES': 'WAVESUSDT', 'RVN': 'RVNUSDT', 'DGB': 'DGBUSDT', 'SC': 'SCUSDT', 'DCR': 'DCRUSDT',
+            
+            # 新兴币种
+            'CAKE': 'CAKEUSDT', 'BAKE': 'BAKEUSDT', 'BURGER': 'BURGERUSDT', 'SXP': 'SXPUSDT', 'ALPHA': 'ALPHAUSDT',
+            'BEL': 'BELUSDT', 'BETA': 'BETAUSDT', 'RAMP': 'RAMPUSDT', 'TLM': 'TLMUSDT', 'QUICK': 'QUICKUSDT',
+            'COTI': 'COTIUSDT', 'CHR': 'CHRUSDT', 'MDX': 'MDXUSDT', 'STMX': 'STMXUSDT', 'KMD': 'KMDUSDT',
+            
+            # 更多币种
+            'REEF': 'REEFUSDT', 'DENT': 'DENTUSDT', 'WIN': 'WINUSDT', 'MFT': 'MFTUSDT', 'CVC': 'CVCUSDT',
+            'REQ': 'REQUSDT', 'DATA': 'DATAUSDT', 'NULS': 'NULSUSDT', 'FUN': 'FUNUSDT', 'NKN': 'NKNUSDT',
+            'LINA': 'LINAUSDT', 'PERP': 'PERPUSDT', 'RLC': 'RLCUSDT', 'CTSI': 'CTSIUSDT', 'LIT': 'LITUSDT',
+            'BADGER': 'BADGERUSDT', 'FIS': 'FISUSDT', 'OM': 'OMUSDT', 'POND': 'PONDUSDT', 'DEGO': 'DEGOUSDT',
+            'ALICE': 'ALICEUSDT', 'LINA': 'LINAUSDT', 'PERP': 'PERPUSDT', 'RLC': 'RLCUSDT', 'CTSI': 'CTSIUSDT',
+            
+            # 热门币种
+            'GALA': 'GALAUSDT', 'ILV': 'ILVUSDT', 'YGG': 'YGGUSDT', 'SYS': 'SYSUSDT', 'DF': 'DFUSDT',
+            'FIDA': 'FIDAUSDT', 'FRONT': 'FRONTUSDT', 'CVP': 'CVPUSDT', 'AGLD': 'AGLDUSDT', 'RAD': 'RADUSDT',
+            'BETA': 'BETAUSDT', 'RARE': 'RAREUSDT', 'LAZIO': 'LAZIOUSDT', 'ADX': 'ADXUSDT', 'AUCTION': 'AUCTIONUSDT',
+            'DAR': 'DARUSDT', 'BNX': 'BNXUSDT', 'RGT': 'RGTUSDT', 'MOVR': 'MOVRUSDT', 'CITY': 'CITYUSDT',
+            'ENS': 'ENSUSDT', 'KP3R': 'KP3RUSDT', 'QI': 'QIUSDT', 'PORTO': 'PORTOUSDT', 'POWR': 'POWRUSDT',
+            'VGX': 'VGXUSDT', 'JASMY': 'JASMYUSDT', 'AMP': 'AMPUSDT', 'PLA': 'PLAUSDT', 'PYTH': 'PYTHUSDT',
+            'RNDR': 'RNDRUSDT', 'ALCX': 'ALCXUSDT', 'SFP': 'SFPUSDT', 'FXS': 'FXSUSDT', 'HOOK': 'HOOKUSDT',
+            'MAGIC': 'MAGICUSDT', 'HFT': 'HFTUSDT', 'PHB': 'PHBUSDT', 'PENDLE': 'PENDLEUSDT', 'ARKM': 'ARKMUSDT',
+            'MAV': 'MAVUSDT', 'CFX': 'CFXUSDT', 'BLUR': 'BLURUSDT', 'EDU': 'EDUUSDT', 'ID': 'IDUSDT',
+            'SUI': 'SUIUSDT', '1000PEPE': '1000PEPEUSDT', 'FLOKI': 'FLOKIUSDT', 'INJ': 'INJUSDT', 'PEPE': 'PEPEUSDT',
+            'TIA': 'TIAUSDT', 'SEI': 'SEIUSDT', 'WLD': 'WLDUSDT', 'ARK': 'ARKUSDT', 'JTO': 'JTOUSDT',
+            '1000SATS': '1000SATSUSDT', 'BONK': 'BONKUSDT', 'ACE': 'ACEUSDT', 'NFP': 'NFPUSDT', 'AI': 'AIUSDT',
+            'XAI': 'XAIUSDT', 'MANTA': 'MANTAUSDT', 'ALT': 'ALTUSDT', 'JUP': 'JUPUSDT', 'PIXEL': 'PIXELUSDT',
+            'PORTAL': 'PORTALUSDT', 'PDA': 'PDAUSDT', 'AEVO': 'AEVOUSDT', 'BOME': 'BOMEUSDT', 'ENA': 'ENAUSDT',
+            'W': 'WUSDT', 'TAO': 'TAOUSDT', 'SAGA': 'SAGAUSDT', 'BB': 'BBUSDT', 'NOT': 'NOTUSDT',
+            'OMNI': 'OMNIUSDT', 'REZ': 'REZUSDT', 'IO': 'IOUSDT', 'ZRO': 'ZROUSDT', 'ZK': 'ZKUSDT',
+            'ZKSYNC': 'ZKSYNCUSDT', 'ZK': 'ZKUSDT', 'ZKSYNC': 'ZKSYNCUSDT', 'ZK': 'ZKUSDT', 'ZKSYNC': 'ZKSYNCUSDT'
+        }
+        
+        if exchange == 'gate':
+            # Gate.io格式：BTCUSDT -> BTC_USDT
+            if symbol.endswith('USDT'):
+                base = symbol[:-4]  # 去掉USDT
+                return f"{base}_USDT"
+            elif symbol in symbol_mapping:
+                # 如果是短名称，先转换为完整名称
+                full_symbol = symbol_mapping[symbol]
+                base = full_symbol[:-4]  # 去掉USDT
+                return f"{base}_USDT"
+            else:
+                # 智能匹配：尝试添加USDT后缀
+                if not symbol.endswith('USDT'):
+                    return f"{symbol}_USDT"
+                return symbol
+        elif exchange == 'binance':
+            # 币安格式：保持原样，但处理特殊情况
+            if symbol in symbol_mapping:
+                return symbol_mapping[symbol]
+            else:
+                # 智能匹配：尝试添加USDT后缀
+                if not symbol.endswith('USDT'):
+                    return f"{symbol}USDT"
+                return symbol
+        else:
+            return symbol
+
     def _get_gate_klines(self, symbol: str, interval: str, limit: int) -> Optional[pd.DataFrame]:
         """
         【已修复】使用Gate.io API获取K线数据
@@ -69,9 +156,10 @@ class MultiTimeframeStrategy:
         2. 修正了列的顺序以匹配Gate.io API文档: [t, v, c, h, l, o]。
         3. 增加了数据反转 `df.iloc[::-1]`，使数据从新到旧排序。
         4. 统一了返回类型为 Optional[pd.DataFrame]。
+        5. 添加了币种名称标准化。
         """
         try:
-            gate_symbol = symbol.upper().replace('USDT', '_USDT')
+            gate_symbol = self._normalize_symbol_for_exchange(symbol, 'gate')
             
             interval_map = {
                 '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m',
@@ -152,8 +240,10 @@ class MultiTimeframeStrategy:
     def _get_binance_futures_klines(self, symbol: str, interval: str, limit: int) -> Optional[pd.DataFrame]:
         """使用币安期货API获取K线数据（备用）"""
         try:
+            # 标准化币种名称
+            binance_symbol = self._normalize_symbol_for_exchange(symbol, 'binance')
             url = "https://fapi.binance.com/fapi/v1/klines"
-            params = {'symbol': symbol, 'interval': interval, 'limit': limit}
+            params = {'symbol': binance_symbol, 'interval': interval, 'limit': limit}
             
             with requests.Session() as session:
                 response = session.get(url, params=params, timeout=15)
@@ -204,8 +294,10 @@ class MultiTimeframeStrategy:
     def _get_binance_spot_klines(self, symbol: str, interval: str, limit: int) -> Optional[pd.DataFrame]:
         """使用币安现货API获取K线数据（最后备用）"""
         try:
+            # 标准化币种名称
+            binance_symbol = self._normalize_symbol_for_exchange(symbol, 'binance')
             url = "https://api.binance.com/api/v3/klines"
-            params = {'symbol': symbol, 'interval': interval, 'limit': limit}
+            params = {'symbol': binance_symbol, 'interval': interval, 'limit': limit}
 
             with requests.Session() as session:
                 response = session.get(url, params=params, timeout=15)
