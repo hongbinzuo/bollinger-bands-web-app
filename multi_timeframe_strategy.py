@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class MultiTimeframeStrategy:
     def __init__(self):
         self.timeframes = ['4h', '8h', '12h', '1d', '3d', '1w']
-        self.ema_periods = [144, 233, 377, 610]
+        self.ema_periods = [89, 144, 233, 377]  # 减小EMA周期，增加89
         self.bb_period = 20  # 布林带周期
         self.bb_std = 2      # 布林带标准差
         
@@ -450,15 +450,17 @@ class MultiTimeframeStrategy:
                 ema_value = current_candle.get(f'ema{period}')
                 if ema_value is None: continue
                 
-                # 价格回踩到EMA附近 (最高价高于EMA，收盘价低于EMA的1.02倍)
-                if current_candle['high'] >= ema_value and current_price <= ema_value * 1.02:
+                # 价格回踩到EMA附近 (放宽条件：价格在EMA的5%范围内)
+                price_distance = abs(current_price - ema_value) / ema_value
+                if price_distance <= 0.05:  # 5%范围内
                     # 量能确认：当前成交量大于20周期均量
                     if current_candle['volume'] > avg_volume:
                         available_levels.append({
                             'ema_period': period,
                             'ema_value': ema_value,
                             'type': 'long',
-                            'entry_price': ema_value
+                            'entry_price': current_price,  # 使用当前价格作为入场价
+                            'price_distance': price_distance
                         })
         
         elif trend == 'bearish' and self.is_bearish_trend(df):
@@ -466,17 +468,143 @@ class MultiTimeframeStrategy:
                 ema_value = current_candle.get(f'ema{period}')
                 if ema_value is None: continue
                 
-                # 价格反弹到EMA附近 (最低价低于EMA，收盘价高于EMA的0.98倍)
-                if current_candle['low'] <= ema_value and current_price >= ema_value * 0.98:
+                # 价格反弹到EMA附近 (放宽条件：价格在EMA的5%范围内)
+                price_distance = abs(current_price - ema_value) / ema_value
+                if price_distance <= 0.05:  # 5%范围内
                     if current_candle['volume'] > avg_volume:
                         available_levels.append({
                             'ema_period': period,
                             'ema_value': ema_value,
                             'type': 'short',
-                            'entry_price': ema_value
+                            'entry_price': current_price,  # 使用当前价格作为入场价
+                            'price_distance': price_distance
                         })
         
         return available_levels
+    
+    def find_ema_crossover_signals(self, df: pd.DataFrame) -> List[Dict]:
+        """寻找EMA交叉信号"""
+        signals = []
+        
+        if len(df) < 2:
+            return signals
+        
+        current_candle = df.iloc[0]
+        previous_candle = df.iloc[1]
+        
+        # EMA89与EMA233交叉
+        if 'ema89' in current_candle and 'ema233' in current_candle:
+            current_89 = current_candle['ema89']
+            current_233 = current_candle['ema233']
+            prev_89 = previous_candle.get('ema89')
+            prev_233 = previous_candle.get('ema233')
+            
+            if prev_89 is not None and prev_233 is not None:
+                # 金叉：EMA89上穿EMA233
+                if prev_89 <= prev_233 and current_89 > current_233:
+                    signals.append({
+                        'type': 'golden_cross',
+                        'signal': 'long',
+                        'ema89': current_89,
+                        'ema233': current_233,
+                        'strength': 'strong' if current_89 > current_233 * 1.01 else 'weak'
+                    })
+                
+                # 死叉：EMA89下穿EMA233
+                elif prev_89 >= prev_233 and current_89 < current_233:
+                    signals.append({
+                        'type': 'death_cross',
+                        'signal': 'short',
+                        'ema89': current_89,
+                        'ema233': current_233,
+                        'strength': 'strong' if current_89 < current_233 * 0.99 else 'weak'
+                    })
+        
+        return signals
+    
+    def find_price_breakout_signals(self, df: pd.DataFrame) -> List[Dict]:
+        """寻找价格突破信号"""
+        signals = []
+        
+        if len(df) < 2:
+            return signals
+        
+        current_candle = df.iloc[0]
+        previous_candle = df.iloc[1]
+        current_price = current_candle['close']
+        
+        # 检查价格突破EMA233
+        if 'ema233' in current_candle:
+            ema233 = current_candle['ema233']
+            prev_high = previous_candle['high']
+            prev_low = previous_candle['low']
+            
+            # 向上突破EMA233
+            if prev_high <= ema233 and current_price > ema233:
+                signals.append({
+                    'type': 'breakout',
+                    'signal': 'long',
+                    'breakout_level': ema233,
+                    'current_price': current_price,
+                    'strength': 'strong' if current_price > ema233 * 1.02 else 'weak'
+                })
+            
+            # 向下突破EMA233
+            elif prev_low >= ema233 and current_price < ema233:
+                signals.append({
+                    'type': 'breakdown',
+                    'signal': 'short',
+                    'breakdown_level': ema233,
+                    'current_price': current_price,
+                    'strength': 'strong' if current_price < ema233 * 0.98 else 'weak'
+                })
+        
+        return signals
+    
+    def find_support_resistance_signals(self, df: pd.DataFrame) -> List[Dict]:
+        """寻找支撑阻力位信号"""
+        signals = []
+        
+        if len(df) < 20:
+            return signals
+        
+        current_candle = df.iloc[0]
+        current_price = current_candle['close']
+        
+        # 寻找最近20根K线的支撑阻力位
+        recent_data = df.head(20)
+        highs = recent_data['high'].values
+        lows = recent_data['low'].values
+        
+        # 寻找阻力位（局部高点）
+        for i in range(1, len(highs) - 1):
+            if highs[i] > highs[i-1] and highs[i] > highs[i+1]:
+                resistance = highs[i]
+                distance = abs(current_price - resistance) / resistance
+                if distance <= 0.03:  # 3%范围内
+                    signals.append({
+                        'type': 'resistance',
+                        'signal': 'short',
+                        'level': resistance,
+                        'current_price': current_price,
+                        'distance': distance
+                    })
+        
+        # 寻找支撑位（局部低点）
+        for i in range(1, len(lows) - 1):
+            if lows[i] < lows[i-1] and lows[i] < lows[i+1]:
+                support = lows[i]
+                distance = abs(current_price - support) / support
+                if distance <= 0.03:  # 3%范围内
+                    signals.append({
+                        'type': 'support',
+                        'signal': 'long',
+                        'level': support,
+                        'current_price': current_price,
+                        'distance': distance
+                    })
+        
+        return signals
     
     def analyze_symbol(self, symbol: str) -> Dict:
         """分析单个币种的所有时间框架"""
@@ -516,8 +644,18 @@ class MultiTimeframeStrategy:
                     trend = 'neutral'
                     trend_strength = 'weak'
                 
-                # 寻找回踩机会
+                # 寻找各种信号
                 pullback_levels = self.find_ema_pullback_levels(df, trend)
+                crossover_signals = self.find_ema_crossover_signals(df)
+                breakout_signals = self.find_price_breakout_signals(df)
+                support_resistance_signals = self.find_support_resistance_signals(df)
+                
+                # 合并所有信号
+                all_signals = []
+                all_signals.extend(pullback_levels)
+                all_signals.extend(crossover_signals)
+                all_signals.extend(breakout_signals)
+                all_signals.extend(support_resistance_signals)
                 
                 # 计算止盈目标
                 take_profit_timeframe = self.take_profit_timeframes.get(timeframe, '15m')
@@ -533,11 +671,16 @@ class MultiTimeframeStrategy:
                     'timeframe': timeframe, 'status': 'success',
                     'trend': trend, 'trend_strength': trend_strength,
                     'current_price': latest_data['close'],
-                    'ema144': latest_data['ema144'], 'ema233': latest_data['ema233'],
+                    'ema89': latest_data.get('ema89'), 'ema144': latest_data['ema144'], 
+                    'ema233': latest_data['ema233'], 'ema377': latest_data.get('ema377'),
                     'pullback_levels': pullback_levels,
+                    'crossover_signals': crossover_signals,
+                    'breakout_signals': breakout_signals,
+                    'support_resistance_signals': support_resistance_signals,
+                    'all_signals': all_signals,
                     'take_profit_timeframe': take_profit_timeframe,
                     'take_profit_price': take_profit_price,
-                    'signal_count': len(pullback_levels)
+                    'signal_count': len(all_signals)
                 })
                 
             except Exception as e:
