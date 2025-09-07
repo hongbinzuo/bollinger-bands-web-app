@@ -101,51 +101,62 @@ def analyze_multiple_symbols():
 
 @multi_timeframe_bp.route('/get_top_symbols', methods=['GET'])
 def get_top_symbols():
-    """Gets the top 500 symbols by 24h volume from Binance Futures."""
+    """Gets the top 500 symbols by 24h volume from Gate.io."""
     default_symbols = [
         'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'SHIBUSDT',
         'MATICUSDT', 'LTCUSDT', 'UNIUSDT', 'LINKUSDT', 'ATOMUSDT', 'ETCUSDT', 'XLMUSDT', 'BCHUSDT', 'FILUSDT', 'TRXUSDT'
     ]
     
     try:
-        url = 'https://fapi.binance.com/fapi/v1/ticker/24hr'
-        response = requests.get(url, timeout=10)
+        # 使用Gate.io API获取24小时交易数据
+        url = 'https://api.gateio.ws/api/v4/spot/tickers'
+        response = requests.get(url, timeout=15)
         response.raise_for_status()
         data = response.json()
         
         if not data:
-            raise ValueError("API returned empty data.")
+            raise ValueError("Gate.io API returned empty data.")
         
-        # Sort by quote asset volume for a more accurate measure of market activity
-        sorted_data = sorted(data, key=lambda x: float(x.get('quoteVolume', 0)), reverse=True)
+        # Gate.io数据格式: [{"currency_pair": "BTC_USDT", "last": "50000", "lowest_ask": "50001", "highest_bid": "49999", "change_percentage": "2.5", "base_volume": "1000", "quote_volume": "50000000", "high_24h": "51000", "low_24h": "49000"}]
         
-        # 【已优化】使用更精确的稳定币过滤逻辑
-        stablecoin_bases = {'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD'}
-        
-        filtered_symbols = []
-        for item in sorted_data:
-            symbol = item.get('symbol', '')
-            # Filter out non-USDT pairs and stablecoin pairs
-            if symbol.endswith('USDT'):
-                base_asset = symbol[:-4] # e.g., 'BTCUSDT' -> 'BTC'
+        # 按quote_volume排序，过滤USDT交易对
+        usdt_pairs = []
+        for item in data:
+            currency_pair = item.get('currency_pair', '')
+            if currency_pair.endswith('_USDT'):
+                # 转换格式: BTC_USDT -> BTCUSDT
+                base_asset = currency_pair.replace('_USDT', '')
+                symbol = f"{base_asset}USDT"
+                
+                # 过滤稳定币
+                stablecoin_bases = {'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD'}
                 if base_asset not in stablecoin_bases:
-                    filtered_symbols.append(symbol)
-            if len(filtered_symbols) >= 500:
-                break
+                    quote_volume = float(item.get('quote_volume', 0))
+                    usdt_pairs.append({
+                        'symbol': symbol,
+                        'quote_volume': quote_volume,
+                        'currency_pair': currency_pair
+                    })
         
-        logger.info(f"Successfully fetched and filtered {len(filtered_symbols)} symbols from Binance.")
+        # 按交易量降序排序
+        sorted_pairs = sorted(usdt_pairs, key=lambda x: x['quote_volume'], reverse=True)
+        
+        # 取前500个
+        filtered_symbols = [pair['symbol'] for pair in sorted_pairs[:500]]
+        
+        logger.info(f"Successfully fetched and filtered {len(filtered_symbols)} symbols from Gate.io.")
         return jsonify({
             'success': True,
-            'source': 'Binance Futures API',
+            'source': 'Gate.io API',
             'count': len(filtered_symbols),
             'symbols': filtered_symbols
         })
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch symbols from Binance API: {e}. Using default list.")
+        logger.error(f"Failed to fetch symbols from Gate.io API: {e}. Using default list.")
         return jsonify({
             'success': True,
-            'source': 'Default List (API Failed)',
+            'source': 'Default List (Gate.io API Failed)',
             'count': len(default_symbols),
             'symbols': default_symbols
         })
