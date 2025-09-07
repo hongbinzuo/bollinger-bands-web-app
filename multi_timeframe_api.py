@@ -1,237 +1,214 @@
 from flask import Blueprint, request, jsonify
 import logging
-from multi_timeframe_strategy import MultiTimeframeStrategy
-import json
+import requests
+import time
+from typing import List, Dict, Any
 
-# 创建蓝图
+# Assuming the first file is named 'multi_timeframe_strategy.py'
+from multi_timeframe_strategy import MultiTimeframeStrategy
+
+# --- Blueprint and Global Instances ---
 multi_timeframe_bp = Blueprint('multi_timeframe', __name__, url_prefix='/multi_timeframe')
 
-# 创建策略实例
+# Create a single strategy instance for the application
+# Note: In a multi-worker production environment (e.g., Gunicorn), each worker
+# will have its own instance. State stored in `strategy.ema_usage` will not be shared.
+# For shared state, consider using a database or a cache like Redis.
 strategy = MultiTimeframeStrategy()
-
 logger = logging.getLogger(__name__)
+
+# --- Helper Function for Code Reusability ---
+def _process_symbol(symbol: str) -> str:
+    """
+    Standardizes a symbol string to the required format (uppercase, ends with USDT).
+    """
+    if not isinstance(symbol, str) or not symbol:
+        return ""
+    processed = symbol.upper().strip()
+    if not processed.endswith('USDT'):
+        processed += 'USDT'
+    return processed
+
+# --- API Endpoints ---
 
 @multi_timeframe_bp.route('/analyze_symbol', methods=['POST'])
 def analyze_symbol():
-    """分析单个币种的所有时间框架"""
+    """Analyzes all timeframes for a single symbol."""
     try:
         data = request.get_json()
-        symbol = data.get('symbol', '').upper()
-        
+        if not data or 'symbol' not in data:
+            return jsonify({'error': 'Request body must be JSON with a "symbol" key.'}), 400
+
+        symbol = _process_symbol(data['symbol'])
         if not symbol:
-            return jsonify({'error': '请提供币种'}), 400
+            return jsonify({'error': 'Symbol cannot be empty.'}), 400
         
-        # 确保币种以USDT结尾
-        if not symbol.endswith('USDT'):
-            symbol += 'USDT'
+        logger.info(f"Received request to analyze symbol: {symbol}")
         
-        logger.info(f"开始分析币种: {symbol}")
-        
-        # 分析所有时间框架
         results = strategy.analyze_all_timeframes(symbol)
         
-        # 统计结果
-        success_count = sum(1 for r in results if r['status'] == 'success')
-        total_count = len(results)
+        success_count = sum(1 for r in results if r.get('status') == 'success')
         
         return jsonify({
             'success': True,
             'symbol': symbol,
-            'total_timeframes': total_count,
-            'successful_signals': success_count,
+            'total_timeframes_analyzed': len(results),
+            'successful_timeframes': success_count,
             'results': results
         })
         
     except Exception as e:
-        logger.error(f"分析币种失败: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error analyzing symbol {data.get('symbol', '')}: {e}", exc_info=True)
+        return jsonify({'error': 'An internal server error occurred.', 'details': str(e)}), 500
 
 @multi_timeframe_bp.route('/analyze_multiple_symbols', methods=['POST'])
 def analyze_multiple_symbols():
-    """分析多个币种"""
+    """Analyzes multiple symbols."""
     try:
         data = request.get_json()
-        symbols = data.get('symbols', [])
+        if not data or 'symbols' not in data or not isinstance(data['symbols'], list):
+            return jsonify({'error': 'Request body must be JSON with a "symbols" key containing a list.'}), 400
+
+        symbols_list = data.get('symbols', [])
+        if not symbols_list:
+            return jsonify({'error': 'The "symbols" list cannot be empty.'}), 400
         
-        if not symbols:
-            return jsonify({'error': '请提供币种列表'}), 400
+        processed_symbols = [_process_symbol(s) for s in symbols_list if s]
         
-        # 处理币种格式
-        processed_symbols = []
-        for symbol in symbols:
-            symbol = symbol.upper()
-            if not symbol.endswith('USDT'):
-                symbol += 'USDT'
-            processed_symbols.append(symbol)
+        logger.info(f"Received request to analyze {len(processed_symbols)} symbols.")
         
-        logger.info(f"开始分析 {len(processed_symbols)} 个币种")
-        
-        # 分析所有币种（包含验证）
         all_results = strategy.analyze_multiple_symbols(processed_symbols)
         
-        # 统计结果
-        total_signals = 0
-        successful_signals = 0
-        valid_symbols = len(all_results)
-        
+        # 【已优化】使用更清晰的变量名进行统计
+        total_analyses = 0
+        successful_analyses = 0
         for symbol, results in all_results.items():
-            for result in results:
-                total_signals += 1
-                if result['status'] == 'success':
-                    successful_signals += 1
+            total_analyses += len(results)
+            successful_analyses += sum(1 for r in results if r.get('status') == 'success')
         
         return jsonify({
             'success': True,
-            'total_symbols': len(processed_symbols),
-            'valid_symbols': valid_symbols,
-            'total_signals': total_signals,
-            'successful_signals': successful_signals,
+            'symbols_requested': len(processed_symbols),
+            'symbols_processed': len(all_results),
+            'total_timeframe_analyses': total_analyses,
+            'successful_timeframe_analyses': successful_analyses,
             'results': all_results
         })
         
     except Exception as e:
-        logger.error(f"分析多个币种失败: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error analyzing multiple symbols: {e}", exc_info=True)
+        return jsonify({'error': 'An internal server error occurred.', 'details': str(e)}), 500
 
 @multi_timeframe_bp.route('/get_top_symbols', methods=['GET'])
 def get_top_symbols():
-    """获取前500个币种"""
+    """Gets the top 500 symbols by 24h volume from Binance Futures."""
+    default_symbols = [
+        'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'SHIBUSDT',
+        'MATICUSDT', 'LTCUSDT', 'UNIUSDT', 'LINKUSDT', 'ATOMUSDT', 'ETCUSDT', 'XLMUSDT', 'BCHUSDT', 'FILUSDT', 'TRXUSDT'
+    ]
+    
     try:
-        import requests
+        url = 'https://fapi.binance.com/fapi/v1/ticker/24hr'
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
         
-        # 使用重试机制获取币安期货前500个币种
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
+        if not data:
+            raise ValueError("API returned empty data.")
         
-        for attempt in range(3):
-            try:
-                logger.info(f"尝试获取币种数据，第 {attempt + 1} 次")
-                response = session.get('https://fapi.binance.com/fapi/v1/ticker/24hr', timeout=30)
-                logger.info(f"API响应状态码: {response.status_code}")
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    logger.info(f"获取到 {len(data)} 个币种数据")
-                    
-                    if not data:
-                        logger.warning("API返回空数据")
-                        continue
-                    
-                    # 按交易量排序
-                    sorted_data = sorted(data, key=lambda x: float(x.get('volume', 0)), reverse=True)
-                    logger.info(f"排序后数据量: {len(sorted_data)}")
-                    
-                    # 过滤稳定币
-                    stablecoins = {'USDT', 'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FRAX', 'LUSD', 'SUSD', 'GUSD', 'HUSD', 'USDN', 'USDK', 'USDJ', 'USDS'}
-                    
-                    filtered_symbols = []
-                    for item in sorted_data[:800]:  # 取前800个，然后过滤
-                        symbol = item.get('symbol', '')
-                        if symbol.endswith('USDT') and not any(coin in symbol for coin in stablecoins):
-                            filtered_symbols.append(symbol)
-                            if len(filtered_symbols) >= 500:  # 取前500个
-                                break
-                    
-                    logger.info(f"过滤后得到 {len(filtered_symbols)} 个币种")
-                    
-                    if filtered_symbols:
-                        return jsonify({
-                            'success': True,
-                            'symbols': filtered_symbols,
-                            'count': len(filtered_symbols)
-                        })
-                    else:
-                        logger.warning("过滤后没有有效币种")
-                        continue
-                else:
-                    logger.warning(f"获取币种失败: {response.status_code}, 重试 {attempt + 1}/3")
-                    if attempt < 2:
-                        import time
-                        time.sleep(1)
-                    continue
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"网络请求异常: {e}, 重试 {attempt + 1}/3")
-                if attempt < 2:
-                    import time
-                    time.sleep(2)
-                continue
+        # Sort by quote asset volume for a more accurate measure of market activity
+        sorted_data = sorted(data, key=lambda x: float(x.get('quoteVolume', 0)), reverse=True)
         
-        # 如果网络请求失败，返回默认币种列表
-        default_symbols = [
-            'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'SHIBUSDT',
-            'MATICUSDT', 'LTCUSDT', 'UNIUSDT', 'LINKUSDT', 'ATOMUSDT', 'ETCUSDT', 'XLMUSDT', 'BCHUSDT', 'FILUSDT', 'TRXUSDT',
-            'APTUSDT', 'NEARUSDT', 'ALGOUSDT', 'VETUSDT', 'ICPUSDT', 'FTMUSDT', 'HBARUSDT', 'MANAUSDT', 'SANDUSDT', 'AXSUSDT',
-            'THETAUSDT', 'EGLDUSDT', 'FLOWUSDT', 'XTZUSDT', 'EOSUSDT', 'AAVEUSDT', 'MKRUSDT', 'COMPUSDT', 'YFIUSDT', 'SNXUSDT',
-            'CRVUSDT', '1INCHUSDT', 'SUSHIUSDT', 'ALPHAUSDT', 'ZENUSDT', 'SKLUSDT', 'GRTUSDT', 'BATUSDT', 'ZECUSDT', 'DASHUSDT'
-        ]
+        # 【已优化】使用更精确的稳定币过滤逻辑
+        stablecoin_bases = {'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD'}
         
+        filtered_symbols = []
+        for item in sorted_data:
+            symbol = item.get('symbol', '')
+            # Filter out non-USDT pairs and stablecoin pairs
+            if symbol.endswith('USDT'):
+                base_asset = symbol[:-4] # e.g., 'BTCUSDT' -> 'BTC'
+                if base_asset not in stablecoin_bases:
+                    filtered_symbols.append(symbol)
+            if len(filtered_symbols) >= 500:
+                break
+        
+        logger.info(f"Successfully fetched and filtered {len(filtered_symbols)} symbols from Binance.")
         return jsonify({
             'success': True,
-            'symbols': default_symbols,
-            'count': len(default_symbols),
-            'note': '使用默认币种列表（网络请求失败）'
+            'source': 'Binance Futures API',
+            'count': len(filtered_symbols),
+            'symbols': filtered_symbols
         })
-            
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch symbols from Binance API: {e}. Using default list.")
+        return jsonify({
+            'success': True,
+            'source': 'Default List (API Failed)',
+            'count': len(default_symbols),
+            'symbols': default_symbols
+        })
     except Exception as e:
-        logger.error(f"获取币种失败: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"An unexpected error occurred in get_top_symbols: {e}", exc_info=True)
+        return jsonify({'error': 'An internal server error occurred.', 'details': str(e)}), 500
+
 
 @multi_timeframe_bp.route('/get_strategy_info', methods=['GET'])
 def get_strategy_info():
-    """获取策略信息"""
+    """Returns information about the strategy configuration."""
     return jsonify({
         'success': True,
-        'strategy_name': '多时间框架趋势跟踪策略',
+        'strategy_name': 'Multi-Timeframe EMA Pullback Strategy',
         'timeframes': strategy.timeframes,
         'ema_periods': strategy.ema_periods,
         'take_profit_mapping': strategy.take_profit_timeframes,
         'description': {
-            'trend_detection': 'EMA144/233多头排列判断趋势',
-            'entry_condition': '价格回踩EMA144/233/377/610',
-            'take_profit': '使用对应时间框架的布林中轨',
-            'ema_usage_limit': '每个EMA级别只用一次'
+            'trend_detection': 'EMA144 > EMA233 for bullish trend, and vice-versa for bearish.',
+            'entry_condition': 'Price pulls back to one of the key EMA levels (144, 233, 377, 610) with volume confirmation.',
+            'take_profit': 'Calculated based on the Bollinger Bands middle line of a smaller, corresponding timeframe.',
         }
     })
 
 @multi_timeframe_bp.route('/validate_symbol', methods=['POST'])
-def validate_symbol():
-    """验证币种是否存在"""
+def validate_symbol_endpoint():
+    """Validates if a symbol exists and has data."""
     try:
         data = request.get_json()
-        symbol = data.get('symbol', '').upper()
-        
+        if not data or 'symbol' not in data:
+            return jsonify({'error': 'Request body must be JSON with a "symbol" key.'}), 400
+
+        symbol = _process_symbol(data['symbol'])
         if not symbol:
-            return jsonify({'error': '请提供币种'}), 400
-        
-        # 确保币种以USDT结尾
-        if not symbol.endswith('USDT'):
-            symbol += 'USDT'
-        
-        # 验证币种
+            return jsonify({'error': 'Symbol cannot be empty.'}), 400
+
         is_valid = strategy.validate_symbol(symbol)
         
         return jsonify({
             'success': True,
             'symbol': symbol,
             'is_valid': is_valid,
-            'message': f'{symbol} {"存在" if is_valid else "不存在"}'
+            'message': f'Symbol {symbol} is {"valid and has data" if is_valid else "invalid or has no data"}.'
         })
         
     except Exception as e:
-        logger.error(f"验证币种失败: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error validating symbol {data.get('symbol', '')}: {e}", exc_info=True)
+        return jsonify({'error': 'An internal server error occurred.', 'details': str(e)}), 500
 
 @multi_timeframe_bp.route('/clear_ema_usage', methods=['POST'])
 def clear_ema_usage():
-    """清除EMA使用记录"""
+    """
+    Clears the in-memory EMA usage record.
+    Note: This is not effective in a multi-worker production environment.
+    """
     try:
         strategy.ema_usage = {}
+        logger.info("In-memory EMA usage record has been cleared.")
         return jsonify({
             'success': True,
-            'message': 'EMA使用记录已清除'
+            'message': 'EMA usage record has been cleared for this worker process.'
         })
     except Exception as e:
-        logger.error(f"清除EMA使用记录失败: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Failed to clear EMA usage record: {e}", exc_info=True)
+        return jsonify({'error': 'An internal server error occurred.', 'details': str(e)}), 500
+
