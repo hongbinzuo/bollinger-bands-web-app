@@ -91,14 +91,24 @@ def analyze_multiple_symbols():
                     successful_analyses += 1
                     # 将信号转换为前端期望的格式
                     for signal in result.get('all_signals', []):
+                        # 计算收益率
+                        entry_price = signal.get('entry_price', result['current_price'])
+                        take_profit = result.get('take_profit_price', 0)
+                        profit_pct = 0
+                        if entry_price > 0 and take_profit > 0:
+                            if signal.get('signal') == 'long':
+                                profit_pct = ((take_profit - entry_price) / entry_price) * 100
+                            elif signal.get('signal') == 'short':
+                                profit_pct = ((entry_price - take_profit) / entry_price) * 100
+                        
                         formatted_signal = {
                             'symbol': symbol,
                             'timeframe': result['timeframe'],
                             'trend': result['trend'],
                             'signal_type': signal.get('signal', 'unknown'),
-                            'entry_price': signal.get('entry_price', result['current_price']),
-                            'take_profit': result.get('take_profit_price', 0),
-                            'profit_pct': 0,  # 暂时设为0，需要计算
+                            'entry_price': entry_price,
+                            'take_profit': take_profit,
+                            'profit_pct': round(profit_pct, 2),
                             'signal_time': result.get('signal_time', ''),
                             'ema_period': signal.get('ema_period', ''),
                             'signal_data': signal  # 保留原始信号数据

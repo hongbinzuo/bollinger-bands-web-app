@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单前端测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #0056b3; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .status-info { background: #d1ecf1; color: #0c5460; }
+        .status-success { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>多时间框架前端测试</h1>
+    
+    <button class="btn" onclick="testAPI()">测试API</button>
+    <button class="btn" onclick="testDisplay()">测试显示</button>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <table id="resultsTable" style="display: none;">
+        <thead>
+            <tr>
+                <th>币种</th>
+                <th>时间框架</th>
+                <th>趋势</th>
+                <th>信号类型</th>
+                <th>入场价格</th>
+                <th>止盈价格</th>
+                <th>收益率</th>
+            </tr>
+        </thead>
+        <tbody id="resultsTableBody">
+        </tbody>
+    </table>
+
+    <script>
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status status-${type}`;
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
+        }
+
+        async function testAPI() {
+            try {
+                showStatus('正在测试API...', 'info');
+                
+                const response = await fetch('/multi_timeframe/analyze_multiple_symbols', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbols: ['BTCUSDT', 'ETHUSDT'] })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`API测试成功: ${data.total_signals}个信号`, 'success');
+                    console.log('API返回数据:', data);
+                    console.log('信号数据:', data.signals);
+                } else {
+                    showStatus(`API测试失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`API测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        function testDisplay() {
+            // 模拟数据
+            const mockSignals = [
+                {
+                    symbol: 'BTCUSDT',
+                    timeframe: '4h',
+                    trend: 'bullish',
+                    signal_type: 'long',
+                    entry_price: 50000.0,
+                    take_profit: 52000.0,
+                    profit_pct: 4.0
+                },
+                {
+                    symbol: 'ETHUSDT',
+                    timeframe: '8h',
+                    trend: 'bearish',
+                    signal_type: 'short',
+                    entry_price: 3000.0,
+                    take_profit: 2900.0,
+                    profit_pct: 3.33
+                }
+            ];
+            
+            showStatus('测试显示功能...', 'info');
+            
+            const tbody = document.getElementById('resultsTableBody');
+            const table = document.getElementById('resultsTable');
+            
+            let html = '';
+            mockSignals.forEach(signal => {
+                html += `
+                    <tr>
+                        <td>${signal.symbol}</td>
+                        <td>${signal.timeframe}</td>
+                        <td>${signal.trend}</td>
+                        <td>${signal.signal_type}</td>
+                        <td>${signal.entry_price}</td>
+                        <td>${signal.take_profit}</td>
+                        <td>${signal.profit_pct}%</td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+            table.style.display = 'table';
+            
+            showStatus('显示测试完成', 'success');
+        }
+    </script>
+</body>
+</html>

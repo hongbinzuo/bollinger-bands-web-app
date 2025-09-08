@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多时间框架前端显示测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .signal-long {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .signal-short {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .trend-bullish {
+            color: #28a745;
+        }
+        .trend-bearish {
+            color: #dc3545;
+        }
+        .trend-neutral {
+            color: #6c757d;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .badge-info {
+            background: #17a2b8;
+            color: white;
+        }
+        .badge-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .text-success {
+            color: #28a745;
+        }
+        .text-warning {
+            color: #ffc107;
+        }
+        .text-danger {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📈 多时间框架前端显示测试</h1>
+        
+        <div class="form-group">
+            <button class="btn btn-success" onclick="testAnalyzeAndDisplay()">测试分析并显示</button>
+            <button class="btn" onclick="testDisplayWithMockData()">使用模拟数据测试显示</button>
+        </div>
+        
+        <div id="status" class="status" style="display: none;"></div>
+        
+        <div id="results" style="display: none;">
+            <h3>分析结果</h3>
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>币种</th>
+                        <th>时间框架</th>
+                        <th>趋势</th>
+                        <th>EMA级别</th>
+                        <th>入场价格</th>
+                        <th>止盈价格</th>
+                        <th>收益率</th>
+                        <th>信号类型</th>
+                        <th>信号时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status status-${type}`;
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
+        }
+
+        async function testAnalyzeAndDisplay() {
+            try {
+                showStatus('正在分析测试币种...', 'info');
+                
+                const testSymbols = ['BTCUSDT', 'ETHUSDT'];
+                
+                const response = await fetch('/multi_timeframe/analyze_multiple_symbols', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbols: testSymbols })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`分析完成: 总计${data.total_signals}个信号，成功${data.successful_signals}个`, 'success');
+                    displayResults(data.signals);
+                } else {
+                    showStatus(`分析失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        function testDisplayWithMockData() {
+            // 模拟数据
+            const mockSignals = [
+                {
+                    symbol: 'BTCUSDT',
+                    timeframe: '4h',
+                    trend: 'bullish',
+                    signal_type: 'long',
+                    entry_price: 50000.0,
+                    take_profit: 52000.0,
+                    profit_pct: 4.0,
+                    signal_time: '2025-09-07 14:30:00',
+                    ema_period: 144,
+                    signal_data: { type: 'pullback', ema_period: 144 }
+                },
+                {
+                    symbol: 'ETHUSDT',
+                    timeframe: '8h',
+                    trend: 'bearish',
+                    signal_type: 'short',
+                    entry_price: 3000.0,
+                    take_profit: 2900.0,
+                    profit_pct: 3.33,
+                    signal_time: '2025-09-07 15:00:00',
+                    ema_period: 233,
+                    signal_data: { type: 'resistance', ema_period: 233 }
+                }
+            ];
+            
+            showStatus('使用模拟数据测试显示功能', 'info');
+            displayResults(mockSignals);
+        }
+
+        function displayResults(signals) {
+            const resultsDiv = document.getElementById('results');
+            const tbody = document.getElementById('resultsTableBody');
+            
+            if (!signals || signals.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;">暂无信号数据</td></tr>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            let html = '';
+            signals.forEach(signal => {
+                let signalTypeClass = 'warning';
+                let signalTypeText = signal.signal_type;
+                
+                if (signal.signal_type === 'long') {
+                    signalTypeClass = 'success';
+                    signalTypeText = '做多';
+                } else if (signal.signal_type === 'short') {
+                    signalTypeClass = 'danger';
+                    signalTypeText = '做空';
+                }
+                
+                let profitClass = 'text-success';
+                if (signal.profit_pct < 0.5) {
+                    profitClass = 'text-warning';
+                } else if (signal.profit_pct < 0.2) {
+                    profitClass = 'text-danger';
+                }
+                
+                html += `
+                    <tr>
+                        <td><strong>${signal.symbol}</strong></td>
+                        <td><span class="badge badge-info">${signal.timeframe}</span></td>
+                        <td>${signal.trend}</td>
+                        <td><span class="badge badge-secondary">${signal.ema_period ? 'EMA' + signal.ema_period : signal.signal_data?.type || 'N/A'}</span></td>
+                        <td><strong>${signal.entry_price}</strong></td>
+                        <td><strong>${signal.take_profit || 'N/A'}</strong></td>
+                        <td class="${profitClass}"><strong>${signal.profit_pct}%</strong></td>
+                        <td><span class="signal-${signalTypeClass}">${signalTypeText}</span></td>
+                        <td><small>${signal.signal_time || 'N/A'}</small></td>
+                        <td>
+                            <button class="btn btn-sm" onclick="showDetails('${signal.symbol}', '${signal.timeframe}')">详情</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+
+        function showDetails(symbol, timeframe) {
+            alert(`查看详情: ${symbol} ${timeframe}`);
+        }
+    </script>
+</body>
+</html>

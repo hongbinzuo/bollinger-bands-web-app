@@ -953,13 +953,13 @@
         </div>
         
         <div class="help-text">
-                            <strong>系统说明：</strong>本系统基于布林带技术指标分析加密货币价格走势，提供智能挂单建议。支持<span id="totalSymbolsDisplay">130</span>个币种、多时间周期、多交易所数据源、持仓管理等功能。
+                            <strong>系统说明：</strong>本系统基于布林带技术指标分析加密货币价格走势，提供智能挂单建议。支持<span id="totalSymbolsDisplay">195</span>个币种、多时间周期、多交易所数据源、持仓管理等功能。
         </div>
 
         <!-- 系统统计 -->
         <div class="stats">
             <div class="stat-item">
-                <div class="stat-number" id="totalSymbols">130</div>
+                <div class="stat-number" id="totalSymbols">195</div>
                 <div class="stat-label">支持币种</div>
             </div>
             <div class="stat-item">
@@ -4146,6 +4146,10 @@
                     // 使用新的信号格式
                     const allSignals = data.signals || [];
                     
+                    console.log('多时间框架分析结果:', data);
+                    console.log('信号数据:', allSignals);
+                    console.log('信号数量:', allSignals.length);
+                    
                     allMultiTimeframeSignals = allSignals;
                     showMultiTimeframeSignals(allSignals, 0); // 默认显示所有信号
                     showStatus(`分析完成: 总计${data.total_signals}个信号，成功${data.successful_signals}个`, 'success');
@@ -4250,10 +4254,17 @@
         function showMultiTimeframeSignals(signals, minProfit = 0) {
             const tbody = document.getElementById('multiTimeframeSignalsTableBody');
             
-            // 过滤收益率（暂时不过滤，因为profit_pct都是0）
+            console.log('showMultiTimeframeSignals 被调用');
+            console.log('传入的信号数据:', signals);
+            console.log('信号数量:', signals ? signals.length : 0);
+            console.log('最小收益率过滤:', minProfit);
+            
+            // 过滤收益率
             const filteredSignals = signals.filter(signal => {
                 return signal.profit_pct >= minProfit;
             });
+            
+            console.log('过滤后的信号数量:', filteredSignals.length);
             
             if (filteredSignals.length === 0) {
                 const filterText = minProfit === 0 ? '暂无多时间框架交易信号' : `暂无收益率${minProfit}%及以上的多时间框架交易信号`;
