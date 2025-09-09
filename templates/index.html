@@ -7,6 +7,542 @@
     <!-- Chart.js 图表库 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <script>
+        // 显示Tab函数 - 需要在HTML之前定义
+        function showTab(tabName, event) {
+            // 隐藏所有tab内容
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            // 移除所有tab的active类
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // 显示选中的tab
+            const targetContent = document.getElementById(tabName);
+            if (targetContent) {
+                targetContent.classList.add('active');
+            }
+            
+            // 添加active类到点击的tab
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+        }
+        
+        // 显示交叉点Tab函数
+        function showCrossTab(tabType, event) {
+            // 更新标签按钮状态
+            document.querySelectorAll('.cross-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+            
+            // 更新内容显示
+            document.querySelectorAll('.cross-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            if (tabType === 'price') {
+                document.getElementById('priceCrossPoints').classList.add('active');
+            } else {
+                document.getElementById('indicatorCrossPoints').classList.add('active');
+            }
+        }
+        
+        // 多时间框架相关函数 - 需要在HTML之前定义
+        async function analyzeMultiTimeframeSymbols() {
+            try {
+                showStatus('正在获取前500个币种...', 'info');
+                
+                // 使用安全的fetch函数
+                const response = await safeFetch('/multi_timeframe/get_top_symbols', {
+                    method: 'GET'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`成功获取 ${data.count} 个币种`, 'success');
+                    
+                    // 设置全局变量
+                    if (typeof allSymbols === 'undefined') {
+                        window.allSymbols = [];
+                    }
+                    allSymbols = data.symbols;
+                    
+                    // 重置分页
+                    if (typeof currentPage === 'undefined') {
+                        window.currentPage = 1;
+                    }
+                    if (typeof currentPageSize === 'undefined') {
+                        window.currentPageSize = 50;
+                    }
+                    currentPage = 1;
+                    
+                    // 开始分析
+                    await analyzeCurrentPage();
+                } else {
+                    showStatus(`获取币种失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('analyzeMultiTimeframeSymbols error:', error);
+                showStatus(`获取币种失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function getMultiTimeframeTopSymbols() {
+            try {
+                showStatus('正在获取前500个币种...', 'info');
+                
+                // 使用安全的fetch函数
+                const response = await safeFetch('/multi_timeframe/get_top_symbols', {
+                    method: 'GET'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`成功获取 ${data.count} 个币种`, 'success');
+                    
+                    // 设置全局变量
+                    if (typeof allSymbols === 'undefined') {
+                        window.allSymbols = [];
+                    }
+                    allSymbols = data.symbols;
+                    
+                    // 显示币种列表
+                    let symbolsHtml = '<h4>前50个币种:</h4><ul>';
+                    data.symbols.slice(0, 50).forEach((symbol, index) => {
+                        symbolsHtml += `<li>${index + 1}. ${symbol}</li>`;
+                    });
+                    symbolsHtml += '</ul>';
+                    symbolsHtml += `<p><strong>总计: ${data.count} 个币种</strong></p>`;
+                    symbolsHtml += '<p><em>现在可以点击"分析前500币种"按钮开始分析</em></p>';
+                    
+                    document.getElementById('multiTimeframeResults').innerHTML = symbolsHtml;
+                } else {
+                    showStatus(`获取币种失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('getMultiTimeframeTopSymbols error:', error);
+                showStatus(`获取币种失败: ${error.message}`, 'error');
+            }
+        }
+        
+        function clearMultiTimeframeCache() {
+            showStatus('清除EMA记录功能暂未实现', 'info');
+        }
+        
+        // 通用工具函数
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            if (statusDiv) {
+                statusDiv.innerHTML = message;
+                statusDiv.className = `status ${type}`;
+                statusDiv.style.display = 'block';
+                
+                // 3秒后自动隐藏
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+        
+        // 全局错误处理
+        window.addEventListener('error', function(event) {
+            console.error('Global error:', event.error);
+            if (event.error && event.error.message && event.error.message.includes('port closed')) {
+                showStatus('连接中断，请刷新页面重试', 'error');
+            }
+        });
+        
+        // 处理未捕获的Promise错误
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('Unhandled promise rejection:', event.reason);
+            if (event.reason && event.reason.message && event.reason.message.includes('port closed')) {
+                showStatus('连接中断，请刷新页面重试', 'error');
+            }
+        });
+        
+        // 安全的fetch包装函数
+        async function safeFetch(url, options = {}) {
+            try {
+                // 创建AbortController用于超时控制
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 300000); // 5分钟超时
+                
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Cache-Control': 'no-cache',
+                        ...options.headers
+                    }
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    let errorMessage = `HTTP error! status: ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        if (errorData.error) {
+                            errorMessage += ` - ${errorData.error}`;
+                        }
+                    } catch (e) {
+                        // 忽略JSON解析错误
+                    }
+                    throw new Error(errorMessage);
+                }
+                
+                return response;
+            } catch (error) {
+                console.error('Safe fetch error:', error);
+                if (error.name === 'AbortError') {
+                    throw new Error('请求超时，请稍后重试');
+                }
+                if (error.message.includes('port closed')) {
+                    throw new Error('连接中断，请刷新页面重试');
+                }
+                throw error;
+            }
+        }
+        
+        // 分析相关函数
+        async function analyzeDefault() {
+            showStatus('正在分析全部币种...', 'success');
+            // 实现分析逻辑
+        }
+        
+        function showAddSymbolModal() {
+            document.getElementById('addSymbolModal').style.display = 'block';
+        }
+        
+        function closeAddSymbolModal() {
+            document.getElementById('addSymbolModal').style.display = 'none';
+        }
+        
+        function analyzeCustom() {
+            showStatus('自定义分析功能', 'info');
+        }
+        
+        function getSymbols() {
+            showStatus('获取币种列表功能', 'info');
+        }
+        
+        function toggleSortOrder() {
+            showStatus('切换排序功能', 'info');
+        }
+        
+        function changePage(direction) {
+            showStatus('翻页功能', 'info');
+        }
+        
+        // 日内交易相关函数
+        function analyzeIntradaySymbols() {
+            showStatus('分析日内交易信号', 'info');
+        }
+        
+        function analyzeIntradayCustom() {
+            showStatus('自定义日内分析', 'info');
+        }
+        
+        function getIntradaySignals() {
+            showStatus('获取日内信号', 'info');
+        }
+        
+        function clearIntradayCache() {
+            showStatus('清除日内缓存', 'info');
+        }
+        
+        // 图表相关函数
+        function refreshChart() {
+            showStatus('刷新图表', 'info');
+        }
+        
+        function toggleChartVisibility() {
+            showStatus('切换图表显示', 'info');
+        }
+        
+        // 超短交易相关函数
+        function analyzeUltraShortSymbols() {
+            showStatus('分析超短交易', 'info');
+        }
+        
+        function analyzeUltraShortCustom() {
+            showStatus('自定义超短分析', 'info');
+        }
+        
+        function getTopSymbols() {
+            showStatus('获取币种列表', 'info');
+        }
+        
+        function validateSymbol() {
+            showStatus('验证币种', 'info');
+        }
+        
+        function clearUltraShortCache() {
+            showStatus('清除超短缓存', 'info');
+        }
+        
+        function applyRiskRewardFilter() {
+            showStatus('应用风险收益过滤', 'info');
+        }
+        
+        // 多时间框架相关函数
+        function validateMultiTimeframeSymbol() {
+            showStatus('验证多时间框架币种', 'info');
+        }
+        
+        function analyzeCustomMultiTimeframeSymbols() {
+            showStatus('自定义多时间框架分析', 'info');
+        }
+        
+        function applyMultiTimeframeFilter() {
+            showStatus('应用多时间框架过滤', 'info');
+        }
+        
+        function changePageSize() {
+            showStatus('更改页面大小', 'info');
+        }
+        
+        function previousPage() {
+            showStatus('上一页', 'info');
+        }
+        
+        function nextPage() {
+            showStatus('下一页', 'info');
+        }
+        
+        // 日志相关函数
+        function startLogMonitoring() {
+            showStatus('开始监控日志', 'info');
+        }
+        
+        function clearLogs() {
+            showStatus('清空日志', 'info');
+        }
+        
+        function testUltraShortWithLogs() {
+            showStatus('测试超短交易', 'info');
+        }
+        
+        function exportLogs() {
+            showStatus('导出日志', 'info');
+        }
+        
+        // 订单相关函数
+        function createOrder() {
+            showStatus('创建挂单', 'info');
+        }
+        
+        function refreshOrders() {
+            showStatus('刷新挂单', 'info');
+        }
+        
+        function cancelAllOrders() {
+            showStatus('取消所有挂单', 'info');
+        }
+        
+        function createOrderFromResult(symbol, price, type = 'buy') {
+            showStatus(`创建${type}订单: ${symbol} @ ${price}`, 'info');
+        }
+        
+        // 仓位相关函数
+        function addPosition() {
+            showStatus('添加仓位', 'info');
+        }
+        
+        function updatePositions() {
+            showStatus('更新仓位', 'info');
+        }
+        
+        function closePosition() {
+            showStatus('平仓', 'info');
+        }
+        
+        // 系统管理相关函数
+        function clearCache() {
+            showStatus('清除缓存', 'info');
+        }
+        
+        function downloadCSV() {
+            showStatus('下载CSV报告', 'info');
+        }
+        
+        function exportData() {
+            showStatus('导出数据', 'info');
+        }
+        
+        function importData() {
+            showStatus('导入数据', 'info');
+        }
+        
+        function toggleVideoBackground() {
+            showStatus('切换背景模式', 'info');
+        }
+        
+        function toggleBackground() {
+            showStatus('开关背景', 'info');
+        }
+        
+        function addNewSymbols() {
+            showStatus('添加新币种', 'info');
+        }
+        
+        // 详情查看函数
+        function viewIntradayDetails(symbol) {
+            showStatus(`查看${symbol}日内详情`, 'info');
+        }
+        
+        function showChart(symbol) {
+            showStatus(`显示${symbol}图表`, 'info');
+        }
+        
+        function showUltraShortDetails(symbol) {
+            showStatus(`查看${symbol}超短详情`, 'info');
+        }
+        
+        function showMultiTimeframeDetails(symbol, timeframe) {
+            showStatus(`查看${symbol} ${timeframe}多时间框架详情`, 'info');
+        }
+        
+        // 多时间框架分页相关函数
+        async function analyzeCurrentPage() {
+            if (typeof allSymbols === 'undefined' || allSymbols.length === 0) {
+                showStatus('请先获取币种列表', 'error');
+                return;
+            }
+            
+            try {
+                showStatus(`正在分析第${currentPage}页 (${currentPageSize}个币种)...`, 'info');
+                
+                // 计算当前页的币种范围
+                const startIdx = (currentPage - 1) * currentPageSize;
+                const endIdx = startIdx + currentPageSize;
+                const pageSymbols = allSymbols.slice(startIdx, endIdx);
+                
+                console.log(`分析币种范围: ${startIdx}-${endIdx}, 共${pageSymbols.length}个币种`);
+                console.log(`当前页币种: ${pageSymbols.slice(0, 5).join(', ')}${pageSymbols.length > 5 ? '...' : ''}`);
+                
+                const response = await safeFetch('/multi_timeframe/analyze_multiple_symbols', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        symbols: allSymbols,
+                        page: currentPage,
+                        page_size: currentPageSize
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // 更新分页信息
+                    if (typeof totalPages !== 'undefined') {
+                        totalPages = data.pagination.total_pages;
+                        updatePaginationControls();
+                    }
+                    
+                    // 处理信号数据
+                    const allSignals = data.signals || [];
+                    if (typeof allMultiTimeframeSignals !== 'undefined') {
+                        allMultiTimeframeSignals = allSignals;
+                    }
+                    
+                    // 显示信号
+                    const filterElement = document.getElementById('multiTimeframeProfitFilter');
+                    const minProfit = filterElement ? parseFloat(filterElement.value) : 0;
+                    showMultiTimeframeSignals(allSignals, minProfit);
+                    
+                    showStatus(`第${currentPage}页分析完成: ${data.total_signals}个信号`, 'success');
+                } else {
+                    showStatus(`分析失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('analyzeCurrentPage error:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    name: error.name,
+                    stack: error.stack
+                });
+                
+                let errorMessage = error.message;
+                if (error.message.includes('500')) {
+                    errorMessage = '服务器内部错误，可能是分析币种过多导致超时，请尝试减少每页币种数量';
+                } else if (error.message.includes('timeout') || error.message.includes('超时')) {
+                    errorMessage = '请求超时，请尝试减少每页币种数量或稍后重试';
+                } else if (error.message.includes('port closed')) {
+                    errorMessage = '连接中断，请刷新页面重试';
+                }
+                
+                showStatus(`分析失败: ${errorMessage}`, 'error');
+            }
+        }
+        
+        function updatePaginationControls() {
+            const paginationControls = document.getElementById('paginationControls');
+            const pageInfo = document.getElementById('pageInfo');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            if (paginationControls) {
+                paginationControls.style.display = 'block';
+            }
+            
+            if (pageInfo) {
+                pageInfo.textContent = `第${currentPage}页，共${totalPages}页`;
+            }
+            
+            if (prevBtn) {
+                prevBtn.disabled = currentPage <= 1;
+            }
+            
+            if (nextBtn) {
+                nextBtn.disabled = currentPage >= totalPages;
+            }
+        }
+        
+        function showMultiTimeframeSignals(signals, minProfit = 0) {
+            const resultsDiv = document.getElementById('multiTimeframeResults');
+            if (!resultsDiv) return;
+            
+            let filteredSignals = signals;
+            if (minProfit > 0) {
+                filteredSignals = signals.filter(signal => 
+                    signal.profit_pct >= minProfit
+                );
+            }
+            
+            if (filteredSignals.length === 0) {
+                resultsDiv.innerHTML = '<p>暂无符合条件的信号</p>';
+                return;
+            }
+            
+            let html = '<h4>多时间框架信号:</h4>';
+            html += '<table class="table"><tr><th>币种</th><th>时间框架</th><th>信号类型</th><th>收益率</th><th>入场价格</th><th>止盈价格</th></tr>';
+            
+            filteredSignals.forEach(signal => {
+                const profitClass = signal.profit_pct >= 0 ? 'success' : 'error';
+                html += `<tr>
+                    <td>${signal.symbol}</td>
+                    <td>${signal.timeframe}</td>
+                    <td>${signal.signal_type}</td>
+                    <td class="${profitClass}">${signal.profit_pct}%</td>
+                    <td>${signal.entry_price}</td>
+                    <td>${signal.take_profit_price || 'N/A'}</td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            resultsDiv.innerHTML = html;
+        }
+    </script>
+    
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -978,14 +1514,14 @@
 
         <!-- Tab导航 -->
         <div class="tabs">
-            <button class="tab active" onclick="showTab('analysis')">📊 币种分析</button>
-            <button class="tab" onclick="showTab('intraday')">⚡ 日内交易</button>
-            <button class="tab" onclick="showTab('ultraShort')">🚀 日内超短</button>
-            <button class="tab" onclick="showTab('multiTimeframe')">📈 多时间框架</button>
-            <button class="tab" onclick="showTab('logs')">🔍 日志诊断</button>
-            <button class="tab" onclick="showTab('orders')">📋 挂单管理</button>
-            <button class="tab" onclick="showTab('positions')">💰 分批仓位</button>
-            <button class="tab" onclick="showTab('management')">⚙️ 系统管理</button>
+            <button class="tab active" onclick="showTab('analysis', event)">📊 币种分析</button>
+            <button class="tab" onclick="showTab('intraday', event)">⚡ 日内交易</button>
+            <button class="tab" onclick="showTab('ultraShort', event)">🚀 日内超短</button>
+            <button class="tab" onclick="showTab('multiTimeframe', event)">📈 多时间框架</button>
+            <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
+            <button class="tab" onclick="showTab('orders', event)">📋 挂单管理</button>
+            <button class="tab" onclick="showTab('positions', event)">💰 分批仓位</button>
+            <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
         </div>
 
         <!-- 币种分析Tab -->
@@ -1197,8 +1733,8 @@
                 <div class="cross-points-panel" id="crossPointsPanel" style="display: none;">
                     <h4>🎯 交叉点位信息</h4>
                     <div class="cross-points-tabs">
-                        <button class="cross-tab active" onclick="showCrossTab('price')">价格交叉</button>
-                        <button class="cross-tab" onclick="showCrossTab('indicator')">均线交叉</button>
+                        <button class="cross-tab active" onclick="showCrossTab('price', event)">价格交叉</button>
+                        <button class="cross-tab" onclick="showCrossTab('indicator', event)">均线交叉</button>
                     </div>
                     <div class="cross-points-content">
                         <div id="priceCrossPoints" class="cross-tab-content active">
@@ -1301,12 +1837,28 @@
             <div class="form-group">
                 <label for="multiTimeframeProfitFilter">收益率过滤:</label>
                 <select id="multiTimeframeProfitFilter" class="form-control" style="width: 200px; display: inline-block;">
-                    <option value="1.0">≥ 1.0% (优质机会)</option>
-                    <option value="0.5">≥ 0.5% (一般机会)</option>
+                    <option value="0" selected>显示全部</option>
                     <option value="0.2">≥ 0.2% (收益较低)</option>
-                    <option value="0">显示全部</option>
+                    <option value="0.5">≥ 0.5% (一般机会)</option>
+                    <option value="1.0">≥ 1.0% (优质机会)</option>
                 </select>
                 <button class="btn btn-sm btn-outline-primary" onclick="applyMultiTimeframeFilter()">应用过滤</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="pageSizeSelect">每页显示:</label>
+                <select id="pageSizeSelect" class="form-control" style="width: 150px; display: inline-block;">
+                    <option value="10">10个币种</option>
+                    <option value="20">20个币种</option>
+                    <option value="50" selected>50个币种</option>
+                </select>
+                <button class="btn btn-sm btn-outline-secondary" onclick="changePageSize()">更改页面大小</button>
+            </div>
+            
+            <div class="form-group" id="paginationControls" style="display: none;">
+                <button class="btn btn-sm btn-outline-primary" onclick="previousPage()" id="prevBtn" disabled>上一页</button>
+                <span id="pageInfo" style="margin: 0 10px;">第1页，共1页</span>
+                <button class="btn btn-sm btn-outline-primary" onclick="nextPage()" id="nextBtn" disabled>下一页</button>
             </div>
             
             <!-- 多时间框架信号表格 -->
@@ -1498,45 +2050,31 @@
         </div>
     </div>
 
-         <script>
-                   let currentResults = [];
-          let orders = [];
-          let positions = [];
-          
-          // 分页和筛选相关变量
-          let currentPage = 1;
-          let pageSize = 20;
-          let filteredResults = [];
-          let sortOrder = 'asc';
-          
-          // 币种管理相关变量
-          let totalSymbols = 130; // 默认币种数量
-          
-          // 日内交易相关变量
-          let intradayResults = [];
-          let intradaySignals = [];
-          let filteredIntradayResults = [];
-          
-          // 图表相关变量
-          let emaChart = null;
-          let currentChartSymbol = '';
-          let currentChartTimeframe = '5m';
-          let chartData = null;
+    <script>
+        let currentResults = [];
+        let orders = [];
+        let positions = [];
+        
+        // 分页和筛选相关变量
+        let pageSize = 20;
+        let filteredResults = [];
+        let sortOrder = 'asc';
+        
+        // 币种管理相关变量
+        let totalSymbols = 130; // 默认币种数量
+        
+        // 日内交易相关变量
+        let intradayResults = [];
+        let intradaySignals = [];
+        let filteredIntradayResults = [];
+        
+        // 图表相关变量
+        let emaChart = null;
+        let currentChartSymbol = '';
+        let currentChartTimeframe = '5m';
+        let chartData = null;
 
-        // 显示Tab
-        function showTab(tabName) {
-            // 隐藏所有tab内容
-            const tabContents = document.querySelectorAll('.tab-content');
-            tabContents.forEach(content => content.classList.remove('active'));
-            
-            // 移除所有tab的active类
-            const tabs = document.querySelectorAll('.tab');
-            tabs.forEach(tab => tab.classList.remove('active'));
-            
-            // 显示选中的tab
-            document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
-        }
+        // showTab函数已移到HTML前面定义
 
                  // 分析默认币种
          async function analyzeDefault() {
@@ -3823,25 +4361,7 @@
             }
         }
         
-        // 切换交叉点位标签页
-        function showCrossTab(tabType) {
-            // 更新标签按钮状态
-            document.querySelectorAll('.cross-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            event.target.classList.add('active');
-            
-            // 更新内容显示
-            document.querySelectorAll('.cross-tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            
-            if (tabType === 'price') {
-                document.getElementById('priceCrossPoints').classList.add('active');
-            } else {
-                document.getElementById('indicatorCrossPoints').classList.add('active');
-            }
-        }
+        // showCrossTab函数已移到HTML前面定义
         
         // 分析局部顶底排列
         function analyzeLocalTopBottom(cross, chartData) {
@@ -4107,38 +4627,44 @@
 
         // 多时间框架策略相关变量
         let allMultiTimeframeSignals = [];
-
-        // 分析前500个币种的多时间框架策略
-        async function analyzeMultiTimeframeSymbols() {
-            try {
-                showStatus('正在获取前500个币种...', 'info');
-                
-                const response = await fetch('/multi_timeframe/get_top_symbols');
-                const data = await response.json();
-                
-                if (data.success) {
-                    showStatus(`获取到 ${data.count} 个币种，开始分析...`, 'info');
-                    await analyzeMultipleMultiTimeframeSymbols(data.symbols);
-                } else {
-                    showStatus(`获取币种失败: ${data.error}`, 'error');
-                }
-            } catch (error) {
-                showStatus(`分析失败: ${error.message}`, 'error');
+        
+        // 全局错误处理
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('未处理的Promise错误:', event.reason);
+            showStatus(`系统错误: ${event.reason.message || event.reason}`, 'error');
+            event.preventDefault(); // 阻止默认的错误处理
+        });
+        
+        window.addEventListener('error', function(event) {
+            console.error('JavaScript错误:', event.error);
+            if (event.error && event.error.message) {
+                showStatus(`JavaScript错误: ${event.error.message}`, 'error');
             }
-        }
+        });
+
+        // analyzeMultiTimeframeSymbols函数已移到HTML前面定义
 
         // 分析多个币种的多时间框架策略
         async function analyzeMultipleMultiTimeframeSymbols(symbols) {
             try {
                 showStatus(`开始分析 ${symbols.length} 个币种的多时间框架策略...`, 'info');
                 
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 120000); // 2分钟超时
+                
                 const response = await fetch('/multi_timeframe/analyze_multiple_symbols', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ symbols: symbols })
+                    body: JSON.stringify({ symbols: symbols }),
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误: ${response.status} ${response.statusText}`);
+                }
                 
                 const data = await response.json();
                 
@@ -4179,21 +4705,7 @@
             }
         }
 
-        // 获取前500个币种列表
-        async function getMultiTimeframeTopSymbols() {
-            try {
-                const response = await fetch('/multi_timeframe/get_top_symbols');
-                const data = await response.json();
-                
-                if (data.success) {
-                    showStatus(`获取到 ${data.count} 个币种: ${data.symbols.slice(0, 10).join(', ')}...`, 'success');
-                } else {
-                    showStatus(`获取币种失败: ${data.error}`, 'error');
-                }
-            } catch (error) {
-                showStatus(`获取币种失败: ${error.message}`, 'error');
-            }
-        }
+        // getMultiTimeframeTopSymbols函数已移到HTML前面定义
 
         // 清除EMA使用记录
         async function clearMultiTimeframeCache() {
@@ -4259,8 +4771,13 @@
             console.log('信号数量:', signals ? signals.length : 0);
             console.log('最小收益率过滤:', minProfit);
             
-            // 过滤收益率
+            // 过滤收益率 - 修改逻辑以支持负收益率
             const filteredSignals = signals.filter(signal => {
+                // 如果minProfit为0，显示所有信号（包括负收益率）
+                if (minProfit === 0) {
+                    return true;
+                }
+                // 否则按原逻辑过滤
                 return signal.profit_pct >= minProfit;
             });
             
@@ -4319,11 +4836,47 @@
             showStatus(`多时间框架信号: 总计${totalCount}个，${filterText}显示${filteredCount}个`, 'success');
         }
 
+        // 分页相关变量
+        let currentPage = 1;
+        let currentPageSize = 50;
+        let totalPages = 1;
+        let allSymbols = [];
+        let currentSymbols = [];
+
         // 应用多时间框架过滤
         function applyMultiTimeframeFilter() {
             const minProfit = parseFloat(document.getElementById('multiTimeframeProfitFilter').value);
             showMultiTimeframeSignals(allMultiTimeframeSignals, minProfit);
         }
+
+        // 更改页面大小
+        function changePageSize() {
+            currentPageSize = parseInt(document.getElementById('pageSizeSelect').value);
+            currentPage = 1; // 重置到第一页
+            if (allSymbols.length > 0) {
+                analyzeCurrentPage();
+            }
+        }
+
+        // 上一页
+        function previousPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                analyzeCurrentPage();
+            }
+        }
+
+        // 下一页
+        function nextPage() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                analyzeCurrentPage();
+            }
+        }
+
+        // analyzeCurrentPage函数已移到HTML前面定义
+
+        // updatePaginationControls函数已移到HTML前面定义
 
         // 显示多时间框架详情
         async function showMultiTimeframeDetails(symbol, timeframe) {

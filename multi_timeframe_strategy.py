@@ -3,6 +3,8 @@ import numpy as np
 import requests
 import logging
 import time
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 
@@ -30,6 +32,14 @@ class MultiTimeframeStrategy:
         
         # 记录每个币种每个时间框架的EMA使用情况
         self.ema_usage = {}
+        
+        # 多线程配置
+        self.max_workers = 8  # 最大并发线程数
+        self.request_delay = 0.05  # 请求间隔（秒）
+        self.batch_size = 20  # 每批处理的币种数量
+        
+        # 线程锁
+        self.lock = threading.Lock()
         
     def get_klines_data(self, symbol: str, interval: str, limit: int = 1000) -> pd.DataFrame:
         """获取K线数据 - 优先使用Gate.io API"""
@@ -456,17 +466,17 @@ class MultiTimeframeStrategy:
                 ema_value = current_candle.get(f'ema{period}')
                 if ema_value is None: continue
                 
-                # 价格回踩到EMA附近 (放宽条件：价格在EMA的5%范围内)
+                # 价格回踩到EMA附近 (放宽条件：价格在EMA的10%范围内)
                 price_distance = abs(current_price - ema_value) / ema_value
-                if price_distance <= 0.05:  # 5%范围内
+                if price_distance <= 0.10:  # 10%范围内
                     # 量能确认：当前成交量大于20周期均量
                     if current_candle['volume'] > avg_volume:
                         available_levels.append({
                             'ema_period': period,
-                            'ema_value': ema_value,
+                            'ema_value': float(ema_value),
                             'type': 'long',
-                            'entry_price': current_price,  # 使用当前价格作为入场价
-                            'price_distance': price_distance
+                            'entry_price': float(current_price),  # 使用当前价格作为入场价
+                            'price_distance': float(price_distance)
                         })
         
         elif trend == 'bearish' and self.is_bearish_trend(df):
@@ -478,16 +488,16 @@ class MultiTimeframeStrategy:
                 ema_value = current_candle.get(f'ema{period}')
                 if ema_value is None: continue
                 
-                # 价格反弹到EMA附近 (放宽条件：价格在EMA的5%范围内)
+                # 价格反弹到EMA附近 (放宽条件：价格在EMA的10%范围内)
                 price_distance = abs(current_price - ema_value) / ema_value
-                if price_distance <= 0.05:  # 5%范围内
+                if price_distance <= 0.10:  # 10%范围内
                     if current_candle['volume'] > avg_volume:
                         available_levels.append({
                             'ema_period': period,
-                            'ema_value': ema_value,
+                            'ema_value': float(ema_value),
                             'type': 'short',
-                            'entry_price': current_price,  # 使用当前价格作为入场价
-                            'price_distance': price_distance
+                            'entry_price': float(current_price),  # 使用当前价格作为入场价
+                            'price_distance': float(price_distance)
                         })
         
         return available_levels
@@ -515,9 +525,11 @@ class MultiTimeframeStrategy:
                     signals.append({
                         'type': 'golden_cross',
                         'signal': 'long',
-                        'ema89': current_89,
-                        'ema233': current_233,
-                        'strength': 'strong' if current_89 > current_233 * 1.01 else 'weak'
+                        'ema89': float(current_89),
+                        'ema233': float(current_233),
+                        'strength': 'strong' if current_89 > current_233 * 1.01 else 'weak',
+                        'ema_period': 89,  # 基于EMA89和EMA233的交叉
+                        'entry_price': float(current_89)
                     })
                 
                 # 死叉：EMA89下穿EMA233
@@ -525,9 +537,11 @@ class MultiTimeframeStrategy:
                     signals.append({
                         'type': 'death_cross',
                         'signal': 'short',
-                        'ema89': current_89,
-                        'ema233': current_233,
-                        'strength': 'strong' if current_89 < current_233 * 0.99 else 'weak'
+                        'ema89': float(current_89),
+                        'ema233': float(current_233),
+                        'strength': 'strong' if current_89 < current_233 * 0.99 else 'weak',
+                        'ema_period': 89,  # 基于EMA89和EMA233的交叉
+                        'entry_price': float(current_89)
                     })
         
         return signals
@@ -554,9 +568,11 @@ class MultiTimeframeStrategy:
                 signals.append({
                     'type': 'breakout',
                     'signal': 'long',
-                    'breakout_level': ema233,
-                    'current_price': current_price,
-                    'strength': 'strong' if current_price > ema233 * 1.02 else 'weak'
+                    'breakout_level': float(ema233),
+                    'current_price': float(current_price),
+                    'strength': 'strong' if current_price > ema233 * 1.02 else 'weak',
+                    'ema_period': 233,  # 基于EMA233的突破
+                    'entry_price': float(current_price)
                 })
             
             # 向下突破EMA233
@@ -564,9 +580,11 @@ class MultiTimeframeStrategy:
                 signals.append({
                     'type': 'breakdown',
                     'signal': 'short',
-                    'breakdown_level': ema233,
-                    'current_price': current_price,
-                    'strength': 'strong' if current_price < ema233 * 0.98 else 'weak'
+                    'breakdown_level': float(ema233),
+                    'current_price': float(current_price),
+                    'strength': 'strong' if current_price < ema233 * 0.98 else 'weak',
+                    'ema_period': 233,  # 基于EMA233的突破
+                    'entry_price': float(current_price)
                 })
         
         return signals
@@ -595,9 +613,11 @@ class MultiTimeframeStrategy:
                     signals.append({
                         'type': 'resistance',
                         'signal': 'short',
-                        'level': resistance,
-                        'current_price': current_price,
-                        'distance': distance
+                        'level': float(resistance),
+                        'current_price': float(current_price),
+                        'distance': float(distance),
+                        'ema_period': None,  # 支撑阻力信号不基于EMA
+                        'entry_price': float(current_price)
                     })
         
         # 寻找支撑位（局部低点）
@@ -609,9 +629,11 @@ class MultiTimeframeStrategy:
                     signals.append({
                         'type': 'support',
                         'signal': 'long',
-                        'level': support,
-                        'current_price': current_price,
-                        'distance': distance
+                        'level': float(support),
+                        'current_price': float(current_price),
+                        'distance': float(distance),
+                        'ema_period': None,  # 支撑阻力信号不基于EMA
+                        'entry_price': float(current_price)
                     })
         
         return signals
@@ -668,7 +690,44 @@ class MultiTimeframeStrategy:
                 all_signals.extend(breakout_signals)
                 all_signals.extend(support_resistance_signals)
                 
-                # 计算止盈目标
+                # 去重信号 - 基于更严格的标识符
+                unique_signals = []
+                seen_signals = set()
+                
+                for signal in all_signals:
+                    # 创建更严格的唯一标识符
+                    ema_period = signal.get('ema_period')
+                    if ema_period is None:
+                        ema_period = 'None'
+                    
+                    # 处理None值，确保去重键的一致性
+                    level = signal.get('level')
+                    if level is None:
+                        level = 0
+                    
+                    distance = signal.get('distance')
+                    if distance is None:
+                        distance = 0
+                    
+                    signal_key = (
+                        signal.get('signal', ''),  # 信号类型
+                        round(signal.get('entry_price', 0), 6),  # 入场价格
+                        str(ema_period),  # EMA周期
+                        round(level, 6),  # 水平位
+                        signal.get('type', ''),  # 信号子类型
+                        round(distance, 8)  # 距离
+                    )
+                    
+                    if signal_key not in seen_signals:
+                        seen_signals.add(signal_key)
+                        unique_signals.append(signal)
+                    else:
+                        logger.debug(f"策略层去重信号: {signal_key}")
+                
+                logger.info(f"策略层去重: {len(all_signals)} -> {len(unique_signals)} 个信号")
+                all_signals = unique_signals
+                
+                # 计算止盈目标 - 根据趋势和信号类型智能设置
                 take_profit_timeframe = self.take_profit_timeframes.get(timeframe, '15m')
                 tp_df = self.get_klines_data(symbol, take_profit_timeframe, 200)
                 take_profit_price = None
@@ -676,7 +735,53 @@ class MultiTimeframeStrategy:
                     tp_df = self.calculate_bollinger_bands(tp_df)
                     tp_df.dropna(inplace=True)
                     if not tp_df.empty:
-                        take_profit_price = tp_df['bb_middle'].iloc[0]
+                        bb_middle = tp_df['bb_middle'].iloc[0]
+                        bb_lower = tp_df['bb_lower'].iloc[0]
+                        bb_upper = tp_df['bb_upper'].iloc[0]
+                        
+                        # 根据趋势和信号类型设置止盈
+                        current_price = tp_df['close'].iloc[0]
+                        
+                        if trend == 'bullish':
+                            # 多头趋势：使用布林带中轨作为止盈
+                            take_profit_price = bb_middle
+                        elif trend == 'bearish':
+                            # 空头趋势：使用布林带下轨作为止盈
+                            take_profit_price = bb_lower
+                        else:
+                            # 中性趋势：根据当前价格位置智能设置
+                            if current_price > bb_middle:
+                                # 价格在中轨上方，倾向于做空，使用下轨止盈
+                                take_profit_price = bb_lower
+                            else:
+                                # 价格在中轨下方，倾向于做多，使用中轨止盈
+                                take_profit_price = bb_middle
+                        
+                        # 确保止盈价格的合理性
+                        # 对于做空信号，止盈价格应该低于入场价格
+                        # 对于做多信号，止盈价格应该高于入场价格
+                        entry_price = latest_data['close']
+                        
+                        # 获取主要信号类型
+                        main_signal_type = 'long'  # 默认
+                        if all_signals:
+                            # 统计信号类型
+                            short_count = sum(1 for s in all_signals if s.get('signal') == 'short')
+                            long_count = sum(1 for s in all_signals if s.get('signal') == 'long')
+                            if short_count > long_count:
+                                main_signal_type = 'short'
+                        
+                        # 根据主要信号类型调整止盈价格
+                        if main_signal_type == 'short':
+                            # 做空信号：确保止盈价格低于入场价格
+                            if take_profit_price >= entry_price:
+                                # 如果止盈价格高于入场价格，设置为入场价格的95%
+                                take_profit_price = entry_price * 0.95
+                        else:
+                            # 做多信号：确保止盈价格高于入场价格
+                            if take_profit_price <= entry_price:
+                                # 如果止盈价格低于入场价格，设置为入场价格的105%
+                                take_profit_price = entry_price * 1.05
 
                 results.append({
                     'timeframe': timeframe, 'status': 'success',
@@ -705,31 +810,59 @@ class MultiTimeframeStrategy:
             'successful_timeframes': sum(1 for r in results if r['status'] == 'success')
         }
     
-    def analyze_multiple_symbols(self, symbols: List[str]) -> Dict:
-        """分析多个币种 - 添加请求间隔控制"""
+    def analyze_multiple_symbols(self, symbols: List[str], page: int = 1, page_size: int = 20) -> Dict:
+        """分析多个币种 - 支持分页和多线程"""
+        # 计算分页
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        page_symbols = symbols[start_idx:end_idx]
+        
+        logger.info(f"开始分析第{page}页币种: {len(page_symbols)}个 (总计{len(symbols)}个)")
+        
         all_results = {}
         
-        for i, symbol in enumerate(symbols):
-            try:
-                logger.info(f"--- 开始分析币种: {symbol} ({i+1}/{len(symbols)}) ---")
-                
-                # 添加请求间隔，避免API频率限制 (第一个币种前不延迟)
-                if i > 0:
-                    time.sleep(0.5)
-                
-                result = self.analyze_symbol(symbol)
-                all_results[symbol] = result['results']
-                
-                # 每10个币种后增加额外延迟
-                if (i + 1) % 10 == 0 and i + 1 < len(symbols):
-                    logger.info(f"已处理10个币种，休息2秒...")
-                    time.sleep(2)
+        # 使用线程池进行并发分析
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # 提交任务
+            future_to_symbol = {}
+            for i, symbol in enumerate(page_symbols):
+                future = executor.submit(self._analyze_symbol_with_delay, symbol, i)
+                future_to_symbol[future] = symbol
+            
+            # 收集结果
+            completed_count = 0
+            for future in as_completed(future_to_symbol):
+                symbol = future_to_symbol[future]
+                try:
+                    result = future.result()
+                    all_results[symbol] = result['results']
+                    completed_count += 1
                     
-            except Exception as e:
-                logger.error(f"分析币种 {symbol} 时发生顶层异常: {e}", exc_info=True)
-                all_results[symbol] = [{'timeframe': 'all', 'status': 'error', 'message': str(e)}]
+                    # 每完成10个币种输出一次进度
+                    if completed_count % 10 == 0:
+                        logger.info(f"已完成 {completed_count}/{len(page_symbols)} 个币种分析")
+                        
+                except Exception as e:
+                    logger.error(f"分析币种 {symbol} 时发生异常: {e}", exc_info=True)
+                    all_results[symbol] = [{'timeframe': 'all', 'status': 'error', 'message': str(e)}]
         
+        logger.info(f"第{page}页分析完成: {len(all_results)}个币种")
         return all_results
+    
+    def _analyze_symbol_with_delay(self, symbol: str, index: int) -> Dict:
+        """带延迟的币种分析"""
+        try:
+            # 添加延迟避免API频率限制
+            if index > 0:
+                time.sleep(self.request_delay)
+            
+            return self.analyze_symbol(symbol)
+        except Exception as e:
+            logger.error(f"分析币种 {symbol} 失败: {e}")
+            return {
+                'symbol': symbol,
+                'results': [{'timeframe': 'all', 'status': 'error', 'message': str(e)}]
+            }
     
     def analyze_all_timeframes(self, symbol: str) -> List[Dict]:
         """分析单个币种的所有时间框架（API兼容方法）"""

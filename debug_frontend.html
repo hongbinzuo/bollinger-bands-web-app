@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端调试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .btn { background: #007bff; color: white; border: none; padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .status-info { background: #d1ecf1; color: #0c5460; }
+        .status-success { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .debug { background: #f8f9fa; padding: 10px; margin: 10px 0; border-left: 4px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>🔍 前端调试页面</h1>
+    
+    <div>
+        <button class="btn" onclick="testAPI()">测试API</button>
+        <button class="btn" onclick="testDataProcessing()">测试数据处理</button>
+        <button class="btn" onclick="clearDebug()">清除调试信息</button>
+    </div>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <div id="debug" class="debug" style="display: none;">
+        <h3>调试信息</h3>
+        <pre id="debugContent"></pre>
+    </div>
+    
+    <div id="results" style="display: none;">
+        <h3>信号结果</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>币种</th>
+                    <th>时间框架</th>
+                    <th>趋势</th>
+                    <th>信号类型</th>
+                    <th>入场价格</th>
+                    <th>止盈价格</th>
+                    <th>收益率</th>
+                    <th>EMA周期</th>
+                </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status status-${type}`;
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
+        }
+
+        function showDebug(message) {
+            const debugDiv = document.getElementById('debug');
+            const debugContent = document.getElementById('debugContent');
+            debugContent.textContent += message + '\n';
+            debugDiv.style.display = 'block';
+        }
+
+        function clearDebug() {
+            const debugDiv = document.getElementById('debug');
+            const debugContent = document.getElementById('debugContent');
+            debugContent.textContent = '';
+            debugDiv.style.display = 'none';
+        }
+
+        async function testAPI() {
+            try {
+                showStatus('正在测试API...', 'info');
+                clearDebug();
+                
+                showDebug('开始API请求...');
+                const startTime = Date.now();
+                
+                const response = await fetch('/multi_timeframe/analyze_multiple_symbols', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbols: ['BTCUSDT'] })
+                });
+                
+                const endTime = Date.now();
+                showDebug(`API请求完成，耗时: ${endTime - startTime}ms`);
+                showDebug(`响应状态: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                showDebug('JSON解析成功');
+                showDebug(`数据键: ${Object.keys(data).join(', ')}`);
+                showDebug(`成功: ${data.success}`);
+                showDebug(`总信号数: ${data.total_signals}`);
+                showDebug(`成功信号数: ${data.successful_signals}`);
+                
+                if (data.signals) {
+                    showDebug(`信号数组长度: ${data.signals.length}`);
+                    if (data.signals.length > 0) {
+                        const firstSignal = data.signals[0];
+                        showDebug('第一个信号字段:');
+                        for (const [key, value] of Object.entries(firstSignal)) {
+                            showDebug(`  ${key}: ${typeof value} = ${value}`);
+                        }
+                    }
+                }
+                
+                showStatus(`API测试成功: ${data.total_signals}个信号`, 'success');
+                
+                // 显示结果
+                if (data.signals && data.signals.length > 0) {
+                    displayResults(data.signals);
+                }
+                
+            } catch (error) {
+                showDebug(`错误: ${error.message}`);
+                showDebug(`错误堆栈: ${error.stack}`);
+                showStatus(`API测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        function testDataProcessing() {
+            try {
+                showStatus('正在测试数据处理...', 'info');
+                clearDebug();
+                
+                // 模拟信号数据
+                const mockSignals = [
+                    {
+                        symbol: 'BTCUSDT',
+                        timeframe: '4h',
+                        trend: 'bearish',
+                        signal_type: 'short',
+                        entry_price: 111078.1,
+                        take_profit: 113074.07,
+                        profit_pct: -1.8,
+                        signal_time: '',
+                        ema_period: null
+                    }
+                ];
+                
+                showDebug('模拟信号数据:');
+                showDebug(JSON.stringify(mockSignals, null, 2));
+                
+                // 测试过滤逻辑
+                const filteredSignals = mockSignals.filter(signal => {
+                    return signal.profit_pct >= 0;
+                });
+                
+                showDebug(`过滤前信号数: ${mockSignals.length}`);
+                showDebug(`过滤后信号数: ${filteredSignals.length}`);
+                
+                // 测试显示逻辑
+                if (filteredSignals.length === 0) {
+                    showDebug('没有信号显示');
+                } else {
+                    showDebug('有信号，应该显示');
+                    displayResults(filteredSignals);
+                }
+                
+                showStatus('数据处理测试完成', 'success');
+                
+            } catch (error) {
+                showDebug(`数据处理错误: ${error.message}`);
+                showStatus(`数据处理测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        function displayResults(signals) {
+            const resultsDiv = document.getElementById('results');
+            const tbody = document.getElementById('resultsTableBody');
+            
+            showDebug(`开始显示 ${signals.length} 个信号`);
+            
+            if (!signals || signals.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">暂无信号数据</td></tr>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            let html = '';
+            signals.forEach((signal, index) => {
+                showDebug(`处理信号 ${index + 1}: ${signal.symbol} ${signal.timeframe}`);
+                
+                const signalClass = signal.signal_type === 'long' ? 'success' : 'danger';
+                const signalText = signal.signal_type === 'long' ? '做多' : '做空';
+                const trendClass = signal.trend === 'bullish' ? 'success' : 
+                                 signal.trend === 'bearish' ? 'danger' : 'secondary';
+                const trendText = signal.trend === 'bullish' ? '多头' : 
+                                 signal.trend === 'bearish' ? '空头' : '中性';
+                
+                html += `
+                    <tr>
+                        <td><strong>${signal.symbol}</strong></td>
+                        <td><span class="badge badge-info">${signal.timeframe}</span></td>
+                        <td><span class="badge badge-${trendClass}">${trendText}</span></td>
+                        <td><span class="badge badge-${signalClass}">${signalText}</span></td>
+                        <td><strong>${signal.entry_price || 'N/A'}</strong></td>
+                        <td><strong>${signal.take_profit || 'N/A'}</strong></td>
+                        <td><strong>${signal.profit_pct || 0}%</strong></td>
+                        <td>${signal.ema_period || 'N/A'}</td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+            resultsDiv.style.display = 'block';
+            showDebug('信号显示完成');
+        }
+    </script>
+</body>
+</html>

@@ -63,7 +63,7 @@ def analyze_symbol():
 
 @multi_timeframe_bp.route('/analyze_multiple_symbols', methods=['POST'])
 def analyze_multiple_symbols():
-    """Analyzes multiple symbols."""
+    """Analyzes multiple symbols with pagination support."""
     try:    
         data = request.get_json()
         if not data or 'symbols' not in data or not isinstance(data['symbols'], list):
@@ -73,11 +73,15 @@ def analyze_multiple_symbols():
         if not symbols_list:
             return jsonify({'error': 'The "symbols" list cannot be empty.'}), 400
         
+        # 分页参数
+        page = data.get('page', 1)
+        page_size = data.get('page_size', 20)
+        
         processed_symbols = [_process_symbol(s) for s in symbols_list if s]
         
-        logger.info(f"Received request to analyze {len(processed_symbols)} symbols.")
+        logger.info(f"Received request to analyze {len(processed_symbols)} symbols (page {page}, size {page_size}).")
         
-        all_results = strategy.analyze_multiple_symbols(processed_symbols)
+        all_results = strategy.analyze_multiple_symbols(processed_symbols, page, page_size)
         
         # 【已优化】使用更清晰的变量名进行统计
         total_analyses = 0
@@ -111,9 +115,48 @@ def analyze_multiple_symbols():
                             'profit_pct': round(profit_pct, 2),
                             'signal_time': result.get('signal_time', ''),
                             'ema_period': signal.get('ema_period', ''),
-                            'signal_data': signal  # 保留原始信号数据
+                            'signal_data': signal,  # 保留原始信号数据
+                            'level': signal.get('level', 0),  # 添加level字段用于去重
+                            'type': signal.get('type', ''),  # 添加type字段用于去重
+                            'distance': signal.get('distance', 0)  # 添加distance字段用于去重
                         }
                         all_signals.append(formatted_signal)
+        
+        # API层面去重 - 基于最严格的标识符
+        unique_signals = []
+        seen_signals = set()
+        
+        for signal in all_signals:
+            # 创建最严格的唯一标识符，包含所有关键字段
+            # 处理None值，确保去重键的一致性
+            take_profit_price = signal.get('take_profit_price')
+            if take_profit_price is None:
+                take_profit_price = 0
+            
+            signal_key = (
+                signal.get('symbol', ''),  # 币种
+                signal.get('timeframe', ''),  # 时间框架
+                signal.get('signal_type', ''),  # 信号类型
+                round(signal.get('entry_price', 0), 6),  # 入场价格
+                round(take_profit_price, 6),  # 止盈价格
+                round(signal.get('level', 0), 6),  # 水平位
+                signal.get('type', ''),  # 信号子类型
+                round(signal.get('distance', 0), 8),  # 距离
+                round(signal.get('profit_pct', 0), 4)  # 收益率
+            )
+            
+            if signal_key not in seen_signals:
+                seen_signals.add(signal_key)
+                unique_signals.append(signal)
+            else:
+                logger.debug(f"API层面去重信号: {signal_key}")
+        
+        logger.info(f"API层面去重: {len(all_signals)} -> {len(unique_signals)} 个信号")
+        all_signals = unique_signals
+        
+        # 计算分页信息
+        total_symbols = len(processed_symbols)
+        total_pages = (total_symbols + page_size - 1) // page_size
         
         return jsonify({
             'success': True,
@@ -123,6 +166,14 @@ def analyze_multiple_symbols():
             'successful_timeframe_analyses': successful_analyses,
             'total_signals': len(all_signals),
             'successful_signals': len(all_signals),
+            'pagination': {
+                'current_page': page,
+                'page_size': page_size,
+                'total_pages': total_pages,
+                'total_symbols': total_symbols,
+                'has_next': page < total_pages,
+                'has_prev': page > 1
+            },
             'results': all_results,
             'signals': all_signals  # 添加前端期望的信号格式
         })
@@ -133,7 +184,7 @@ def analyze_multiple_symbols():
 
 @multi_timeframe_bp.route('/get_top_symbols', methods=['GET'])
 def get_top_symbols():
-    """Gets the top 500 symbols by 24h volume from Gate.io."""
+    """Gets the top 500 symbols by 24h volume from Gate.io, excluding stablecoins."""
     default_symbols = [
         'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'SHIBUSDT',
         'MATICUSDT', 'LTCUSDT', 'UNIUSDT', 'LINKUSDT', 'ATOMUSDT', 'ETCUSDT', 'XLMUSDT', 'BCHUSDT', 'FILUSDT', 'TRXUSDT'
@@ -160,15 +211,29 @@ def get_top_symbols():
                 base_asset = currency_pair.replace('_USDT', '')
                 symbol = f"{base_asset}USDT"
                 
-                # 过滤稳定币
-                stablecoin_bases = {'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD'}
+                # 过滤稳定币 - 扩展列表
+                stablecoin_bases = {
+                    'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD', 'USDT', 'USDD', 'FRAX', 'LUSD',
+                    'GUSD', 'SUSD', 'USDN', 'USTC', 'UST', 'CUSD', 'DUSD', 'VAI', 'RSV', 'USDX',
+                    'USDJ', 'USDS', 'USDT', 'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD'
+                }
                 
                 # 过滤杠杆代币 (3L, 3S, 5L, 5S)
                 leverage_tokens = ['3L', '3S', '5L', '5S']
                 is_leverage_token = any(base_asset.endswith(token) for token in leverage_tokens)
                 
-                if base_asset not in stablecoin_bases and not is_leverage_token:
-                    quote_volume = float(item.get('quote_volume', 0))
+                # 过滤其他不需要的代币类型
+                excluded_patterns = ['BULL', 'BEAR', 'UP', 'DOWN', 'LONG', 'SHORT']
+                is_excluded = any(pattern in base_asset for pattern in excluded_patterns)
+                
+                # 先获取交易量
+                quote_volume = float(item.get('quote_volume', 0))
+                
+                if (base_asset not in stablecoin_bases and 
+                    not is_leverage_token and 
+                    not is_excluded and
+                    len(base_asset) <= 15 and  # 放宽代币名称长度限制
+                    quote_volume > 0):  # 确保有交易量
                     usdt_pairs.append({
                         'symbol': symbol,
                         'quote_volume': quote_volume,
