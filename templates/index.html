@@ -2209,19 +2209,7 @@
                  const symbol = result.symbol.replace('USDT', '');
                  const price = result.current_price ? result.current_price.toFixed(6) : 'N/A';
                  const orderPrice = result.order_price || 'N/A';
-                 const status = result.status || '未知';
                  const timeframe = result.timeframe || '1d';
-                 
-                 // 状态样式
-                 let statusClass = 'status-hold';
-                 let statusText = status;
-                 if (status.toLowerCase().includes('buy')) {
-                     statusClass = 'status-buy';
-                     statusText = '买入';
-                 } else if (status.toLowerCase().includes('sell')) {
-                     statusClass = 'status-sell';
-                     statusText = '卖出';
-                 }
                  
                  html += `
                      <tr>
@@ -2229,7 +2217,7 @@
                          <td>${price}</td>
                          <td>${orderPrice}</td>
                          <td>${timeframe}</td>
-                         <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                         <td></td>
                          <td>
                              <button class="action-btn action-btn-buy" onclick="createOrderFromResult('${symbol}', ${price})">买入</button>
                              <button class="action-btn action-btn-sell" onclick="createOrderFromResult('${symbol}', ${price}, 'sell')">卖出</button>
