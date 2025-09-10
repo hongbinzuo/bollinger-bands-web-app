@@ -8,9 +8,8 @@ from datetime import datetime, date
 from typing import List, Dict
 import json
 import os
-from io import StringIO, BytesIO
+from io import StringIO
 import pickle
-import csv
 
 # 导入日内交易模块
 from intraday_api import intraday_bp
@@ -453,152 +452,15 @@ def index():
     """主页"""
     return render_template('index.html')
 
-@app.route('/export_symbols', methods=['GET'])
-def export_symbols():
-    """导出币种列表为CSV文件"""
-    try:
-        all_symbols = get_all_symbols()
-        custom_symbols = load_custom_symbols()
-        
-        # 创建CSV内容
-        output = StringIO()
-        writer = csv.writer(output)
-        
-        # 写入表头
-        writer.writerow(['Symbol', 'Type', 'Added_Date'])
-        
-        # 写入默认币种
-        for symbol in sorted(all_symbols):
-            if symbol in custom_symbols:
-                # 自定义币种
-                writer.writerow([symbol, 'Custom', 'User Added'])
-            else:
-                # 默认币种
-                writer.writerow([symbol, 'Default', 'System'])
-        
-        # 创建文件响应
-        output.seek(0)
-        csv_data = output.getvalue()
-        output.close()
-        
-        # 创建内存中的文件
-        mem = BytesIO()
-        mem.write(csv_data.encode('utf-8'))
-        mem.seek(0)
-        
-        # 生成文件名
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"symbols_export_{timestamp}.csv"
-        
-        logger.info(f"导出币种列表成功，总币种数量: {len(all_symbols)}")
-        
-        return send_file(
-            mem,
-            as_attachment=True,
-            download_name=filename,
-            mimetype='text/csv'
-        )
-        
-    except Exception as e:
-        logger.error(f"导出币种列表失败: {e}")
-        return jsonify({
-            'success': False,
-            'error': f'导出失败: {str(e)}'
-        }), 500
-
-@app.route('/import_symbols', methods=['POST'])
-def import_symbols():
-    """导入币种列表从CSV文件"""
-    try:
-        if 'file' not in request.files:
-            return jsonify({
-                'success': False,
-                'error': '没有上传文件'
-            })
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({
-                'success': False,
-                'error': '没有选择文件'
-            })
-        
-        if not file.filename.lower().endswith('.csv'):
-            return jsonify({
-                'success': False,
-                'error': '只支持CSV文件格式'
-            })
-        
-        # 读取CSV文件
-        stream = StringIO(file.stream.read().decode("UTF8"), newline=None)
-        csv_input = csv.reader(stream)
-        
-        # 跳过表头
-        next(csv_input, None)
-        
-        # 读取币种数据
-        imported_symbols = []
-        for row in csv_input:
-            if row and len(row) > 0:
-                symbol = row[0].strip().upper()
-                if symbol and symbol.isalnum() and len(symbol) <= 15:
-                    # 确保币种以USDT结尾
-                    if not symbol.endswith('USDT'):
-                        symbol += 'USDT'
-                    imported_symbols.append(symbol)
-        
-        if not imported_symbols:
-            return jsonify({
-                'success': False,
-                'error': 'CSV文件中没有有效的币种数据'
-            })
-        
-        # 获取现有自定义币种
-        existing_custom_symbols = load_custom_symbols()
-        
-        # 找出真正新增的币种（去重）
-        new_symbols = [s for s in imported_symbols if s not in existing_custom_symbols]
-        
-        # 合并新币种
-        all_custom_symbols = existing_custom_symbols + new_symbols
-        
-        # 保存更新后的币种列表
-        save_custom_symbols(all_custom_symbols)
-        
-        # 获取总币种数量
-        total_symbols = len(get_all_symbols())
-        
-        logger.info(f"导入币种成功: {len(new_symbols)} 个新币种，当前总币种数量: {total_symbols}")
-        
-        return jsonify({
-            'success': True,
-            'imported_symbols': new_symbols,
-            'total_symbols': total_symbols,
-            'message': f'成功导入 {len(new_symbols)} 个新币种'
-        })
-        
-    except Exception as e:
-        logger.error(f"导入币种失败: {e}")
-        return jsonify({
-            'success': False,
-            'error': f'导入失败: {str(e)}'
-        }), 500
-
-@app.route('/get_symbol_count', methods=['GET'])
-def get_symbol_count():
-    """获取币种数量"""
-    try:
-        all_symbols = get_all_symbols()
-        return jsonify({
-            'count': len(all_symbols),
-            'symbols': all_symbols
-        })
-    except Exception as e:
-        logger.error(f"获取币种数量失败: {e}")
-        return jsonify({
-            'count': 0,
-            'error': str(e)
-        }), 500
+@app.route('/get_default_symbols', methods=['GET'])
+def get_default_symbols():
+    """获取默认币种列表"""
+    all_symbols = get_all_symbols()
+    logger.info(f"获取币种列表请求，总币种数量: {len(all_symbols)}")
+    return jsonify({
+        'symbols': all_symbols,
+        'count': len(all_symbols)
+    })
 
 @app.route('/add_symbols', methods=['POST'])
 def add_symbols():

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多时间框架策略测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-info {
+            background: #17a2b8;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .signal-long {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .signal-short {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .trend-bullish {
+            color: #28a745;
+        }
+        .trend-bearish {
+            color: #dc3545;
+        }
+        .trend-neutral {
+            color: #6c757d;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📈 多时间框架策略测试页面</h1>
+        
+        <div class="test-section">
+            <h3>🔧 基础功能测试</h3>
+            <button class="btn btn-success" onclick="testGetTopSymbols()">获取前100币种</button>
+            <button class="btn btn-info" onclick="testAnalyzeSymbols()">分析测试币种</button>
+            <button class="btn" onclick="testValidateSymbol()">验证币种</button>
+            <button class="btn" onclick="testStrategyInfo()">策略信息</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>📊 性能测试</h3>
+            <button class="btn btn-success" onclick="testPerformance()">性能测试</button>
+            <button class="btn btn-info" onclick="testConcurrent()">并发测试</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>🔍 数据质量测试</h3>
+            <button class="btn btn-success" onclick="testDataQuality()">数据质量测试</button>
+            <button class="btn btn-info" onclick="testSignalAccuracy()">信号准确性测试</button>
+        </div>
+        
+        <div id="status" class="status" style="display: none;"></div>
+        
+        <div id="results" style="display: none;">
+            <h3>测试结果</h3>
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>币种</th>
+                        <th>时间框架</th>
+                        <th>趋势</th>
+                        <th>信号类型</th>
+                        <th>入场价格</th>
+                        <th>止盈价格</th>
+                        <th>收益率</th>
+                        <th>EMA周期</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsTableBody">
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="performanceResults" style="display: none;">
+            <h3>性能测试结果</h3>
+            <div id="performanceContent"></div>
+        </div>
+    </div>
+
+    <script>
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status status-${type}`;
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
+        }
+
+        async function testGetTopSymbols() {
+            try {
+                showStatus('正在获取前100个币种...', 'info');
+                
+                const startTime = Date.now();
+                const response = await fetch('/multi_timeframe/get_top_symbols');
+                const endTime = Date.now();
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`获取成功: ${data.count} 个币种，耗时: ${endTime - startTime}ms，前10个: ${data.symbols.slice(0, 10).join(', ')}`, 'success');
+                } else {
+                    showStatus(`获取失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAnalyzeSymbols() {
+            try {
+                showStatus('正在分析测试币种...', 'info');
+                
+                const testSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+                const startTime = Date.now();
+                
+                const response = await fetch('/multi_timeframe/analyze_multiple_symbols', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbols: testSymbols })
+                });
+                
+                const endTime = Date.now();
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`分析完成: 总计${data.total_signals}个信号，成功${data.successful_signals}个，耗时: ${endTime - startTime}ms`, 'success');
+                    displayResults(data.signals);
+                } else {
+                    showStatus(`分析失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testValidateSymbol() {
+            try {
+                showStatus('正在验证币种 BTCUSDT...', 'info');
+                
+                const response = await fetch('/multi_timeframe/validate_symbol', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbol: 'BTCUSDT' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const status = data.is_valid ? '有效' : '无效';
+                    showStatus(`币种验证结果: ${data.symbol} ${status}`, 'success');
+                } else {
+                    showStatus(`验证失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testStrategyInfo() {
+            try {
+                showStatus('正在获取策略信息...', 'info');
+                
+                const response = await fetch('/multi_timeframe/get_strategy_info');
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`策略信息获取成功: ${data.strategy_name}，支持${data.timeframes.length}个时间框架`, 'success');
+                    console.log('策略信息:', data);
+                } else {
+                    showStatus(`获取策略信息失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPerformance() {
+            try {
+                showStatus('正在进行性能测试...', 'info');
+                
+                const testSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'DOTUSDT'];
+                const results = [];
+                
+                for (const symbol of testSymbols) {
+                    const startTime = Date.now();
+                    try {
+                        const response = await fetch('/multi_timeframe/analyze_symbol', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ symbol: symbol })
+                        });
+                        const endTime = Date.now();
+                        const data = await response.json();
+                        
+                        results.push({
+                            symbol: symbol,
+                            duration: endTime - startTime,
+                            success: data.success,
+                            timeframes: data.successful_timeframes
+                        });
+                    } catch (error) {
+                        results.push({
+                            symbol: symbol,
+                            duration: 0,
+                            success: false,
+                            error: error.message
+                        });
+                    }
+                }
+                
+                const successfulResults = results.filter(r => r.success);
+                const avgDuration = successfulResults.reduce((sum, r) => sum + r.duration, 0) / successfulResults.length;
+                
+                showStatus(`性能测试完成: 成功率${successfulResults.length}/${testSymbols.length}，平均耗时${avgDuration.toFixed(0)}ms`, 'success');
+                
+                displayPerformanceResults(results);
+            } catch (error) {
+                showStatus(`性能测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testConcurrent() {
+            try {
+                showStatus('正在进行并发测试...', 'info');
+                
+                const testSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+                const startTime = Date.now();
+                
+                // 并发请求
+                const promises = testSymbols.map(symbol => 
+                    fetch('/multi_timeframe/analyze_symbol', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ symbol: symbol })
+                    }).then(response => response.json())
+                );
+                
+                const results = await Promise.all(promises);
+                const endTime = Date.now();
+                
+                const successfulResults = results.filter(r => r.success);
+                const totalDuration = endTime - startTime;
+                
+                showStatus(`并发测试完成: 成功率${successfulResults.length}/${testSymbols.length}，总耗时${totalDuration}ms`, 'success');
+                
+            } catch (error) {
+                showStatus(`并发测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testDataQuality() {
+            try {
+                showStatus('正在进行数据质量测试...', 'info');
+                
+                const response = await fetch('/multi_timeframe/analyze_multiple_symbols', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbols: ['BTCUSDT'] })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.signals && data.signals.length > 0) {
+                    const firstSignal = data.signals[0];
+                    const requiredFields = ['symbol', 'timeframe', 'trend', 'signal_type', 'entry_price', 'take_profit', 'profit_pct', 'ema_period'];
+                    const missingFields = requiredFields.filter(field => firstSignal[field] === undefined || firstSignal[field] === null);
+                    
+                    if (missingFields.length === 0) {
+                        showStatus(`数据质量测试通过: 所有必要字段完整`, 'success');
+                    } else {
+                        showStatus(`数据质量测试失败: 缺少字段 ${missingFields.join(', ')}`, 'error');
+                    }
+                } else {
+                    showStatus(`数据质量测试失败: 无信号数据`, 'error');
+                }
+            } catch (error) {
+                showStatus(`数据质量测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSignalAccuracy() {
+            try {
+                showStatus('正在进行信号准确性测试...', 'info');
+                
+                const response = await fetch('/multi_timeframe/analyze_multiple_symbols', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbols: ['BTCUSDT', 'ETHUSDT'] })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const signals = data.signals || [];
+                    const signalTypes = [...new Set(signals.map(s => s.signal_type))];
+                    const trends = [...new Set(signals.map(s => s.trend))];
+                    
+                    showStatus(`信号准确性测试完成: 发现${signals.length}个信号，信号类型: ${signalTypes.join(', ')}, 趋势类型: ${trends.join(', ')}`, 'success');
+                } else {
+                    showStatus(`信号准确性测试失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`信号准确性测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        function displayResults(signals) {
+            const resultsDiv = document.getElementById('results');
+            const tbody = document.getElementById('resultsTableBody');
+            
+            if (!signals || signals.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">暂无信号数据</td></tr>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            let html = '';
+            signals.forEach(signal => {
+                const signalClass = signal.signal_type === 'long' ? 'signal-long' : 'signal-short';
+                const signalText = signal.signal_type === 'long' ? '做多' : '做空';
+                const trendClass = signal.trend === 'bullish' ? 'trend-bullish' : 
+                                 signal.trend === 'bearish' ? 'trend-bearish' : 'trend-neutral';
+                const trendText = signal.trend === 'bullish' ? '多头' : 
+                                 signal.trend === 'bearish' ? '空头' : '中性';
+                
+                html += `
+                    <tr>
+                        <td>${signal.symbol}</td>
+                        <td>${signal.timeframe}</td>
+                        <td class="${trendClass}">${trendText}</td>
+                        <td class="${signalClass}">${signalText}</td>
+                        <td>${signal.entry_price || 'N/A'}</td>
+                        <td>${signal.take_profit || 'N/A'}</td>
+                        <td>${signal.profit_pct || 0}%</td>
+                        <td>${signal.ema_period || 'N/A'}</td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+
+        function displayPerformanceResults(results) {
+            const performanceDiv = document.getElementById('performanceResults');
+            const contentDiv = document.getElementById('performanceContent');
+            
+            let html = '<table><thead><tr><th>币种</th><th>耗时(ms)</th><th>状态</th><th>时间框架数</th></tr></thead><tbody>';
+            
+            results.forEach(result => {
+                const status = result.success ? '✅ 成功' : '❌ 失败';
+                const timeframes = result.timeframes || 0;
+                html += `<tr>
+                    <td>${result.symbol}</td>
+                    <td>${result.duration}</td>
+                    <td>${status}</td>
+                    <td>${timeframes}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            contentDiv.innerHTML = html;
+            performanceDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
+

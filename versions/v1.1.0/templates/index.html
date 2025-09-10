@@ -138,7 +138,19 @@
         }
         
         // 通用工具函数
-        // showStatus函数已在后面定义，这里删除重复定义
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            if (statusDiv) {
+                statusDiv.innerHTML = message;
+                statusDiv.className = `status ${type}`;
+                statusDiv.style.display = 'block';
+                
+                // 3秒后自动隐藏
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
         
         // 全局错误处理
         window.addEventListener('error', function(event) {
@@ -1519,8 +1531,7 @@
                 <button class="btn btn-success" onclick="analyzeDefault()">分析全部<span id="analyzeButtonCount">130</span>个币种</button>
                 <button class="btn btn-info" onclick="showAddSymbolModal()">➕ 新增币种</button>
                 <button class="btn btn-warning" onclick="analyzeCustom()">分析自定义币种</button>
-                <button class="btn btn-success" onclick="exportSymbols()">📤 导出币种列表</button>
-                <button class="btn btn-primary" onclick="showImportModal()">📥 导入币种列表</button>
+                <button class="btn" onclick="getSymbols()">获取币种列表</button>
             </div>
             <div class="form-group">
                 <label>自定义币种（用逗号分隔）：</label>
@@ -2035,34 +2046,6 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeAddSymbolModal()">取消</button>
                 <button class="btn btn-success" onclick="addNewSymbols()">确认添加</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 导入币种模态对话框 -->
-    <div id="importSymbolModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <span class="modal-title">导入币种列表</span>
-                <span class="close" onclick="closeImportModal()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>选择CSV文件：</label>
-                    <input type="file" id="importFileInput" accept=".csv" class="form-control">
-                </div>
-                <div class="form-group">
-                    <p style="color: #ffc107; font-size: 14px;">
-                        💡 提示：请选择包含币种列表的CSV文件。系统会自动去重，保留原有币种。
-                    </p>
-                    <p style="color: #17a2b8; font-size: 12px;">
-                        📋 CSV格式：第一列为币种名称，支持BTC、BTCUSDT等格式
-                    </p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeImportModal()">取消</button>
-                <button class="btn btn-success" onclick="importSymbols()">确认导入</button>
             </div>
         </div>
     </div>
@@ -2611,11 +2594,7 @@
                  // 显示状态
          function showStatus(message, type) {
              const statusArea = document.getElementById('statusArea');
-             if (statusArea) {
-                 statusArea.innerHTML = `<div class="status ${type}">${message}</div>`;
-             } else {
-                 console.error('statusArea element not found');
-             }
+             statusArea.innerHTML = `<div class="status ${type}">${message}</div>`;
          }
          
          // 新增币种相关函数
@@ -2654,33 +2633,25 @@
                  });
                  
                  const data = await response.json();
-                if (data.success) {
-                    // 更新币种数量
-                    totalSymbols = data.total_symbols;
-                    
-                    // 更新页面显示的所有币种数量元素
-                    const totalSymbolsEl = document.getElementById('totalSymbols');
-                    const totalSymbolsDisplayEl = document.getElementById('totalSymbolsDisplay');
-                    const analyzeButtonCountEl = document.getElementById('analyzeButtonCount');
-                    
-                    if (totalSymbolsEl) totalSymbolsEl.textContent = totalSymbols;
-                    if (totalSymbolsDisplayEl) totalSymbolsDisplayEl.textContent = totalSymbols;
-                    if (analyzeButtonCountEl) analyzeButtonCountEl.textContent = totalSymbols;
-                    
-                    // 更新分析按钮文本
-                    const analyzeBtn = document.querySelector('button[onclick="analyzeDefault()"]');
-                    if (analyzeBtn) {
-                        analyzeBtn.textContent = `分析全部${totalSymbols}个币种`;
-                    }
-                    
-                    closeAddSymbolModal();
-                    showStatus(`成功新增 ${symbolList.length} 个币种，当前总计 ${totalSymbols} 个币种`, 'success');
-                    
-                    // 刷新页面
-                    setTimeout(() => {
-                        location.reload();
-                    }, 2000);
-                } else {
+                 if (data.success) {
+                     // 更新币种数量
+                     totalSymbols = data.total_symbols;
+                     
+                     // 更新页面显示的币种数量
+                     document.getElementById('totalSymbols').textContent = totalSymbols;
+                     
+                     // 更新分析按钮文本
+                     const analyzeBtn = document.querySelector('button[onclick="analyzeDefault()"]');
+                     analyzeBtn.textContent = `分析全部${totalSymbols}个币种`;
+                     
+                     closeAddSymbolModal();
+                     showStatus(`成功新增 ${symbolList.length} 个币种，当前总计 ${totalSymbols} 个币种`, 'success');
+                     
+                     // 刷新页面
+                     setTimeout(() => {
+                         location.reload();
+                     }, 2000);
+                 } else {
                      showStatus('新增币种失败: ' + data.error, 'error');
                  }
              } catch (error) {
@@ -2690,144 +2661,24 @@
          
          // 点击模态框外部关闭
          window.onclick = function(event) {
-             const addModal = document.getElementById('addSymbolModal');
-             const importModal = document.getElementById('importSymbolModal');
-             if (event.target === addModal) {
+             const modal = document.getElementById('addSymbolModal');
+             if (event.target === modal) {
                  closeAddSymbolModal();
-             }
-             if (event.target === importModal) {
-                 closeImportModal();
-             }
-         }
-         
-         // 导出币种列表
-         async function exportSymbols() {
-             try {
-                 showStatus('正在导出币种列表...', 'info');
-                 
-                 const response = await fetch('/export_symbols');
-                 
-                 if (response.ok) {
-                     // 获取文件名
-                     const contentDisposition = response.headers.get('Content-Disposition');
-                     let filename = 'symbols_export.csv';
-                     if (contentDisposition) {
-                         const filenameMatch = contentDisposition.match(/filename="(.+)"/);
-                         if (filenameMatch) {
-                             filename = filenameMatch[1];
-                         }
-                     }
-                     
-                     // 下载文件
-                     const blob = await response.blob();
-                     const url = window.URL.createObjectURL(blob);
-                     const a = document.createElement('a');
-                     a.href = url;
-                     a.download = filename;
-                     document.body.appendChild(a);
-                     a.click();
-                     window.URL.revokeObjectURL(url);
-                     document.body.removeChild(a);
-                     
-                     showStatus('币种列表导出成功！', 'success');
-                 } else {
-                     const errorData = await response.json();
-                     showStatus('导出失败: ' + errorData.error, 'error');
-                 }
-             } catch (error) {
-                 showStatus('导出失败: ' + error.message, 'error');
-             }
-         }
-         
-         // 显示导入模态框
-         function showImportModal() {
-             document.getElementById('importSymbolModal').style.display = 'block';
-             document.getElementById('importFileInput').value = '';
-         }
-         
-         // 关闭导入模态框
-         function closeImportModal() {
-             document.getElementById('importSymbolModal').style.display = 'none';
-         }
-         
-         // 导入币种列表
-         async function importSymbols() {
-             const fileInput = document.getElementById('importFileInput');
-             const file = fileInput.files[0];
-             
-             if (!file) {
-                 showStatus('请选择要导入的CSV文件', 'error');
-                 return;
-             }
-             
-             if (!file.name.toLowerCase().endsWith('.csv')) {
-                 showStatus('请选择CSV格式的文件', 'error');
-                 return;
-             }
-             
-             try {
-                 showStatus('正在导入币种列表...', 'info');
-                 
-                 const formData = new FormData();
-                 formData.append('file', file);
-                 
-                 const response = await fetch('/import_symbols', {
-                     method: 'POST',
-                     body: formData
-                 });
-                 
-                 const data = await response.json();
-                 
-                 if (data.success) {
-                     // 更新币种数量
-                     totalSymbols = data.total_symbols;
-                     
-                     // 更新页面显示的所有币种数量元素
-                     const totalSymbolsEl = document.getElementById('totalSymbols');
-                     const totalSymbolsDisplayEl = document.getElementById('totalSymbolsDisplay');
-                     const analyzeButtonCountEl = document.getElementById('analyzeButtonCount');
-                     
-                     if (totalSymbolsEl) totalSymbolsEl.textContent = totalSymbols;
-                     if (totalSymbolsDisplayEl) totalSymbolsDisplayEl.textContent = totalSymbols;
-                     if (analyzeButtonCountEl) analyzeButtonCountEl.textContent = totalSymbols;
-                     
-                     // 更新分析按钮文本
-                     const analyzeBtn = document.querySelector('button[onclick="analyzeDefault()"]');
-                     if (analyzeBtn) {
-                         analyzeBtn.textContent = `分析全部${totalSymbols}个币种`;
-                     }
-                     
-                     closeImportModal();
-                     showStatus(`成功导入 ${data.imported_symbols.length} 个币种，当前总计 ${totalSymbols} 个币种`, 'success');
-                     
-                     // 刷新页面
-                     setTimeout(() => {
-                         location.reload();
-                     }, 2000);
-                 } else {
-                     showStatus('导入失败: ' + data.error, 'error');
-                 }
-             } catch (error) {
-                 showStatus('导入失败: ' + error.message, 'error');
              }
          }
          
          // 更新币种数量
          async function updateSymbolCount() {
              try {
-                 const response = await fetch('/get_symbol_count');
+                 const response = await fetch('/get_default_symbols');
                  const data = await response.json();
                  
                  totalSymbols = data.count;
                  
                  // 更新所有显示币种数量的地方
-                 const totalSymbolsEl = document.getElementById('totalSymbols');
-                 const totalSymbolsDisplayEl = document.getElementById('totalSymbolsDisplay');
-                 const analyzeButtonCountEl = document.getElementById('analyzeButtonCount');
-                 
-                 if (totalSymbolsEl) totalSymbolsEl.textContent = totalSymbols;
-                 if (totalSymbolsDisplayEl) totalSymbolsDisplayEl.textContent = totalSymbols;
-                 if (analyzeButtonCountEl) analyzeButtonCountEl.textContent = totalSymbols;
+                 document.getElementById('totalSymbols').textContent = totalSymbols;
+                 document.getElementById('totalSymbolsDisplay').textContent = totalSymbols;
+                 document.getElementById('analyzeButtonCount').textContent = totalSymbols;
                  
                  // 更新分析按钮文本
                  const analyzeBtn = document.querySelector('button[onclick="analyzeDefault()"]');
