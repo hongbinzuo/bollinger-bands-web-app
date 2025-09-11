@@ -162,7 +162,9 @@ def analyze_multiple_symbols():
                             'entry_price': entry_price,
                             'take_profit': take_profit,
                             'profit_pct': round(profit_pct, 2),
-                            'signal_time': result.get('signal_time', ''),
+                            'signal_time': signal.get('signal_time', ''),
+                            'condition': signal.get('condition', ''),
+                            'description': signal.get('description', ''),
                             'ema_period': signal.get('ema_period', ''),
                             'signal_data': signal,  # 保留原始信号数据
                             'level': signal.get('level', 0),  # 添加level字段用于去重

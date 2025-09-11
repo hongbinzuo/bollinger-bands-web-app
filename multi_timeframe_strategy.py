@@ -454,6 +454,7 @@ class MultiTimeframeStrategy:
         
         current_candle = df.iloc[0]
         current_price = current_candle['close']
+        current_time = current_candle.name  # 获取当前K线的时间
         avg_volume = df['volume'].rolling(window=20).mean().iloc[1] # 使用前一根K线的滚动量
         available_levels = []
 
@@ -471,12 +472,17 @@ class MultiTimeframeStrategy:
                 if price_distance <= 0.10:  # 10%范围内
                     # 量能确认：当前成交量大于20周期均量
                     if current_candle['volume'] > avg_volume:
+                        condition = f"EMA{period}反弹信号 (价格:{current_price:.4f} 接近EMA{period}:{ema_value:.4f})"
                         available_levels.append({
                             'ema_period': period,
                             'ema_value': float(ema_value),
                             'type': 'long',
+                            'signal': 'long',
                             'entry_price': float(current_price),  # 使用当前价格作为入场价
-                            'price_distance': float(price_distance)
+                            'price_distance': float(price_distance),
+                            'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
+                            'condition': condition,
+                            'description': f"牛市趋势中，价格({current_price:.4f})回踩至EMA{period}({ema_value:.4f})附近，距离{price_distance:.2%}，形成反弹买入信号"
                         })
         
         elif trend == 'bearish' and self.is_bearish_trend(df):
@@ -492,12 +498,17 @@ class MultiTimeframeStrategy:
                 price_distance = abs(current_price - ema_value) / ema_value
                 if price_distance <= 0.10:  # 10%范围内
                     if current_candle['volume'] > avg_volume:
+                        condition = f"EMA{period}拒绝信号 (价格:{current_price:.4f} 接近EMA{period}:{ema_value:.4f})"
                         available_levels.append({
                             'ema_period': period,
                             'ema_value': float(ema_value),
                             'type': 'short',
+                            'signal': 'short',
                             'entry_price': float(current_price),  # 使用当前价格作为入场价
-                            'price_distance': float(price_distance)
+                            'price_distance': float(price_distance),
+                            'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
+                            'condition': condition,
+                            'description': f"熊市趋势中，价格({current_price:.4f})反弹至EMA{period}({ema_value:.4f})附近，距离{price_distance:.2%}，形成拒绝卖出信号"
                         })
         
         return available_levels
@@ -511,6 +522,7 @@ class MultiTimeframeStrategy:
         
         current_candle = df.iloc[0]
         previous_candle = df.iloc[1]
+        current_time = current_candle.name  # 获取当前K线的时间
         
         # EMA89与EMA233交叉
         if 'ema89' in current_candle and 'ema233' in current_candle:
@@ -522,6 +534,7 @@ class MultiTimeframeStrategy:
             if prev_89 is not None and prev_233 is not None:
                 # 金叉：EMA89上穿EMA233
                 if prev_89 <= prev_233 and current_89 > current_233:
+                    condition = f"EMA89金叉EMA233 (89:{current_89:.4f} > 233:{current_233:.4f})"
                     signals.append({
                         'type': 'golden_cross',
                         'signal': 'long',
@@ -529,11 +542,15 @@ class MultiTimeframeStrategy:
                         'ema233': float(current_233),
                         'strength': 'strong' if current_89 > current_233 * 1.01 else 'weak',
                         'ema_period': 89,  # 基于EMA89和EMA233的交叉
-                        'entry_price': float(current_89)
+                        'entry_price': float(current_89),
+                        'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
+                        'condition': condition,
+                        'description': f"EMA89({current_89:.4f})上穿EMA233({current_233:.4f})，形成金叉买入信号"
                     })
                 
                 # 死叉：EMA89下穿EMA233
                 elif prev_89 >= prev_233 and current_89 < current_233:
+                    condition = f"EMA89死叉EMA233 (89:{current_89:.4f} < 233:{current_233:.4f})"
                     signals.append({
                         'type': 'death_cross',
                         'signal': 'short',
@@ -541,7 +558,10 @@ class MultiTimeframeStrategy:
                         'ema233': float(current_233),
                         'strength': 'strong' if current_89 < current_233 * 0.99 else 'weak',
                         'ema_period': 89,  # 基于EMA89和EMA233的交叉
-                        'entry_price': float(current_89)
+                        'entry_price': float(current_89),
+                        'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
+                        'condition': condition,
+                        'description': f"EMA89({current_89:.4f})下穿EMA233({current_233:.4f})，形成死叉卖出信号"
                     })
         
         return signals
@@ -556,6 +576,7 @@ class MultiTimeframeStrategy:
         current_candle = df.iloc[0]
         previous_candle = df.iloc[1]
         current_price = current_candle['close']
+        current_time = current_candle.name  # 获取当前K线的时间
         
         # 检查价格突破EMA233
         if 'ema233' in current_candle:
@@ -565,6 +586,7 @@ class MultiTimeframeStrategy:
             
             # 向上突破EMA233
             if prev_high <= ema233 and current_price > ema233:
+                condition = f"价格向上突破EMA233 (价格:{current_price:.4f} > EMA233:{ema233:.4f})"
                 signals.append({
                     'type': 'breakout',
                     'signal': 'long',
@@ -572,11 +594,15 @@ class MultiTimeframeStrategy:
                     'current_price': float(current_price),
                     'strength': 'strong' if current_price > ema233 * 1.02 else 'weak',
                     'ema_period': 233,  # 基于EMA233的突破
-                    'entry_price': float(current_price)
+                    'entry_price': float(current_price),
+                    'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
+                    'condition': condition,
+                    'description': f"价格({current_price:.4f})向上突破EMA233({ema233:.4f})，形成突破买入信号"
                 })
             
             # 向下突破EMA233
             elif prev_low >= ema233 and current_price < ema233:
+                condition = f"价格向下突破EMA233 (价格:{current_price:.4f} < EMA233:{ema233:.4f})"
                 signals.append({
                     'type': 'breakdown',
                     'signal': 'short',
@@ -584,7 +610,10 @@ class MultiTimeframeStrategy:
                     'current_price': float(current_price),
                     'strength': 'strong' if current_price < ema233 * 0.98 else 'weak',
                     'ema_period': 233,  # 基于EMA233的突破
-                    'entry_price': float(current_price)
+                    'entry_price': float(current_price),
+                    'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
+                    'condition': condition,
+                    'description': f"价格({current_price:.4f})向下突破EMA233({ema233:.4f})，形成突破卖出信号"
                 })
         
         return signals
@@ -598,6 +627,7 @@ class MultiTimeframeStrategy:
         
         current_candle = df.iloc[0]
         current_price = current_candle['close']
+        current_time = current_candle.name  # 获取当前K线的时间
         
         # 寻找最近20根K线的支撑阻力位
         recent_data = df.head(20)
@@ -610,6 +640,7 @@ class MultiTimeframeStrategy:
                 resistance = highs[i]
                 distance = abs(current_price - resistance) / resistance
                 if distance <= 0.03:  # 3%范围内
+                    condition = f"价格接近阻力位 (价格:{current_price:.4f} 接近阻力:{resistance:.4f})"
                     signals.append({
                         'type': 'resistance',
                         'signal': 'short',
@@ -617,7 +648,10 @@ class MultiTimeframeStrategy:
                         'current_price': float(current_price),
                         'distance': float(distance),
                         'ema_period': None,  # 支撑阻力信号不基于EMA
-                        'entry_price': float(current_price)
+                        'entry_price': float(current_price),
+                        'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
+                        'condition': condition,
+                        'description': f"价格({current_price:.4f})接近阻力位({resistance:.4f})，距离{distance:.2%}，建议做空"
                     })
         
         # 寻找支撑位（局部低点）
@@ -626,6 +660,7 @@ class MultiTimeframeStrategy:
                 support = lows[i]
                 distance = abs(current_price - support) / support
                 if distance <= 0.03:  # 3%范围内
+                    condition = f"价格接近支撑位 (价格:{current_price:.4f} 接近支撑:{support:.4f})"
                     signals.append({
                         'type': 'support',
                         'signal': 'long',
@@ -633,7 +668,10 @@ class MultiTimeframeStrategy:
                         'current_price': float(current_price),
                         'distance': float(distance),
                         'ema_period': None,  # 支撑阻力信号不基于EMA
-                        'entry_price': float(current_price)
+                        'entry_price': float(current_price),
+                        'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
+                        'condition': condition,
+                        'description': f"价格({current_price:.4f})接近支撑位({support:.4f})，距离{distance:.2%}，建议做多"
                     })
         
         return signals

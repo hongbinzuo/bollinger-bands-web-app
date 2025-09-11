@@ -400,6 +400,69 @@
             showStatus(`查看${symbol} ${timeframe}多时间框架详情`, 'info');
         }
         
+        function showSignalDetails(symbol, timeframe, condition, description) {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.style.display = 'block';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 600px;">
+                    <span class="close" onclick="this.parentElement.parentElement.remove()">&times;</span>
+                    <h3>信号详情 - ${symbol} (${timeframe})</h3>
+                    <div class="signal-details">
+                        <div class="detail-item">
+                            <strong>信号条件:</strong>
+                            <p>${condition}</p>
+                        </div>
+                        <div class="detail-item">
+                            <strong>详细描述:</strong>
+                            <p>${description}</p>
+                        </div>
+                        <div class="detail-item">
+                            <strong>币种:</strong> ${symbol}
+                        </div>
+                        <div class="detail-item">
+                            <strong>时间框架:</strong> ${timeframe}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">关闭</button>
+                    </div>
+                </div>
+            `;
+            
+            // 添加样式
+            const style = document.createElement('style');
+            style.textContent = `
+                .signal-details {
+                    margin: 20px 0;
+                }
+                .detail-item {
+                    margin: 15px 0;
+                    padding: 10px;
+                    background: #f8f9fa;
+                    border-radius: 5px;
+                }
+                .detail-item strong {
+                    color: #007bff;
+                }
+                .detail-item p {
+                    margin: 5px 0 0 0;
+                    color: #333;
+                    line-height: 1.5;
+                }
+            `;
+            document.head.appendChild(style);
+            document.body.appendChild(modal);
+            
+            // 点击模态框外部关闭
+            modal.onclick = function(e) {
+                if (e.target === modal) {
+                    modal.remove();
+                    style.remove();
+                }
+            };
+        }
+        
         // 多时间框架分页相关函数
         async function analyzeCurrentPage() {
             if (typeof allSymbols === 'undefined' || allSymbols.length === 0) {
@@ -4953,7 +5016,7 @@
                         <td><span class="status-${signalTypeClass}">${signalTypeText}</span></td>
                         <td><small>${signal.signal_time || 'N/A'}</small></td>
                         <td>
-                            <button class="btn btn-sm btn-info" onclick="showMultiTimeframeDetails('${signal.symbol}', '${signal.timeframe}')">详情</button>
+                            <button class="btn btn-sm btn-info" onclick="showSignalDetails('${signal.symbol}', '${signal.timeframe}', '${signal.condition || 'N/A'}', '${signal.description || 'N/A'}')">详情</button>
                         </td>
                     </tr>
                 `;
