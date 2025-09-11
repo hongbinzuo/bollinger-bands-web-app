@@ -442,12 +442,10 @@
                         allMultiTimeframeSignals = allSignals;
                     }
                     
-                    // 显示信号
-                    const filterElement = document.getElementById('multiTimeframeProfitFilter');
-                    const minProfit = filterElement ? parseFloat(filterElement.value) : 0;
-                    showMultiTimeframeSignals(allSignals, minProfit);
+                    // 直接显示服务器返回的分页信号，不进行客户端过滤
+                    showMultiTimeframeSignals(allSignals, 0);
                     
-                    showStatus(`第${currentPage}页分析完成: ${data.total_signals}个信号`, 'success');
+                    showStatus(`第${currentPage}页分析完成: 显示${data.signals_shown}个信号 (总计${data.total_signals}个信号)`, 'success');
                 } else {
                     showStatus(`分析失败: ${data.error}`, 'error');
                 }
@@ -483,7 +481,7 @@
             }
             
             if (pageInfo) {
-                pageInfo.textContent = `第${currentPage}页，共${totalPages}页`;
+                pageInfo.textContent = `第${currentPage}页，共${totalPages}页 (信号分页)`;
             }
             
             if (prevBtn) {
@@ -1837,16 +1835,16 @@
             <div class="form-group">
                 <label for="pageSizeSelect">每页显示:</label>
                 <select id="pageSizeSelect" class="form-control" style="width: 150px; display: inline-block;">
-                    <option value="10">10个币种</option>
-                    <option value="20">20个币种</option>
-                    <option value="50" selected>50个币种</option>
+                    <option value="10">10个信号</option>
+                    <option value="20" selected>20个信号</option>
+                    <option value="50">50个信号</option>
                 </select>
                 <button class="btn btn-sm btn-outline-secondary" onclick="changePageSize()">更改页面大小</button>
             </div>
             
             <div class="form-group" id="paginationControls" style="display: none;">
                 <button class="btn btn-sm btn-outline-primary" onclick="previousPage()" id="prevBtn" disabled>上一页</button>
-                <span id="pageInfo" style="margin: 0 10px;">第1页，共1页</span>
+                    <span id="pageInfo" style="margin: 0 10px;">第1页，共1页 (信号分页)</span>
                 <button class="btn btn-sm btn-outline-primary" onclick="nextPage()" id="nextBtn" disabled>下一页</button>
             </div>
             
@@ -4908,15 +4906,12 @@
             console.log('信号数量:', signals ? signals.length : 0);
             console.log('最小收益率过滤:', minProfit);
             
-            // 过滤收益率 - 修改逻辑以支持负收益率
-            const filteredSignals = signals.filter(signal => {
-                // 如果minProfit为0，显示所有信号（包括负收益率）
-                if (minProfit === 0) {
-                    return true;
-                }
-                // 否则按原逻辑过滤
-                return signal.profit_pct >= minProfit;
-            });
+            // 由于现在服务器端已经处理了分页，这里直接显示传入的信号
+            // 如果需要客户端过滤，可以在这里添加过滤逻辑
+            let filteredSignals = signals;
+            if (minProfit > 0) {
+                filteredSignals = signals.filter(signal => signal.profit_pct >= minProfit);
+            }
             
             console.log('过滤后的信号数量:', filteredSignals.length);
             
@@ -4970,12 +4965,12 @@
             const totalCount = signals.length;
             const filteredCount = filteredSignals.length;
             const filterText = minProfit === 0 ? '显示全部' : `收益率≥${minProfit}%`;
-            showStatus(`多时间框架信号: 总计${totalCount}个，${filterText}显示${filteredCount}个`, 'success');
+            showStatus(`多时间框架信号: 当前页${filteredCount}个信号 (${filterText})`, 'success');
         }
 
         // 分页相关变量
         let currentPage = 1;
-        let currentPageSize = 50;
+        let currentPageSize = 20;  // 改为20个信号每页
         let totalPages = 1;
         let allSymbols = [];
         let currentSymbols = [];

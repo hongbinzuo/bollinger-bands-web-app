@@ -84,9 +84,9 @@ def analyze_multiple_symbols():
         if not symbols_list:
             return jsonify({'error': 'The "symbols" list cannot be empty.'}), 400
         
-        # 分页参数
+        # 分页参数 - 现在按信号数量分页
         page = data.get('page', 1)
-        page_size = data.get('page_size', 20)
+        signals_per_page = data.get('page_size', 20)  # 每页信号数量
         
         # 限制最大处理数量，避免生产环境过载
         max_symbols = 100
@@ -99,14 +99,15 @@ def analyze_multiple_symbols():
         if not processed_symbols:
             return jsonify({'error': 'No valid symbols found in the request.'}), 400
         
-        logger.info(f"Received request to analyze {len(processed_symbols)} symbols (page {page}, size {page_size}).")
+        logger.info(f"Received request to analyze {len(processed_symbols)} symbols (page {page}, signals_per_page {signals_per_page}).")
         
         # Check if strategy is available
         if strategy is None:
             logger.error("MultiTimeframeStrategy is not available")
             return jsonify({'error': 'Strategy service is not available. Please try again later.'}), 503
         
-        all_results = strategy.analyze_multiple_symbols(processed_symbols, page, page_size)
+        # 分析所有币种，不分页
+        all_results = strategy.analyze_multiple_symbols(processed_symbols, 1, len(processed_symbols))
         
         # 检查分析结果是否为空
         if not all_results:
@@ -118,12 +119,12 @@ def analyze_multiple_symbols():
                 'total_timeframe_analyses': 0,
                 'successful_timeframe_analyses': 0,
                 'total_signals': 0,
-                'successful_signals': 0,
+                'signals_shown': 0,
                 'pagination': {
                     'current_page': page,
-                    'page_size': page_size,
+                    'signals_per_page': signals_per_page,
                     'total_pages': 0,
-                    'total_symbols': 0,
+                    'total_signals': 0,
                     'has_next': False,
                     'has_prev': False
                 },
@@ -202,9 +203,14 @@ def analyze_multiple_symbols():
         logger.info(f"API层面去重: {len(all_signals)} -> {len(unique_signals)} 个信号")
         all_signals = unique_signals
         
-        # 计算分页信息
-        total_symbols = len(processed_symbols)
-        total_pages = (total_symbols + page_size - 1) // page_size
+        # 按信号数量分页
+        total_signals = len(all_signals)
+        total_pages = (total_signals + signals_per_page - 1) // signals_per_page if total_signals > 0 else 0
+        
+        # 计算当前页的信号范围
+        start_idx = (page - 1) * signals_per_page
+        end_idx = start_idx + signals_per_page
+        page_signals = all_signals[start_idx:end_idx]
         
         return jsonify({
             'success': True,
@@ -212,18 +218,18 @@ def analyze_multiple_symbols():
             'symbols_processed': len(all_results),
             'total_timeframe_analyses': total_analyses,
             'successful_timeframe_analyses': successful_analyses,
-            'total_signals': len(all_signals),
-            'successful_signals': len(all_signals),
+            'total_signals': total_signals,
+            'signals_shown': len(page_signals),
             'pagination': {
                 'current_page': page,
-                'page_size': page_size,
+                'signals_per_page': signals_per_page,
                 'total_pages': total_pages,
-                'total_symbols': total_symbols,
+                'total_signals': total_signals,
                 'has_next': page < total_pages,
                 'has_prev': page > 1
             },
             'results': all_results,
-            'signals': all_signals  # 添加前端期望的信号格式
+            'signals': page_signals  # 只返回当前页的信号
         })
         
     except Exception as e:
