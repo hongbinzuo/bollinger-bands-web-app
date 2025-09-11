@@ -14,8 +14,14 @@ multi_timeframe_bp = Blueprint('multi_timeframe', __name__, url_prefix='/multi_t
 # Note: In a multi-worker production environment (e.g., Gunicorn), each worker
 # will have its own instance. State stored in `strategy.ema_usage` will not be shared.
 # For shared state, consider using a database or a cache like Redis.
-strategy = MultiTimeframeStrategy()
-logger = logging.getLogger(__name__)
+try:
+    strategy = MultiTimeframeStrategy()
+    logger = logging.getLogger(__name__)
+    logger.info("MultiTimeframeStrategy initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize MultiTimeframeStrategy: {e}", exc_info=True)
+    # Create a fallback strategy instance
+    strategy = None
 
 # --- Helper Function for Code Reusability ---
 def _process_symbol(symbol: str) -> str:
@@ -44,6 +50,11 @@ def analyze_symbol():
             return jsonify({'error': 'Symbol cannot be empty.'}), 400
         
         logger.info(f"Received request to analyze symbol: {symbol}")
+        
+        # Check if strategy is available
+        if strategy is None:
+            logger.error("MultiTimeframeStrategy is not available")
+            return jsonify({'error': 'Strategy service is not available. Please try again later.'}), 503
         
         results = strategy.analyze_all_timeframes(symbol)
         
@@ -77,11 +88,48 @@ def analyze_multiple_symbols():
         page = data.get('page', 1)
         page_size = data.get('page_size', 20)
         
+        # 限制最大处理数量，避免生产环境过载
+        max_symbols = 100
+        if len(symbols_list) > max_symbols:
+            symbols_list = symbols_list[:max_symbols]
+            logger.warning(f"Symbol list truncated to {max_symbols} symbols to prevent overload")
+        
         processed_symbols = [_process_symbol(s) for s in symbols_list if s]
+        
+        if not processed_symbols:
+            return jsonify({'error': 'No valid symbols found in the request.'}), 400
         
         logger.info(f"Received request to analyze {len(processed_symbols)} symbols (page {page}, size {page_size}).")
         
+        # Check if strategy is available
+        if strategy is None:
+            logger.error("MultiTimeframeStrategy is not available")
+            return jsonify({'error': 'Strategy service is not available. Please try again later.'}), 503
+        
         all_results = strategy.analyze_multiple_symbols(processed_symbols, page, page_size)
+        
+        # 检查分析结果是否为空
+        if not all_results:
+            logger.warning("No results returned from strategy analysis")
+            return jsonify({
+                'success': True,
+                'symbols_requested': len(processed_symbols),
+                'symbols_processed': 0,
+                'total_timeframe_analyses': 0,
+                'successful_timeframe_analyses': 0,
+                'total_signals': 0,
+                'successful_signals': 0,
+                'pagination': {
+                    'current_page': page,
+                    'page_size': page_size,
+                    'total_pages': 0,
+                    'total_symbols': 0,
+                    'has_next': False,
+                    'has_prev': False
+                },
+                'results': {},
+                'signals': []
+            })
         
         # 【已优化】使用更清晰的变量名进行统计
         total_analyses = 0

@@ -812,42 +812,78 @@ class MultiTimeframeStrategy:
     
     def analyze_multiple_symbols(self, symbols: List[str], page: int = 1, page_size: int = 20) -> Dict:
         """分析多个币种 - 支持分页和多线程"""
-        # 计算分页
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        page_symbols = symbols[start_idx:end_idx]
-        
-        logger.info(f"开始分析第{page}页币种: {len(page_symbols)}个 (总计{len(symbols)}个)")
-        
-        all_results = {}
-        
-        # 使用线程池进行并发分析
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # 提交任务
-            future_to_symbol = {}
-            for i, symbol in enumerate(page_symbols):
-                future = executor.submit(self._analyze_symbol_with_delay, symbol, i)
-                future_to_symbol[future] = symbol
+        try:
+            # 计算分页
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            page_symbols = symbols[start_idx:end_idx]
             
-            # 收集结果
-            completed_count = 0
-            for future in as_completed(future_to_symbol):
-                symbol = future_to_symbol[future]
-                try:
-                    result = future.result()
-                    all_results[symbol] = result['results']
-                    completed_count += 1
-                    
-                    # 每完成10个币种输出一次进度
-                    if completed_count % 10 == 0:
-                        logger.info(f"已完成 {completed_count}/{len(page_symbols)} 个币种分析")
+            logger.info(f"开始分析第{page}页币种: {len(page_symbols)}个 (总计{len(symbols)}个)")
+            
+            all_results = {}
+            
+            # 检查是否在生产环境中禁用多线程
+            import os
+            is_production = os.getenv('FLASK_ENV') == 'production'
+            
+            if is_production:
+                # 生产环境使用单线程处理，避免并发问题
+                logger.info("生产环境检测到，使用单线程处理")
+                for i, symbol in enumerate(page_symbols):
+                    try:
+                        result = self._analyze_symbol_with_delay(symbol, i)
+                        all_results[symbol] = result['results']
                         
+                        # 每完成10个币种输出一次进度
+                        if (i + 1) % 10 == 0:
+                            logger.info(f"已完成 {i + 1}/{len(page_symbols)} 个币种分析")
+                            
+                    except Exception as e:
+                        logger.error(f"分析币种 {symbol} 时发生异常: {e}", exc_info=True)
+                        all_results[symbol] = [{'timeframe': 'all', 'status': 'error', 'message': str(e)}]
+            else:
+                # 开发环境使用线程池进行并发分析
+                try:
+                    with ThreadPoolExecutor(max_workers=min(self.max_workers, 4)) as executor:
+                        # 提交任务
+                        future_to_symbol = {}
+                        for i, symbol in enumerate(page_symbols):
+                            future = executor.submit(self._analyze_symbol_with_delay, symbol, i)
+                            future_to_symbol[future] = symbol
+                        
+                        # 收集结果
+                        completed_count = 0
+                        for future in as_completed(future_to_symbol):
+                            symbol = future_to_symbol[future]
+                            try:
+                                result = future.result()
+                                all_results[symbol] = result['results']
+                                completed_count += 1
+                                
+                                # 每完成10个币种输出一次进度
+                                if completed_count % 10 == 0:
+                                    logger.info(f"已完成 {completed_count}/{len(page_symbols)} 个币种分析")
+                                    
+                            except Exception as e:
+                                logger.error(f"分析币种 {symbol} 时发生异常: {e}", exc_info=True)
+                                all_results[symbol] = [{'timeframe': 'all', 'status': 'error', 'message': str(e)}]
                 except Exception as e:
-                    logger.error(f"分析币种 {symbol} 时发生异常: {e}", exc_info=True)
-                    all_results[symbol] = [{'timeframe': 'all', 'status': 'error', 'message': str(e)}]
-        
-        logger.info(f"第{page}页分析完成: {len(all_results)}个币种")
-        return all_results
+                    logger.error(f"线程池执行失败，回退到单线程处理: {e}")
+                    # 回退到单线程处理
+                    for i, symbol in enumerate(page_symbols):
+                        try:
+                            result = self._analyze_symbol_with_delay(symbol, i)
+                            all_results[symbol] = result['results']
+                        except Exception as e:
+                            logger.error(f"分析币种 {symbol} 时发生异常: {e}", exc_info=True)
+                            all_results[symbol] = [{'timeframe': 'all', 'status': 'error', 'message': str(e)}]
+            
+            logger.info(f"第{page}页分析完成: {len(all_results)}个币种")
+            return all_results
+            
+        except Exception as e:
+            logger.error(f"分析多个币种时发生异常: {e}", exc_info=True)
+            return {}
     
     def _analyze_symbol_with_delay(self, symbol: str, index: int) -> Dict:
         """带延迟的币种分析"""
