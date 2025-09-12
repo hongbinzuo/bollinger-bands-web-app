@@ -1,14 +1,27 @@
 import os
-import pymysql
 import sqlite3
 from contextlib import contextmanager
 import logging
+
+# 可选导入pymysql，如果没有安装则跳过MySQL支持
+try:
+    import pymysql
+    PYMYSQL_AVAILABLE = True
+except ImportError:
+    PYMYSQL_AVAILABLE = False
+    pymysql = None
 
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     def __init__(self):
         self.db_type = os.getenv('DATABASE_TYPE', 'sqlite')  # 'mysql' or 'sqlite'
+        
+        # 如果请求MySQL但pymysql不可用，回退到SQLite
+        if self.db_type == 'mysql' and not PYMYSQL_AVAILABLE:
+            logger.warning("MySQL requested but pymysql not available, falling back to SQLite")
+            self.db_type = 'sqlite'
+        
         self.mysql_config = {
             'host': os.getenv('MYSQL_HOST', 'localhost'),
             'port': int(os.getenv('MYSQL_PORT', 3306)),
@@ -23,7 +36,7 @@ class DatabaseManager:
     @contextmanager
     def get_connection(self):
         """获取数据库连接"""
-        if self.db_type == 'mysql':
+        if self.db_type == 'mysql' and PYMYSQL_AVAILABLE:
             try:
                 conn = pymysql.connect(**self.mysql_config)
                 yield conn
@@ -43,7 +56,7 @@ class DatabaseManager:
     
     def init_database(self):
         """初始化数据库表"""
-        if self.db_type == 'mysql':
+        if self.db_type == 'mysql' and PYMYSQL_AVAILABLE:
             self._init_mysql_tables()
         else:
             self._init_sqlite_tables()
@@ -137,81 +150,170 @@ class DatabaseManager:
     
     def save_analysis_result(self, result):
         """保存分析结果"""
-        sql = """
-        INSERT INTO analysis_results (symbol, current_price, order_price, status, timeframe)
-        VALUES (%s, %s, %s, %s, %s)
-        """
+        if self.db_type == 'mysql':
+            sql = """
+            INSERT INTO analysis_results (symbol, current_price, order_price, status, timeframe)
+            VALUES (%s, %s, %s, %s, %s)
+            """
+        else:
+            sql = """
+            INSERT INTO analysis_results (symbol, current_price, order_price, status, timeframe)
+            VALUES (?, ?, ?, ?, ?)
+            """
         
         with self.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (
-                    result['symbol'],
-                    result.get('current_price'),
-                    result.get('order_price'),
-                    result.get('status'),
-                    result.get('timeframe', '1d')
-                ))
+            if self.db_type == 'mysql':
+                with conn.cursor() as cursor:
+                    cursor.execute(sql, (
+                        result['symbol'],
+                        result.get('current_price'),
+                        result.get('order_price'),
+                        result.get('status'),
+                        result.get('timeframe', '1d')
+                    ))
+            else:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(sql, (
+                        result['symbol'],
+                        result.get('current_price'),
+                        result.get('order_price'),
+                        result.get('status'),
+                        result.get('timeframe', '1d')
+                    ))
+                    conn.commit()  # SQLite需要显式提交
+                finally:
+                    cursor.close()
     
     def get_analysis_results(self, limit=100):
         """获取分析结果"""
-        sql = "SELECT * FROM analysis_results ORDER BY created_at DESC LIMIT %s"
+        if self.db_type == 'mysql':
+            sql = "SELECT * FROM analysis_results ORDER BY created_at DESC LIMIT %s"
+            params = (limit,)
+        else:
+            sql = "SELECT * FROM analysis_results ORDER BY created_at DESC LIMIT ?"
+            params = (limit,)
         
         with self.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (limit,))
-                return cursor.fetchall()
+            if self.db_type == 'mysql':
+                with conn.cursor() as cursor:
+                    cursor.execute(sql, params)
+                    return cursor.fetchall()
+            else:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(sql, params)
+                    return cursor.fetchall()
+                finally:
+                    cursor.close()
     
     def save_order(self, order):
         """保存挂单"""
-        sql = """
-        INSERT INTO orders (symbol, price, amount, status)
-        VALUES (%s, %s, %s, %s)
-        """
+        if self.db_type == 'mysql':
+            sql = """
+            INSERT INTO orders (symbol, price, amount, status)
+            VALUES (%s, %s, %s, %s)
+            """
+        else:
+            sql = """
+            INSERT INTO orders (symbol, price, amount, status)
+            VALUES (?, ?, ?, ?)
+            """
         
         with self.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (
-                    order['symbol'],
-                    order['price'],
-                    order['amount'],
-                    order.get('status', 'active')
-                ))
+            if self.db_type == 'mysql':
+                with conn.cursor() as cursor:
+                    cursor.execute(sql, (
+                        order['symbol'],
+                        order['price'],
+                        order['amount'],
+                        order.get('status', 'active')
+                    ))
+            else:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(sql, (
+                        order['symbol'],
+                        order['price'],
+                        order['amount'],
+                        order.get('status', 'active')
+                    ))
+                    conn.commit()
+                finally:
+                    cursor.close()
     
     def get_orders(self):
         """获取所有挂单"""
         sql = "SELECT * FROM orders WHERE status = 'active' ORDER BY created_at DESC"
         
         with self.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(sql)
-                return cursor.fetchall()
+            if self.db_type == 'mysql':
+                with conn.cursor() as cursor:
+                    cursor.execute(sql)
+                    return cursor.fetchall()
+            else:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(sql)
+                    return cursor.fetchall()
+                finally:
+                    cursor.close()
     
     def save_position(self, position):
         """保存仓位"""
-        sql = """
-        INSERT INTO positions (symbol, size, price, type, current_price, pnl)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        """
+        if self.db_type == 'mysql':
+            sql = """
+            INSERT INTO positions (symbol, size, price, type, current_price, pnl)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """
+        else:
+            sql = """
+            INSERT INTO positions (symbol, size, price, type, current_price, pnl)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """
         
         with self.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(sql, (
-                    position['symbol'],
-                    position['size'],
-                    position['price'],
-                    position['type'],
-                    position.get('current_price'),
-                    position.get('pnl', 0)
-                ))
+            if self.db_type == 'mysql':
+                with conn.cursor() as cursor:
+                    cursor.execute(sql, (
+                        position['symbol'],
+                        position['size'],
+                        position['price'],
+                        position['type'],
+                        position.get('current_price'),
+                        position.get('pnl', 0)
+                    ))
+            else:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(sql, (
+                        position['symbol'],
+                        position['size'],
+                        position['price'],
+                        position['type'],
+                        position.get('current_price'),
+                        position.get('pnl', 0)
+                    ))
+                    conn.commit()
+                finally:
+                    cursor.close()
     
     def get_positions(self):
         """获取所有仓位"""
         sql = "SELECT * FROM positions ORDER BY created_at DESC"
         
         with self.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(sql)
-                return cursor.fetchall()
+            if self.db_type == 'mysql':
+                with conn.cursor() as cursor:
+                    cursor.execute(sql)
+                    return cursor.fetchall()
+            else:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(sql)
+                    return cursor.fetchall()
+                finally:
+                    cursor.close()
 
 # 全局数据库管理器实例
 db_manager = DatabaseManager()

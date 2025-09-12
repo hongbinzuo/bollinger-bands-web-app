@@ -252,8 +252,9 @@ class MultiTimeframeStrategy:
             # 重新排列列顺序以符合通用标准 (OHLCV)
             df = df[['open', 'high', 'low', 'close', 'volume']]
             
-            # --- 重要：反转数据，使其从新到旧 ---
-            df = df.iloc[::-1].copy()
+            # 保持数据时间升序，便于正确计算技术指标
+            # 不反转数据，技术指标需要时间升序数据才能正确计算
+            # 最新数据位于 df.iloc[-1]，历史数据位于 df.iloc[0] 等
             
             return df
         
@@ -324,7 +325,8 @@ class MultiTimeframeStrategy:
                 df = df[['open', 'high', 'low', 'close', 'volume']]
                 df.set_index('timestamp', inplace=True)
                 logger.info(f"币安期货API成功获取 {binance_symbol} 数据")
-                return df.iloc[::-1].copy() # 币安数据也是从旧到新，需要反转
+                # 保持时间升序，不反转数据
+                return df
                 
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 400:
@@ -398,7 +400,8 @@ class MultiTimeframeStrategy:
                 df = df[['open', 'high', 'low', 'close', 'volume']]
                 df.set_index('timestamp', inplace=True)
                 logger.info(f"币安现货API成功获取 {binance_symbol} 数据")
-                return df.iloc[::-1].copy() # 币安数据也是从旧到新，需要反转
+                # 保持时间升序，不反转数据
+                return df
                 
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 400:
@@ -437,25 +440,28 @@ class MultiTimeframeStrategy:
         required_emas = ['ema89', 'ema144', 'ema233']
         if not all(ema in df.columns for ema in required_emas) or len(df) < 1:
             return False
-        return df['ema89'].iloc[0] > df['ema144'].iloc[0] > df['ema233'].iloc[0]
+        # 使用最新数据（时间升序，最新在最后）
+        return df['ema89'].iloc[-1] > df['ema144'].iloc[-1] > df['ema233'].iloc[-1]
     
     def is_bearish_trend(self, df: pd.DataFrame) -> bool:
         """判断是否为空头趋势（EMA89 < EMA144 < EMA233，377可选）"""
         required_emas = ['ema89', 'ema144', 'ema233']
         if not all(ema in df.columns for ema in required_emas) or len(df) < 1:
             return False
-        return df['ema89'].iloc[0] < df['ema144'].iloc[0] < df['ema233'].iloc[0]
+        # 使用最新数据（时间升序，最新在最后）
+        return df['ema89'].iloc[-1] < df['ema144'].iloc[-1] < df['ema233'].iloc[-1]
     
     def find_ema_pullback_levels(self, df: pd.DataFrame, trend: str) -> List[Dict]:
         """改进：加入趋势确认和量能过滤的回踩信号"""
-        # 因为数据已反转，最新数据在第一行 (iloc[0])
+        # 数据现在是时间升序，最新数据在最后 (iloc[-1])
         if len(df) < 20: # 确保有足够数据计算滚动均值
             return []
         
-        current_candle = df.iloc[0]
+        current_candle = df.iloc[-1]  # 最新K线
         current_price = current_candle['close']
         current_time = datetime.now()  # 使用当前时间作为信号时间
-        avg_volume = df['volume'].rolling(window=20).mean().iloc[1] # 使用前一根K线的滚动量
+        # 修复成交量均值计算，使用前一根K线的滚动量
+        avg_volume = df['volume'].rolling(window=20).mean().iloc[-2] if len(df) >= 21 else df['volume'].mean()
         available_levels = []
 
         if trend == 'bullish' and self.is_bullish_trend(df):
@@ -520,8 +526,8 @@ class MultiTimeframeStrategy:
         if len(df) < 2:
             return signals
         
-        current_candle = df.iloc[0]
-        previous_candle = df.iloc[1]
+        current_candle = df.iloc[-1]  # 最新K线
+        previous_candle = df.iloc[-2]  # 前一根K线
         current_time = datetime.now()  # 使用当前时间作为信号时间
         
         # EMA89与EMA233交叉
@@ -542,7 +548,7 @@ class MultiTimeframeStrategy:
                         'ema233': float(current_233),
                         'strength': 'strong' if current_89 > current_233 * 1.01 else 'weak',
                         'ema_period': 89,  # 基于EMA89和EMA233的交叉
-                        'entry_price': float(current_89),
+                        'entry_price': float(current_candle['close']),  # 修复：使用当前价格而非EMA值
                         'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
                         'condition': condition,
                         'description': f"EMA89({current_89:.4f})上穿EMA233({current_233:.4f})，形成金叉买入信号"
@@ -558,7 +564,7 @@ class MultiTimeframeStrategy:
                         'ema233': float(current_233),
                         'strength': 'strong' if current_89 < current_233 * 0.99 else 'weak',
                         'ema_period': 89,  # 基于EMA89和EMA233的交叉
-                        'entry_price': float(current_89),
+                        'entry_price': float(current_candle['close']),  # 修复：使用当前价格而非EMA值
                         'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
                         'condition': condition,
                         'description': f"EMA89({current_89:.4f})下穿EMA233({current_233:.4f})，形成死叉卖出信号"
@@ -573,8 +579,8 @@ class MultiTimeframeStrategy:
         if len(df) < 2:
             return signals
         
-        current_candle = df.iloc[0]
-        previous_candle = df.iloc[1]
+        current_candle = df.iloc[-1]  # 最新K线
+        previous_candle = df.iloc[-2]  # 前一根K线
         current_price = current_candle['close']
         current_time = datetime.now()  # 使用当前时间作为信号时间
         
@@ -625,12 +631,12 @@ class MultiTimeframeStrategy:
         if len(df) < 20:
             return signals
         
-        current_candle = df.iloc[0]
+        current_candle = df.iloc[-1]  # 最新K线
         current_price = current_candle['close']
         current_time = datetime.now()  # 使用当前时间作为信号时间
         
-        # 寻找最近20根K线的支撑阻力位
-        recent_data = df.head(20)
+        # 寻找最近20根K线的支撑阻力位（使用tail获取最新20根）
+        recent_data = df.tail(20)
         highs = recent_data['high'].values
         lows = recent_data['low'].values
         
@@ -704,7 +710,7 @@ class MultiTimeframeStrategy:
                     continue
 
                 # 判断趋势 (使用最新的有效数据)
-                latest_data = df.iloc[0]
+                latest_data = df.iloc[-1]  # 最新数据在最后
                 if self.is_bullish_trend(df):
                     trend = 'bullish'
                     trend_strength = 'strong' if latest_data['ema89'] > latest_data['ema144'] * 1.01 else 'weak'
@@ -773,12 +779,12 @@ class MultiTimeframeStrategy:
                     tp_df = self.calculate_bollinger_bands(tp_df)
                     tp_df.dropna(inplace=True)
                     if not tp_df.empty:
-                        bb_middle = tp_df['bb_middle'].iloc[0]
-                        bb_lower = tp_df['bb_lower'].iloc[0]
-                        bb_upper = tp_df['bb_upper'].iloc[0]
+                        bb_middle = tp_df['bb_middle'].iloc[-1]  # 最新布林带数据
+                        bb_lower = tp_df['bb_lower'].iloc[-1]
+                        bb_upper = tp_df['bb_upper'].iloc[-1]
                         
                         # 根据趋势和信号类型设置止盈
-                        current_price = tp_df['close'].iloc[0]
+                        current_price = tp_df['close'].iloc[-1]  # 最新价格
                         
                         if trend == 'bullish':
                             # 多头趋势：使用布林带中轨作为止盈
