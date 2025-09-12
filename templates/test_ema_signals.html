@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMA信号测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        .signal-stats {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .signal-stats h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .stat-item {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #495057;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #495057;
+        }
+        tr:hover {
+            background: #f5f5f5;
+        }
+        .signal-type {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .signal-type.long {
+            background: #d4edda;
+            color: #155724;
+        }
+        .signal-type.short {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .ema-period {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .details-btn {
+            background: #17a2b8;
+            color: white;
+            padding: 4px 8px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .details-btn:hover {
+            background: #138496;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: black;
+        }
+        .signal-details {
+            margin-top: 20px;
+        }
+        .detail-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .detail-item strong {
+            color: #495057;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .detail-item p {
+            margin: 0;
+            color: #6c757d;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>EMA信号严格测试页面</h1>
+            <p>测试EMA89、EMA144、EMA233、EMA377的严格信号生成条件（3%范围内）</p>
+        </div>
+
+        <div class="controls">
+            <div class="form-group">
+                <label for="symbolsInput">测试币种 (每行一个):</label>
+                <textarea id="symbolsInput" placeholder="BTCUSDT&#10;ETHUSDT&#10;ADAUSDT&#10;XRPUSDT&#10;SOLUSDT"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="pageSizeSelect">每页信号数量:</label>
+                <select id="pageSizeSelect">
+                    <option value="10">10个信号</option>
+                    <option value="20" selected>20个信号</option>
+                    <option value="50">50个信号</option>
+                </select>
+            </div>
+            
+            <button onclick="testEMASignals()">开始测试EMA信号</button>
+            <button onclick="clearResults()">清空结果</button>
+        </div>
+
+        <div id="status" class="status" style="display: none;"></div>
+
+        <div id="results" class="results" style="display: none;">
+            <div class="signal-stats">
+                <h3>信号统计</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">总信号数</div>
+                        <div class="stat-value" id="totalSignals">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">EMA89信号</div>
+                        <div class="stat-value" id="ema89Signals">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">EMA144信号</div>
+                        <div class="stat-value" id="ema144Signals">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">EMA233信号</div>
+                        <div class="stat-value" id="ema233Signals">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">EMA377信号</div>
+                        <div class="stat-value" id="ema377Signals">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">买入信号</div>
+                        <div class="stat-value" id="longSignals">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">卖出信号</div>
+                        <div class="stat-value" id="shortSignals">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <table id="signalsTable">
+                <thead>
+                    <tr>
+                        <th>币种</th>
+                        <th>时间框架</th>
+                        <th>信号来源/水平位</th>
+                        <th>信号类型</th>
+                        <th>入场价格</th>
+                        <th>参考价格</th>
+                        <th>距离</th>
+                        <th>信号时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="signalsTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function testEMASignals() {
+            const symbolsInput = document.getElementById('symbolsInput').value.trim();
+            const pageSize = document.getElementById('pageSizeSelect').value;
+            
+            if (!symbolsInput) {
+                alert('请输入要测试的币种');
+                return;
+            }
+            
+            const symbols = symbolsInput.split('\n').filter(s => s.trim()).map(s => s.trim().toUpperCase());
+            
+            showStatus('正在测试EMA信号生成...', 'loading');
+            
+            try {
+                const response = await fetch('/multi_timeframe/analyze_multiple_symbols', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbols: symbols,
+                        page: 1,
+                        page_size: parseInt(pageSize)
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayResults(data);
+                    showStatus(`测试完成！找到 ${data.total_signals} 个信号`, 'success');
+                } else {
+                    showStatus(`测试失败: ${data.message}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('测试失败:', error);
+                showStatus(`测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        function displayResults(data) {
+            const signals = data.signals || [];
+            
+            // 更新统计信息
+            updateStats(signals);
+            
+            // 更新表格
+            const tbody = document.getElementById('signalsTableBody');
+            tbody.innerHTML = '';
+            
+            signals.forEach(signal => {
+                const row = document.createElement('tr');
+                // 根据信号类型显示不同的标识
+                let signalTypeDisplay = '';
+                if (signal.ema_period) {
+                    signalTypeDisplay = `EMA${signal.ema_period}`;
+                } else if (signal.signal_data && signal.signal_data.type) {
+                    if (signal.signal_data.type === 'resistance') {
+                        const resistanceLevel = signal.signal_data.level;
+                        signalTypeDisplay = `阻力位 ${resistanceLevel ? resistanceLevel.toFixed(4) : 'N/A'}`;
+                    } else if (signal.signal_data.type === 'support') {
+                        const supportLevel = signal.signal_data.level;
+                        signalTypeDisplay = `支撑位 ${supportLevel ? supportLevel.toFixed(4) : 'N/A'}`;
+                    } else if (signal.signal_data.type === 'golden_cross') {
+                        signalTypeDisplay = '金叉';
+                    } else if (signal.signal_data.type === 'death_cross') {
+                        signalTypeDisplay = '死叉';
+                    } else if (signal.signal_data.type === 'breakout') {
+                        signalTypeDisplay = '突破';
+                    } else if (signal.signal_data.type === 'breakdown') {
+                        signalTypeDisplay = '跌破';
+                    } else {
+                        signalTypeDisplay = signal.signal_data.type;
+                    }
+                } else {
+                    signalTypeDisplay = 'N/A';
+                }
+                
+                // 确定参考价格显示内容
+                let referencePrice = 'N/A';
+                let distanceDisplay = 'N/A';
+                
+                if (signal.ema_value) {
+                    // EMA信号：显示EMA值
+                    referencePrice = signal.ema_value.toFixed(4);
+                    distanceDisplay = signal.price_distance ? (signal.price_distance * 100).toFixed(2) + '%' : 'N/A';
+                } else if (signal.signal_data && signal.signal_data.level) {
+                    // 支撑阻力信号：显示水平位价格
+                    referencePrice = signal.signal_data.level.toFixed(4);
+                    distanceDisplay = signal.signal_data.distance ? (signal.signal_data.distance * 100).toFixed(2) + '%' : 'N/A';
+                }
+                
+                row.innerHTML = `
+                    <td>${signal.symbol}</td>
+                    <td>${signal.timeframe}</td>
+                    <td><span class="ema-period">${signalTypeDisplay}</span></td>
+                    <td><span class="signal-type ${signal.signal_type}">${signal.signal_type}</span></td>
+                    <td>${signal.entry_price ? signal.entry_price.toFixed(4) : 'N/A'}</td>
+                    <td>${referencePrice}</td>
+                    <td>${distanceDisplay}</td>
+                    <td>${signal.signal_time || 'N/A'}</td>
+                    <td><button class="details-btn" onclick="showSignalDetails('${signal.symbol}', '${signal.timeframe}', '${(signal.condition || 'N/A').replace(/'/g, '\\\'')}', '${(signal.description || 'N/A').replace(/'/g, '\\\'')}')">详情</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            document.getElementById('results').style.display = 'block';
+        }
+        
+        function updateStats(signals) {
+            const stats = {
+                total: signals.length,
+                ema89: 0,
+                ema144: 0,
+                ema233: 0,
+                ema377: 0,
+                resistance: 0,
+                support: 0,
+                crossover: 0,
+                breakout: 0,
+                long: 0,
+                short: 0
+            };
+            
+            signals.forEach(signal => {
+                const emaPeriod = signal.ema_period;
+                const signalType = signal.signal_type;
+                const originalType = signal.signal_data ? signal.signal_data.type : '';
+                
+                // 统计EMA信号
+                if (emaPeriod === 89) stats.ema89++;
+                if (emaPeriod === 144) stats.ema144++;
+                if (emaPeriod === 233) stats.ema233++;
+                if (emaPeriod === 377) stats.ema377++;
+                
+                // 统计其他信号类型
+                if (originalType === 'resistance') stats.resistance++;
+                if (originalType === 'support') stats.support++;
+                if (originalType === 'golden_cross' || originalType === 'death_cross') stats.crossover++;
+                if (originalType === 'breakout' || originalType === 'breakdown') stats.breakout++;
+                
+                // 统计买卖信号
+                if (signalType === 'long') stats.long++;
+                if (signalType === 'short') stats.short++;
+            });
+            
+            document.getElementById('totalSignals').textContent = stats.total;
+            document.getElementById('ema89Signals').textContent = stats.ema89;
+            document.getElementById('ema144Signals').textContent = stats.ema144;
+            document.getElementById('ema233Signals').textContent = stats.ema233;
+            document.getElementById('ema377Signals').textContent = stats.ema377;
+            document.getElementById('longSignals').textContent = stats.long;
+            document.getElementById('shortSignals').textContent = stats.short;
+        }
+        
+        function showSignalDetails(symbol, timeframe, condition, description) {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.style.display = 'block';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <span class="close" onclick="this.parentElement.parentElement.remove()">&times;</span>
+                    <h3>信号详情 - ${symbol} (${timeframe})</h3>
+                    <div class="signal-details">
+                        <div class="detail-item">
+                            <strong>信号条件:</strong>
+                            <p>${condition}</p>
+                        </div>
+                        <div class="detail-item">
+                            <strong>详细描述:</strong>
+                            <p>${description}</p>
+                        </div>
+                        <div class="detail-item">
+                            <strong>币种:</strong> ${symbol}
+                        </div>
+                        <div class="detail-item">
+                            <strong>时间框架:</strong> ${timeframe}
+                        </div>
+                    </div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button onclick="this.closest('.modal').remove()">关闭</button>
+                    </div>
+                </div>
+            `;
+            
+            // 点击模态框外部关闭
+            modal.onclick = function(event) {
+                if (event.target === modal) {
+                    modal.remove();
+                }
+            };
+            
+            document.body.appendChild(modal);
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+        
+        function clearResults() {
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('status').style.display = 'none';
+        }
+        
+        // 页面加载时设置默认币种
+        window.onload = function() {
+            document.getElementById('symbolsInput').value = 'BTCUSDT\nETHUSDT\nADAUSDT\nXRPUSDT\nSOLUSDT\nDOGEUSDT\nMATICUSDT\nDOTUSDT\nLINKUSDT\nUNIUSDT';
+        }
+    </script>
+</body>
+</html>
+

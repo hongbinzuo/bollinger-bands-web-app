@@ -832,6 +832,21 @@ def test_multi_timeframe():
     """多时间框架测试页面"""
     return send_file('test_multi_timeframe_page.html')
 
+@app.route('/test_ema_signals')
+def test_ema_signals():
+    """EMA信号测试页面"""
+    return render_template('test_ema_signals.html')
+
+@app.route('/test_500_symbols')
+def test_500_symbols():
+    """500币种信号测试页面"""
+    return render_template('test_500_symbols.html')
+
+@app.route('/quick_test')
+def quick_test():
+    """快速测试页面"""
+    return render_template('quick_test.html')
+
 if __name__ == '__main__':
     # 创建templates目录
     os.makedirs('templates', exist_ok=True)

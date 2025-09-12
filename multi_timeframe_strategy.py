@@ -454,7 +454,7 @@ class MultiTimeframeStrategy:
         
         current_candle = df.iloc[0]
         current_price = current_candle['close']
-        current_time = current_candle.name  # 获取当前K线的时间
+        current_time = datetime.now()  # 使用当前时间作为信号时间
         avg_volume = df['volume'].rolling(window=20).mean().iloc[1] # 使用前一根K线的滚动量
         available_levels = []
 
@@ -522,7 +522,7 @@ class MultiTimeframeStrategy:
         
         current_candle = df.iloc[0]
         previous_candle = df.iloc[1]
-        current_time = current_candle.name  # 获取当前K线的时间
+        current_time = datetime.now()  # 使用当前时间作为信号时间
         
         # EMA89与EMA233交叉
         if 'ema89' in current_candle and 'ema233' in current_candle:
@@ -576,7 +576,7 @@ class MultiTimeframeStrategy:
         current_candle = df.iloc[0]
         previous_candle = df.iloc[1]
         current_price = current_candle['close']
-        current_time = current_candle.name  # 获取当前K线的时间
+        current_time = datetime.now()  # 使用当前时间作为信号时间
         
         # 检查价格突破EMA233
         if 'ema233' in current_candle:
@@ -627,7 +627,7 @@ class MultiTimeframeStrategy:
         
         current_candle = df.iloc[0]
         current_price = current_candle['close']
-        current_time = current_candle.name  # 获取当前K线的时间
+        current_time = datetime.now()  # 使用当前时间作为信号时间
         
         # 寻找最近20根K线的支撑阻力位
         recent_data = df.head(20)

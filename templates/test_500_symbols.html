@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>500币种信号测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        select, input {
+            width: 200px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .progress {
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            background: #007bff;
+            height: 20px;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #495057;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 12px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #495057;
+            position: sticky;
+            top: 0;
+        }
+        tr:hover {
+            background: #f5f5f5;
+        }
+        .signal-type {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .signal-type.long {
+            background: #d4edda;
+            color: #155724;
+        }
+        .signal-type.short {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .time-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .time-badge.recent {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .time-badge.old {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .export-btn {
+            background: #28a745;
+            margin-top: 10px;
+        }
+        .export-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>500币种信号测试页面</h1>
+            <p>测试大量币种的信号生成情况，验证48小时过滤功能</p>
+        </div>
+
+        <div class="controls">
+            <div class="form-group">
+                <label for="symbolCount">测试币种数量:</label>
+                <select id="symbolCount">
+                    <option value="10">10个币种</option>
+                    <option value="20" selected>20个币种</option>
+                    <option value="50">50个币种</option>
+                    <option value="100">100个币种</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="batchSize">每批处理数量:</label>
+                <select id="batchSize">
+                    <option value="5">5个/批</option>
+                    <option value="10" selected>10个/批</option>
+                    <option value="20">20个/批</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="pageSize">每页显示信号:</label>
+                <select id="pageSize">
+                    <option value="100">100个信号</option>
+                    <option value="200" selected>200个信号</option>
+                    <option value="500">500个信号</option>
+                </select>
+            </div>
+            
+            <button onclick="startTest()">开始测试</button>
+            <button onclick="clearResults()">清空结果</button>
+            <button class="export-btn" onclick="exportResults()" id="exportBtn" disabled>导出结果</button>
+        </div>
+
+        <div id="progress" style="display: none;">
+            <div class="progress">
+                <div class="progress-bar" id="progressBar" style="width: 0%;">0%</div>
+            </div>
+            <div id="progressText">准备开始...</div>
+        </div>
+
+        <div id="status" class="status" style="display: none;"></div>
+
+        <div id="stats" class="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-label">总币种数</div>
+                <div class="stat-value" id="totalSymbols">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">有信号的币种</div>
+                <div class="stat-value" id="symbolsWithSignals">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">总信号数</div>
+                <div class="stat-value" id="totalSignals">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">信号覆盖率</div>
+                <div class="stat-value" id="signalCoverage">0%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">最近6小时信号</div>
+                <div class="stat-value" id="recent6hSignals">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">最近24小时信号</div>
+                <div class="stat-value" id="recent24hSignals">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">最近48小时信号</div>
+                <div class="stat-value" id="recent48hSignals">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">超过48小时信号</div>
+                <div class="stat-value" id="oldSignals">0</div>
+            </div>
+        </div>
+
+        <div id="results" class="results" style="display: none;">
+            <h3>信号详情</h3>
+            <table id="signalsTable">
+                <thead>
+                    <tr>
+                        <th>序号</th>
+                        <th>币种</th>
+                        <th>时间框架</th>
+                        <th>信号来源</th>
+                        <th>信号类型</th>
+                        <th>入场价格</th>
+                        <th>参考价格</th>
+                        <th>距离</th>
+                        <th>信号时间</th>
+                        <th>时间差</th>
+                    </tr>
+                </thead>
+                <tbody id="signalsTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let allSignals = [];
+        let testResults = {
+            totalSymbols: 0,
+            symbolsWithSignals: 0,
+            totalSignals: 0,
+            timeDistribution: {
+                recent6h: 0,
+                recent24h: 0,
+                recent48h: 0,
+                old: 0
+            }
+        };
+
+        async function startTest() {
+            const symbolCount = parseInt(document.getElementById('symbolCount').value);
+            const batchSize = parseInt(document.getElementById('batchSize').value);
+            const pageSize = parseInt(document.getElementById('pageSize').value);
+            
+            // 重置状态
+            allSignals = [];
+            testResults = {
+                totalSymbols: 0,
+                symbolsWithSignals: 0,
+                totalSignals: 0,
+                timeDistribution: { recent6h: 0, recent24h: 0, recent48h: 0, old: 0 }
+            };
+            
+            showStatus('开始获取币种列表...', 'loading');
+            showProgress(0, '获取币种列表中...');
+            
+            try {
+                // 获取币种列表
+                const symbolsResponse = await fetch(`/multi_timeframe/get_top_symbols?limit=${symbolCount}`);
+                if (!symbolsResponse.ok) {
+                    throw new Error(`获取币种列表失败: ${symbolsResponse.status}`);
+                }
+                
+                const symbolsData = await symbolsResponse.json();
+                const symbols = symbolsData.symbols.slice(0, symbolCount);
+                
+                testResults.totalSymbols = symbols.length;
+                showStatus(`获取到 ${symbols.length} 个币种，开始分批测试...`, 'loading');
+                
+                // 分批处理
+                const totalBatches = Math.ceil(symbols.length / batchSize);
+                let processedBatches = 0;
+                const symbolsWithSignalsSet = new Set();
+                
+                for (let i = 0; i < symbols.length; i += batchSize) {
+                    const batchSymbols = symbols.slice(i, i + batchSize);
+                    const batchNum = Math.floor(i / batchSize) + 1;
+                    
+                    showProgress((processedBatches / totalBatches) * 100, `处理批次 ${batchNum}/${totalBatches} (${batchSymbols.length} 个币种)`);
+                    
+                    try {
+                        const response = await fetch('/multi_timeframe/analyze_multiple_symbols', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                symbols: batchSymbols,
+                                page: 1,
+                                page_size: pageSize
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            const signals = data.signals || [];
+                            
+                            if (signals.length > 0) {
+                                allSignals = allSignals.concat(signals);
+                                signals.forEach(signal => {
+                                    symbolsWithSignalsSet.add(signal.symbol);
+                                });
+                            }
+                        }
+                        
+                        processedBatches++;
+                        
+                        // 每批次之间稍作延迟（减少延迟时间）
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                        
+                    } catch (error) {
+                        console.error(`批次 ${batchNum} 处理失败:`, error);
+                    }
+                }
+                
+                // 计算统计结果
+                testResults.symbolsWithSignals = symbolsWithSignalsSet.size;
+                testResults.totalSignals = allSignals.length;
+                
+                // 分析时间分布
+                const currentTime = new Date();
+                allSignals.forEach(signal => {
+                    const signalTimeStr = signal.signal_time;
+                    if (signalTimeStr) {
+                        try {
+                            const signalTime = new Date(signalTimeStr);
+                            const hoursDiff = (currentTime - signalTime) / (1000 * 60 * 60);
+                            
+                            if (hoursDiff <= 6) {
+                                testResults.timeDistribution.recent6h++;
+                            } else if (hoursDiff <= 24) {
+                                testResults.timeDistribution.recent24h++;
+                            } else if (hoursDiff <= 48) {
+                                testResults.timeDistribution.recent48h++;
+                            } else {
+                                testResults.timeDistribution.old++;
+                            }
+                        } catch (e) {
+                            testResults.timeDistribution.old++;
+                        }
+                    }
+                });
+                
+                showProgress(100, '测试完成!');
+                displayResults();
+                
+                if (testResults.totalSignals === 0) {
+                    showStatus(`测试完成！${testResults.totalSymbols} 个币种在48小时内完全没有信号`, 'error');
+                } else {
+                    showStatus(`测试完成！找到 ${testResults.totalSignals} 个信号，涉及 ${testResults.symbolsWithSignals} 个币种`, 'success');
+                }
+                
+            } catch (error) {
+                console.error('测试失败:', error);
+                showStatus(`测试失败: ${error.message}`, 'error');
+            }
+        }
+        
+        function displayResults() {
+            // 更新统计卡片
+            document.getElementById('totalSymbols').textContent = testResults.totalSymbols;
+            document.getElementById('symbolsWithSignals').textContent = testResults.symbolsWithSignals;
+            document.getElementById('totalSignals').textContent = testResults.totalSignals;
+            document.getElementById('signalCoverage').textContent = 
+                ((testResults.symbolsWithSignals / testResults.totalSymbols) * 100).toFixed(1) + '%';
+            document.getElementById('recent6hSignals').textContent = testResults.timeDistribution.recent6h;
+            document.getElementById('recent24hSignals').textContent = testResults.timeDistribution.recent24h;
+            document.getElementById('recent48hSignals').textContent = testResults.timeDistribution.recent48h;
+            document.getElementById('oldSignals').textContent = testResults.timeDistribution.old;
+            
+            // 显示统计卡片
+            document.getElementById('stats').style.display = 'grid';
+            
+            // 更新表格
+            const tbody = document.getElementById('signalsTableBody');
+            tbody.innerHTML = '';
+            
+            allSignals.forEach((signal, index) => {
+                const row = document.createElement('tr');
+                
+                // 信号来源显示
+                let signalSource = '';
+                if (signal.ema_period) {
+                    signalSource = `EMA${signal.ema_period}`;
+                } else if (signal.signal_data && signal.signal_data.type) {
+                    const type = signal.signal_data.type;
+                    if (type === 'resistance') {
+                        signalSource = `阻力位 ${signal.signal_data.level ? signal.signal_data.level.toFixed(4) : 'N/A'}`;
+                    } else if (type === 'support') {
+                        signalSource = `支撑位 ${signal.signal_data.level ? signal.signal_data.level.toFixed(4) : 'N/A'}`;
+                    } else {
+                        signalSource = type;
+                    }
+                } else {
+                    signalSource = 'N/A';
+                }
+                
+                // 参考价格
+                let referencePrice = 'N/A';
+                if (signal.ema_value) {
+                    referencePrice = signal.ema_value.toFixed(4);
+                } else if (signal.signal_data && signal.signal_data.level) {
+                    referencePrice = signal.signal_data.level.toFixed(4);
+                }
+                
+                // 距离
+                let distance = 'N/A';
+                if (signal.price_distance) {
+                    distance = (signal.price_distance * 100).toFixed(2) + '%';
+                } else if (signal.signal_data && signal.signal_data.distance) {
+                    distance = (signal.signal_data.distance * 100).toFixed(2) + '%';
+                }
+                
+                // 时间差计算
+                let timeDiff = 'N/A';
+                let timeClass = '';
+                if (signal.signal_time) {
+                    try {
+                        const signalTime = new Date(signal.signal_time);
+                        const currentTime = new Date();
+                        const hoursDiff = (currentTime - signalTime) / (1000 * 60 * 60);
+                        
+                        if (hoursDiff <= 6) {
+                            timeDiff = `${hoursDiff.toFixed(1)}小时前`;
+                            timeClass = 'recent';
+                        } else if (hoursDiff <= 24) {
+                            timeDiff = `${hoursDiff.toFixed(1)}小时前`;
+                            timeClass = 'recent';
+                        } else if (hoursDiff <= 48) {
+                            timeDiff = `${hoursDiff.toFixed(1)}小时前`;
+                            timeClass = 'recent';
+                        } else {
+                            timeDiff = `${hoursDiff.toFixed(1)}小时前`;
+                            timeClass = 'old';
+                        }
+                    } catch (e) {
+                        timeDiff = '解析失败';
+                        timeClass = 'old';
+                    }
+                }
+                
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${signal.symbol}</td>
+                    <td>${signal.timeframe}</td>
+                    <td>${signalSource}</td>
+                    <td><span class="signal-type ${signal.signal_type}">${signal.signal_type}</span></td>
+                    <td>${signal.entry_price ? signal.entry_price.toFixed(4) : 'N/A'}</td>
+                    <td>${referencePrice}</td>
+                    <td>${distance}</td>
+                    <td>${signal.signal_time || 'N/A'}</td>
+                    <td><span class="time-badge ${timeClass}">${timeDiff}</span></td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // 显示结果
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('exportBtn').disabled = false;
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+        
+        function showProgress(percent, text) {
+            const progressDiv = document.getElementById('progress');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            
+            progressDiv.style.display = 'block';
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = Math.round(percent) + '%';
+            progressText.textContent = text;
+        }
+        
+        function clearResults() {
+            allSignals = [];
+            testResults = {
+                totalSymbols: 0,
+                symbolsWithSignals: 0,
+                totalSignals: 0,
+                timeDistribution: { recent6h: 0, recent24h: 0, recent48h: 0, old: 0 }
+            };
+            
+            document.getElementById('stats').style.display = 'none';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('status').style.display = 'none';
+            document.getElementById('progress').style.display = 'none';
+            document.getElementById('exportBtn').disabled = true;
+        }
+        
+        function exportResults() {
+            if (allSignals.length === 0) {
+                alert('没有数据可导出');
+                return;
+            }
+            
+            // 准备CSV数据
+            const csvHeaders = ['序号', '币种', '时间框架', '信号来源', '信号类型', '入场价格', '参考价格', '距离', '信号时间', '时间差'];
+            const csvRows = [csvHeaders.join(',')];
+            
+            allSignals.forEach((signal, index) => {
+                const row = [
+                    index + 1,
+                    signal.symbol,
+                    signal.timeframe,
+                    signal.ema_period ? `EMA${signal.ema_period}` : (signal.signal_data?.type || 'N/A'),
+                    signal.signal_type,
+                    signal.entry_price ? signal.entry_price.toFixed(4) : 'N/A',
+                    signal.ema_value ? signal.ema_value.toFixed(4) : (signal.signal_data?.level ? signal.signal_data.level.toFixed(4) : 'N/A'),
+                    signal.price_distance ? (signal.price_distance * 100).toFixed(2) + '%' : (signal.signal_data?.distance ? (signal.signal_data.distance * 100).toFixed(2) + '%' : 'N/A'),
+                    signal.signal_time || 'N/A',
+                    '计算中'
+                ];
+                csvRows.push(row.join(','));
+            });
+            
+            const csvContent = csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `500_symbols_test_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>

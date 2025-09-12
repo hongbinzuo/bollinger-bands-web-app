@@ -166,6 +166,8 @@ def analyze_multiple_symbols():
                             'condition': signal.get('condition', ''),
                             'description': signal.get('description', ''),
                             'ema_period': signal.get('ema_period', ''),
+                            'ema_value': signal.get('ema_value', ''),  # 添加EMA值
+                            'price_distance': signal.get('price_distance', ''),  # 添加价格距离
                             'signal_data': signal,  # 保留原始信号数据
                             'level': signal.get('level', 0),  # 添加level字段用于去重
                             'type': signal.get('type', ''),  # 添加type字段用于去重
