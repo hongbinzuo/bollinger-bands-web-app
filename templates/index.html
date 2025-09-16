@@ -325,34 +325,6 @@
         }
         
         // 订单相关函数
-        function createOrder() {
-            showStatus('创建挂单', 'info');
-        }
-        
-        function refreshOrders() {
-            showStatus('刷新挂单', 'info');
-        }
-        
-        function cancelAllOrders() {
-            showStatus('取消所有挂单', 'info');
-        }
-        
-        function createOrderFromResult(symbol, price, type = 'buy') {
-            showStatus(`创建${type}订单: ${symbol} @ ${price}`, 'info');
-        }
-        
-        // 仓位相关函数
-        function addPosition() {
-            showStatus('添加仓位', 'info');
-        }
-        
-        function updatePositions() {
-            showStatus('更新仓位', 'info');
-        }
-        
-        function closePosition() {
-            showStatus('平仓', 'info');
-        }
         
         // 系统管理相关函数
         function clearCache() {
@@ -1052,22 +1024,6 @@
             color: white;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         }
-        .position-item {
-            background: transparent;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            color: white;
-        }
-        .order-item {
-            background: transparent;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            color: white;
-        }
         .stats {
             display: flex;
             justify-content: space-around;
@@ -1261,15 +1217,6 @@
              font-size: 12px;
          }
          
-         .action-btn-buy {
-             background: #28a745;
-             color: white;
-         }
-         
-         .action-btn-sell {
-             background: #dc3545;
-             color: white;
-         }
          
          /* 模态对话框样式 */
          .modal {
@@ -1568,8 +1515,6 @@
             <button class="tab" onclick="showTab('ultraShort', event)">🚀 日内超短</button>
             <button class="tab" onclick="showTab('multiTimeframe', event)">📈 多时间框架</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
-            <button class="tab" onclick="showTab('orders', event)">📋 挂单管理</button>
-            <button class="tab" onclick="showTab('positions', event)">💰 分批仓位</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
         </div>
 
@@ -1992,53 +1937,7 @@
             </div>
         </div>
 
-        <!-- 挂单管理Tab -->
-        <div id="orders" class="tab-content">
-            <h3>挂单管理</h3>
-            <div class="form-group">
-                <button class="btn btn-success" onclick="createOrder()">创建挂单</button>
-                <button class="btn btn-warning" onclick="refreshOrders()">刷新挂单</button>
-                <button class="btn btn-danger" onclick="cancelAllOrders()">取消所有挂单</button>
-            </div>
-            <div class="form-group">
-                <label>挂单设置：</label>
-                <input type="text" class="form-control" id="orderSymbol" placeholder="币种符号，如: BTC">
-                <input type="number" class="form-control" id="orderPrice" placeholder="挂单价格" step="0.000001">
-                <input type="number" class="form-control" id="orderAmount" placeholder="挂单数量" step="0.000001">
-            </div>
-            <div id="ordersList" class="results-container">
-                <h4>当前挂单</h4>
-                <div id="ordersContent">
-                    <p>暂无挂单</p>
-                </div>
-            </div>
-        </div>
 
-        <!-- 分批仓位管理Tab -->
-        <div id="positions" class="tab-content">
-            <h3>分批仓位管理</h3>
-            <div class="form-group">
-                <button class="btn btn-success" onclick="addPosition()">添加仓位</button>
-                <button class="btn btn-warning" onclick="updatePositions()">更新仓位</button>
-                <button class="btn btn-danger" onclick="closePosition()">平仓</button>
-            </div>
-            <div class="form-group">
-                <label>仓位信息：</label>
-                <input type="text" class="form-control" id="positionSymbol" placeholder="币种符号">
-                <input type="number" class="form-control" id="positionSize" placeholder="仓位大小" step="0.000001">
-                <input type="number" class="form-control" id="positionPrice" placeholder="开仓价格" step="0.000001">
-                <select class="form-control" id="positionType">
-                    <option value="long">做多</option>
-                    <option value="short">做空</option>
-                </select>
-            </div>
-            <div id="positionsList" class="results-container">
-                <h4>当前持仓</h4>
-                <div id="positionsContent">
-                    <p>暂无持仓</p>
-                </div>
-            </div>
-        </div>
 
         <!-- 系统管理Tab -->
         <div id="management" class="tab-content">
@@ -2130,8 +2029,6 @@
 
     <script>
         let currentResults = [];
-        let orders = [];
-        let positions = [];
         
         // 分页和筛选相关变量
         let pageSize = 20;
@@ -2280,8 +2177,7 @@
                          <td>${timeframe}</td>
                          <td></td>
                          <td>
-                             <button class="action-btn action-btn-buy" onclick="createOrderFromResult('${symbol}', ${price})">买入</button>
-                             <button class="action-btn action-btn-sell" onclick="createOrderFromResult('${symbol}', ${price}, 'sell')">卖出</button>
+                             <button class="action-btn action-btn-buy" onclick="viewDetails('${symbol}')">查看详情</button>
                          </td>
                      </tr>
                  `;
@@ -2393,16 +2289,6 @@
          }
          
          // 从分析结果创建挂单
-         function createOrderFromResult(symbol, price, type = 'buy') {
-             document.getElementById('orderSymbol').value = symbol;
-             document.getElementById('orderPrice').value = price;
-             document.getElementById('orderAmount').value = '0.001'; // 默认数量
-             
-             // 切换到挂单管理Tab
-             showTab('orders');
-             
-             showStatus(`已准备创建${type === 'buy' ? '买入' : '卖出'}挂单: ${symbol}`, 'success');
-         }
          
          // 获取币种列表
          async function getSymbols() {
@@ -2415,142 +2301,9 @@
             }
         }
 
-        // 创建挂单
-        function createOrder() {
-            const symbol = document.getElementById('orderSymbol').value;
-            const price = document.getElementById('orderPrice').value;
-            const amount = document.getElementById('orderAmount').value;
-            
-            if (!symbol || !price || !amount) {
-                showStatus('请填写完整的挂单信息', 'error');
-                return;
-            }
-            
-            const order = {
-                symbol: symbol,
-                price: parseFloat(price),
-                amount: parseFloat(amount),
-                status: '活跃'
-            };
-            
-            orders.push(order);
-            updateOrdersList();
-            showStatus('挂单创建成功', 'success');
-            updateStats();
-        }
 
-        // 刷新挂单
-        function refreshOrders() {
-            showStatus('挂单列表已刷新', 'success');
-        }
 
-        // 取消所有挂单
-        function cancelAllOrders() {
-            orders = [];
-            updateOrdersList();
-            showStatus('所有挂单已取消', 'success');
-            updateStats();
-        }
 
-        // 更新挂单列表
-        function updateOrdersList() {
-            const content = document.getElementById('ordersContent');
-            if (orders.length === 0) {
-                content.innerHTML = '<p>暂无挂单</p>';
-            } else {
-                let html = '';
-                orders.forEach(order => {
-                    html += `
-                        <div class="order-item">
-                            <strong>${order.symbol}</strong> - 价格: ${order.price} | 数量: ${order.amount} | 状态: ${order.status}
-                        </div>
-                    `;
-                });
-                content.innerHTML = html;
-            }
-        }
-
-        // 添加仓位
-        function addPosition() {
-            const symbol = document.getElementById('positionSymbol').value;
-            const size = document.getElementById('positionSize').value;
-            const price = document.getElementById('positionPrice').value;
-            const type = document.getElementById('positionType').value;
-            
-            if (!symbol || !size || !price) {
-                showStatus('请填写完整的仓位信息', 'error');
-                return;
-            }
-            
-            const position = {
-                symbol: symbol,
-                size: parseFloat(size),
-                price: parseFloat(price),
-                type: type,
-                currentPrice: parseFloat(price) * (1 + (Math.random() - 0.5) * 0.1), // 模拟当前价格
-                pnl: 0
-            };
-            
-            // 计算盈亏
-            if (type === 'long') {
-                position.pnl = ((position.currentPrice - position.price) / position.price * 100).toFixed(2);
-            } else {
-                position.pnl = ((position.price - position.currentPrice) / position.price * 100).toFixed(2);
-            }
-            
-            positions.push(position);
-            updatePositionsList();
-            showStatus('仓位添加成功', 'success');
-            updateStats();
-        }
-
-        // 更新仓位
-        function updatePositions() {
-            positions.forEach(position => {
-                position.currentPrice = position.price * (1 + (Math.random() - 0.5) * 0.1);
-                if (position.type === 'long') {
-                    position.pnl = ((position.currentPrice - position.price) / position.price * 100).toFixed(2);
-                } else {
-                    position.pnl = ((position.price - position.currentPrice) / position.price * 100).toFixed(2);
-                }
-            });
-            updatePositionsList();
-            showStatus('仓位已更新', 'success');
-        }
-
-        // 平仓
-        function closePosition() {
-            if (positions.length > 0) {
-                positions.pop();
-                updatePositionsList();
-                showStatus('仓位已平仓', 'success');
-                updateStats();
-            } else {
-                showStatus('没有可平仓的仓位', 'error');
-            }
-        }
-
-        // 更新仓位列表
-        function updatePositionsList() {
-            const content = document.getElementById('positionsContent');
-            if (positions.length === 0) {
-                content.innerHTML = '<p>暂无持仓</p>';
-            } else {
-                let html = '';
-                positions.forEach(position => {
-                    const pnlColor = position.pnl >= 0 ? 'green' : 'red';
-                    html += `
-                        <div class="position-item">
-                            <strong>${position.symbol}</strong> - 类型: ${position.type === 'long' ? '做多' : '做空'} | 
-                            大小: ${position.size} | 开仓价: ${position.price} | 
-                            当前价: ${position.currentPrice.toFixed(2)} | 
-                            盈亏: <span style="color: ${pnlColor}">${position.pnl}%</span>
-                        </div>
-                    `;
-                });
-                content.innerHTML = html;
-            }
-        }
 
         // 清除缓存
         async function clearCache() {

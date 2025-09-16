@@ -124,25 +124,6 @@ class DatabaseManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
-        CREATE TABLE IF NOT EXISTS orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol TEXT NOT NULL,
-            price REAL NOT NULL,
-            amount REAL NOT NULL,
-            status TEXT DEFAULT 'active',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        CREATE TABLE IF NOT EXISTS positions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol TEXT NOT NULL,
-            size REAL NOT NULL,
-            price REAL NOT NULL,
-            type TEXT NOT NULL,
-            current_price REAL,
-            pnl REAL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
         """
         
         with self.get_connection() as conn:
