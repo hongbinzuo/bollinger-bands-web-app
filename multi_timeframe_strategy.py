@@ -5,7 +5,7 @@ import logging
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Tuple, Optional
 
 # --- 日志配置 (建议放在文件开头) ---
@@ -19,6 +19,9 @@ class MultiTimeframeStrategy:
         self.ema_periods = [89, 144, 233, 377]  # 89/144/233必须，377可选
         self.bb_period = 20  # 布林带周期
         self.bb_std = 2      # 布林带标准差
+        
+        # 北京时间时区 (UTC+8)
+        self.beijing_tz = timezone(timedelta(hours=8))
         
         # 时间框架对应的止盈时间框架
         self.take_profit_timeframes = {
@@ -40,6 +43,10 @@ class MultiTimeframeStrategy:
         
         # 线程锁
         self.lock = threading.Lock()
+    
+    def get_beijing_time(self):
+        """获取北京时间 (UTC+8)"""
+        return datetime.now(self.beijing_tz)
         
     def get_klines_data(self, symbol: str, interval: str, limit: int = 1000) -> pd.DataFrame:
         """获取K线数据 - 优先使用Gate.io API"""
@@ -459,7 +466,7 @@ class MultiTimeframeStrategy:
         
         current_candle = df.iloc[-1]  # 最新K线
         current_price = current_candle['close']
-        current_time = datetime.now()  # 使用当前时间作为信号时间
+        current_time = self.get_beijing_time()  # 使用北京时间作为信号时间
         # 修复成交量均值计算，使用前一根K线的滚动量
         avg_volume = df['volume'].rolling(window=20).mean().iloc[-2] if len(df) >= 21 else df['volume'].mean()
         available_levels = []
@@ -528,7 +535,7 @@ class MultiTimeframeStrategy:
         
         current_candle = df.iloc[-1]  # 最新K线
         previous_candle = df.iloc[-2]  # 前一根K线
-        current_time = datetime.now()  # 使用当前时间作为信号时间
+        current_time = self.get_beijing_time()  # 使用北京时间作为信号时间
         
         # EMA89与EMA233交叉
         if 'ema89' in current_candle and 'ema233' in current_candle:
@@ -582,7 +589,7 @@ class MultiTimeframeStrategy:
         current_candle = df.iloc[-1]  # 最新K线
         previous_candle = df.iloc[-2]  # 前一根K线
         current_price = current_candle['close']
-        current_time = datetime.now()  # 使用当前时间作为信号时间
+        current_time = self.get_beijing_time()  # 使用北京时间作为信号时间
         
         # 检查价格突破EMA233
         if 'ema233' in current_candle:
@@ -633,7 +640,7 @@ class MultiTimeframeStrategy:
         
         current_candle = df.iloc[-1]  # 最新K线
         current_price = current_candle['close']
-        current_time = datetime.now()  # 使用当前时间作为信号时间
+        current_time = self.get_beijing_time()  # 使用北京时间作为信号时间
         
         # 寻找最近20根K线的支撑阻力位（使用tail获取最新20根）
         recent_data = df.tail(20)
