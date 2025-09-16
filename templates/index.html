@@ -1498,14 +1498,6 @@
                 <div class="stat-number" id="analyzedCount">0</div>
                 <div class="stat-label">已分析</div>
             </div>
-            <div class="stat-item">
-                <div class="stat-number" id="activeOrders">0</div>
-                <div class="stat-label">活跃挂单</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number" id="totalPositions">0</div>
-                <div class="stat-label">持仓数量</div>
-            </div>
         </div>
 
         <!-- Tab导航 -->
@@ -2363,8 +2355,6 @@
         // 导出数据
         function exportData() {
             const data = {
-                orders: orders,
-                positions: positions,
                 results: currentResults
             };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2386,12 +2376,10 @@
                 reader.onload = function(e) {
                     try {
                         const data = JSON.parse(e.target.result);
-                        if (data.orders) orders = data.orders;
-                        if (data.positions) positions = data.positions;
+                        // orders and positions modules removed
                         if (data.results) currentResults = data.results;
                         
-                        updateOrdersList();
-                        updatePositionsList();
+                        // updateOrdersList and updatePositionsList functions removed
                         updateStats();
                         showStatus('数据导入成功', 'success');
                     } catch (error) {
@@ -2406,8 +2394,7 @@
         // 更新统计
         function updateStats() {
             document.getElementById('analyzedCount').textContent = currentResults.length;
-            document.getElementById('activeOrders').textContent = orders.length;
-            document.getElementById('totalPositions').textContent = positions.length;
+            // orders and positions modules removed
         }
 
                  // 显示状态
