@@ -1843,9 +1843,9 @@
             </div>
             
             <div class="form-group" id="paginationControls" style="display: none;">
-                <button class="btn btn-sm btn-outline-primary" onclick="previousPage()" id="prevBtn" disabled>上一页</button>
+                <button class="btn btn-sm btn-outline-primary" onclick="previousSignalPage()" id="prevBtn" disabled>上一页</button>
                     <span id="pageInfo" style="margin: 0 10px;">第1页，共1页 (信号分页)</span>
-                <button class="btn btn-sm btn-outline-primary" onclick="nextPage()" id="nextBtn" disabled>下一页</button>
+                <button class="btn btn-sm btn-outline-primary" onclick="nextSignalPage()" id="nextBtn" disabled>下一页</button>
             </div>
             
             <!-- 多时间框架信号表格 -->
@@ -4709,23 +4709,48 @@
             console.log('信号数量:', signals ? signals.length : 0);
             console.log('最小收益率过滤:', minProfit);
             
-            // 由于现在服务器端已经处理了分页，这里直接显示传入的信号
-            // 如果需要客户端过滤，可以在这里添加过滤逻辑
-            let filteredSignals = signals;
+            // 存储所有信号用于分页
+            allSignals = signals || [];
+            currentSignalPage = 1;
+            
+            // 过滤信号
+            let filteredSignals = allSignals;
             if (minProfit > 0) {
-                filteredSignals = signals.filter(signal => signal.profit_pct >= minProfit);
+                filteredSignals = allSignals.filter(signal => signal.profit_pct >= minProfit);
             }
             
             console.log('过滤后的信号数量:', filteredSignals.length);
             
+            // 计算总页数
+            const totalSignalPages = Math.ceil(filteredSignals.length / signalsPerPage);
+            
+            // 显示当前页的信号
+            displaySignalPage(filteredSignals, currentSignalPage, totalSignalPages);
+            
+            // 更新分页控制
+            updateSignalPagination(totalSignalPages);
+        }
+        
+        // 显示信号页面
+        function displaySignalPage(filteredSignals, page, totalPages) {
+            const tbody = document.getElementById('multiTimeframeSignalsTableBody');
+            if (!tbody) return;
+            
             if (filteredSignals.length === 0) {
-                const filterText = minProfit === 0 ? '暂无多时间框架交易信号' : `暂无收益率${minProfit}%及以上的多时间框架交易信号`;
+                const filterText = document.getElementById('multiTimeframeProfitFilter')?.value === '0' ? '暂无多时间框架交易信号' : `暂无收益率${document.getElementById('multiTimeframeProfitFilter')?.value}%及以上的多时间框架交易信号`;
                 tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: #666;">${filterText}</td></tr>`;
                 return;
             }
             
+            // 计算当前页的信号范围
+            const startIndex = (page - 1) * signalsPerPage;
+            const endIndex = startIndex + signalsPerPage;
+            const pageSignals = filteredSignals.slice(startIndex, endIndex);
+            
+            console.log(`显示第${page}页信号: ${startIndex}-${endIndex}, 共${pageSignals.length}个信号`);
+            
             let html = '';
-            filteredSignals.forEach(signal => {
+            pageSignals.forEach(signal => {
                 let signalTypeClass = 'warning';
                 let signalTypeText = signal.signal_type;
                 
@@ -4765,10 +4790,9 @@
             tbody.innerHTML = html;
             
             // 更新状态显示
-            const totalCount = signals.length;
-            const filteredCount = filteredSignals.length;
-            const filterText = minProfit === 0 ? '显示全部' : `收益率≥${minProfit}%`;
-            showStatus(`多时间框架信号: 当前页${filteredCount}个信号 (${filterText})`, 'success');
+            const totalCount = filteredSignals.length;
+            const filterText = document.getElementById('multiTimeframeProfitFilter')?.value === '0' ? '显示全部' : `收益率≥${document.getElementById('multiTimeframeProfitFilter')?.value}%`;
+            showStatus(`多时间框架信号: 第${page}页，共${totalPages}页 (${pageSignals.length}个信号) - ${filterText}`, 'success');
         }
 
         // 分页相关变量
@@ -4777,6 +4801,64 @@
         let totalPages = 1;
         let allSymbols = [];
         let currentSymbols = [];
+        let allSignals = [];  // 存储所有信号
+        let currentSignalPage = 1;  // 当前信号页
+        let signalsPerPage = 20;  // 每页信号数量
+        
+        // 更新信号分页控制
+        function updateSignalPagination(totalPages) {
+            const paginationControls = document.getElementById('paginationControls');
+            const pageInfo = document.getElementById('pageInfo');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            if (paginationControls) {
+                paginationControls.style.display = 'block';
+            }
+            
+            if (pageInfo) {
+                pageInfo.textContent = `第${currentSignalPage}页，共${totalPages}页 (信号分页)`;
+            }
+            
+            if (prevBtn) {
+                prevBtn.disabled = currentSignalPage <= 1;
+            }
+            
+            if (nextBtn) {
+                nextBtn.disabled = currentSignalPage >= totalPages;
+            }
+        }
+        
+        // 信号翻页函数
+        function previousSignalPage() {
+            if (currentSignalPage > 1) {
+                currentSignalPage--;
+                // 重新显示当前页的信号
+                const minProfit = parseFloat(document.getElementById('multiTimeframeProfitFilter')?.value || 0);
+                let filteredSignals = allSignals;
+                if (minProfit > 0) {
+                    filteredSignals = allSignals.filter(signal => signal.profit_pct >= minProfit);
+                }
+                const totalSignalPages = Math.ceil(filteredSignals.length / signalsPerPage);
+                displaySignalPage(filteredSignals, currentSignalPage, totalSignalPages);
+                updateSignalPagination(totalSignalPages);
+            }
+        }
+        
+        function nextSignalPage() {
+            const minProfit = parseFloat(document.getElementById('multiTimeframeProfitFilter')?.value || 0);
+            let filteredSignals = allSignals;
+            if (minProfit > 0) {
+                filteredSignals = allSignals.filter(signal => signal.profit_pct >= minProfit);
+            }
+            const totalSignalPages = Math.ceil(filteredSignals.length / signalsPerPage);
+            
+            if (currentSignalPage < totalSignalPages) {
+                currentSignalPage++;
+                displaySignalPage(filteredSignals, currentSignalPage, totalSignalPages);
+                updateSignalPagination(totalSignalPages);
+            }
+        }
 
         // 应用多时间框架过滤
         function applyMultiTimeframeFilter() {
