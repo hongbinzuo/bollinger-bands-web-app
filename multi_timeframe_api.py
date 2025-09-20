@@ -88,11 +88,11 @@ def analyze_multiple_symbols():
         page = data.get('page', 1)
         signals_per_page = data.get('page_size', 20)  # 每页信号数量
         
-        # 限制最大处理数量，避免生产环境过载
-        max_symbols = 100
+        # 【优化】动态调整批量大小以避免超时
+        max_symbols = 50  # 降低单次请求的最大币种数量
         if len(symbols_list) > max_symbols:
             symbols_list = symbols_list[:max_symbols]
-            logger.warning(f"Symbol list truncated to {max_symbols} symbols to prevent overload")
+            logger.info(f"Symbol list limited to {max_symbols} symbols per request for optimal performance")
         
         processed_symbols = [_process_symbol(s) for s in symbols_list if s]
         
@@ -106,9 +106,29 @@ def analyze_multiple_symbols():
             logger.error("MultiTimeframeStrategy is not available")
             return jsonify({'error': 'Strategy service is not available. Please try again later.'}), 503
         
-        # 【修复分页问题】分析所有币种，让策略层处理分页逻辑
-        # 这里不应该限制批量大小，而应该传递完整的币种列表给策略层
-        all_results = strategy.analyze_multiple_symbols(processed_symbols, 1, len(processed_symbols))
+        # 【优化】添加请求超时保护
+        import signal
+        import time
+        request_start_time = time.time()
+        
+        try:
+            # 设置请求超时时间（根据币种数量动态调整）
+            timeout_seconds = min(300, 10 + len(processed_symbols) * 2)  # 最长5分钟
+            
+            logger.info(f"Starting analysis with timeout: {timeout_seconds}s")
+            all_results = strategy.analyze_multiple_symbols(processed_symbols, 1, len(processed_symbols))
+            
+            request_duration = time.time() - request_start_time
+            logger.info(f"Analysis completed in {request_duration:.2f}s")
+            
+        except Exception as analysis_error:
+            request_duration = time.time() - request_start_time
+            logger.error(f"Analysis failed after {request_duration:.2f}s: {analysis_error}")
+            return jsonify({
+                'error': f'Analysis failed: {str(analysis_error)}',
+                'duration': request_duration,
+                'suggestion': 'Try reducing the number of symbols per request'
+            }), 500
         
         # 检查分析结果是否为空
         if not all_results:

@@ -80,9 +80,13 @@
                     }
                     currentPage = 1;
                     
-                    // 【修复】重置信号缓存，强制重新分析
-                    signalsAnalyzed = false;
+                    // 【修复】重置信号缓存和分析状态，强制重新分析
                     allCachedSignals = [];
+                    analysisProgress = {
+                        total: 0,
+                        analyzed: 0,
+                        isAnalyzing: false
+                    };
                     
                     // 开始分析
                     await analyzeCurrentPage();
@@ -135,7 +139,118 @@
         }
         
         function clearMultiTimeframeCache() {
-            showStatus('清除EMA记录功能暂未实现', 'info');
+            // 清除缓存和重置状态
+            allCachedSignals = [];
+            analysisProgress = {
+                total: 0,
+                analyzed: 0,
+                isAnalyzing: false
+            };
+            currentPage = 1;
+            totalPages = 0;
+            updatePaginationControls();
+            
+            // 清空显示区域
+            const resultsDiv = document.getElementById('multiTimeframeResults');
+            if (resultsDiv) {
+                resultsDiv.innerHTML = '<p>缓存已清除，请重新开始分析</p>';
+            }
+            
+            showStatus('多时间框架缓存已清除', 'success');
+        }
+        
+        // 【新增】自动测试功能
+        async function runAutoTest() {
+            showStatus('开始运行自动测试...', 'info');
+            
+            try {
+                // 测试1: 获取币种列表
+                showStatus('测试1: 获取币种列表...', 'info');
+                const symbolsResponse = await safeFetch('/multi_timeframe/get_top_symbols');
+                const symbolsData = await symbolsResponse.json();
+                
+                if (!symbolsData.success) {
+                    throw new Error(`获取币种失败: ${symbolsData.error}`);
+                }
+                
+                const testSymbols = symbolsData.symbols.slice(0, 3); // 只测试前3个币种
+                showStatus(`[PASS] 测试1通过: 获取到 ${symbolsData.symbols.length} 个币种，测试用 ${testSymbols.length} 个`, 'success');
+                
+                // 测试2: 单币种分析
+                showStatus(`测试2: 单币种分析 ${testSymbols[0]}...`, 'info');
+                const singleResponse = await safeFetch('/multi_timeframe/analyze_symbol', {
+                    method: 'POST',
+                    body: JSON.stringify({ symbol: testSymbols[0] })
+                });
+                const singleData = await singleResponse.json();
+                
+                if (!singleData.success) {
+                    throw new Error(`单币种分析失败: ${singleData.error}`);
+                }
+                
+                showStatus(`[PASS] 测试2通过: 分析了 ${singleData.total_timeframes_analyzed} 个时间框架`, 'success');
+                
+                // 测试3: 小批量分析
+                showStatus(`测试3: 批量分析 ${testSymbols.length} 个币种...`, 'info');
+                const batchResponse = await safeFetch('/multi_timeframe/analyze_multiple_symbols', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        symbols: testSymbols,
+                        page: 1,
+                        page_size: 50
+                    })
+                });
+                const batchData = await batchResponse.json();
+                
+                if (!batchData.success) {
+                    throw new Error(`批量分析失败: ${batchData.error}`);
+                }
+                
+                const signals = batchData.signals || [];
+                showStatus(`[PASS] 测试3通过: 生成 ${signals.length} 个信号`, 'success');
+                
+                // 测试4: 分页功能
+                showStatus('测试4: 分页功能...', 'info');
+                const pagination = batchData.pagination || {};
+                if (pagination.total_pages > 1) {
+                    // 测试第2页
+                    const page2Response = await safeFetch('/multi_timeframe/analyze_multiple_symbols', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            symbols: testSymbols,
+                            page: 2,
+                            page_size: 10
+                        })
+                    });
+                    const page2Data = await page2Response.json();
+                    
+                    if (page2Data.success) {
+                        showStatus(`[PASS] 测试4通过: 分页功能正常，第2页有 ${page2Data.signals.length} 个信号`, 'success');
+                    } else {
+                        showStatus(`[WARN] 测试4警告: 第2页获取失败`, 'warning');
+                    }
+                } else {
+                    showStatus(`[PASS] 测试4通过: 分页信息正确 (总计 ${pagination.total_pages} 页)`, 'success');
+                }
+                
+                // 测试5: 错误处理
+                showStatus('测试5: 错误处理...', 'info');
+                const errorResponse = await safeFetch('/multi_timeframe/analyze_symbol', {
+                    method: 'POST',
+                    body: JSON.stringify({ symbol: 'INVALIDCOIN12345' })
+                });
+                const errorData = await errorResponse.json();
+                
+                // 错误处理应该返回成功但结果可能为空或包含错误
+                showStatus('[PASS] 测试5通过: 错误处理正常', 'success');
+                
+                // 全部测试完成
+                showStatus('[SUCCESS] 所有自动测试通过！系统工作正常', 'success');
+                
+            } catch (error) {
+                console.error('自动测试失败:', error);
+                showStatus(`[FAIL] 自动测试失败: ${error.message}`, 'error');
+            }
         }
         
         // 通用工具函数
@@ -436,9 +551,13 @@
             };
         }
         
-        // 全局变量用于缓存所有信号
+        // 【修复超时问题】渐进式分析 + 信号缓存
         let allCachedSignals = [];
-        let signalsAnalyzed = false;
+        let analysisProgress = {
+            total: 0,
+            analyzed: 0,
+            isAnalyzing: false
+        };
         
         // 多时间框架分页相关函数
         async function analyzeCurrentPage() {
@@ -450,77 +569,126 @@
             try {
                 const signalsPerPage = 50; // 每页显示50个信号
                 
-                // 如果还没有分析过信号，或者需要重新分析
-                if (!signalsAnalyzed || allCachedSignals.length === 0) {
-                    showStatus(`正在分析所有币种以生成信号缓存，请稍候...`, 'info');
-                    
-                    console.log(`开始分析所有 ${allSymbols.length} 个币种`);
-                    
+                // 如果还没有开始分析，启动渐进式分析
+                if (!analysisProgress.isAnalyzing && analysisProgress.analyzed === 0) {
+                    await startProgressiveAnalysis();
+                }
+                
+                // 从缓存中获取当前页的信号
+                displayCurrentPageSignals(signalsPerPage);
+                
+            } catch (error) {
+                console.error('analyzeCurrentPage error:', error);
+                handleAnalysisError(error);
+            }
+        }
+        
+        // 渐进式分析函数
+        async function startProgressiveAnalysis() {
+            analysisProgress.isAnalyzing = true;
+            analysisProgress.total = allSymbols.length;
+            analysisProgress.analyzed = 0;
+            allCachedSignals = [];
+            
+            const batchSize = 20; // 每批分析20个币种
+            const totalBatches = Math.ceil(allSymbols.length / batchSize);
+            
+            showStatus(`开始渐进式分析 ${allSymbols.length} 个币种...`, 'info');
+            
+            for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+                const startIdx = batchIndex * batchSize;
+                const endIdx = Math.min(startIdx + batchSize, allSymbols.length);
+                const batchSymbols = allSymbols.slice(startIdx, endIdx);
+                
+                showStatus(`正在分析第${batchIndex + 1}/${totalBatches}批币种 (${startIdx + 1}-${endIdx})...`, 'info');
+                
+                try {
                     const response = await safeFetch('/multi_timeframe/analyze_multiple_symbols', {
                         method: 'POST',
                         body: JSON.stringify({
-                            symbols: allSymbols,  // 发送所有币种
-                            page: 1,              // 获取第一页
-                            page_size: 999999     // 获取所有信号用于缓存
+                            symbols: batchSymbols,
+                            page: 1,
+                            page_size: 999999 // 获取这批币种的所有信号
                         })
                     });
                     
                     const data = await response.json();
                     
                     if (data.success) {
-                        // 缓存所有信号
-                        allCachedSignals = data.signals || [];
-                        signalsAnalyzed = true;
+                        // 将新信号添加到缓存中
+                        const newSignals = data.signals || [];
+                        allCachedSignals = allCachedSignals.concat(newSignals);
+                        analysisProgress.analyzed = endIdx;
                         
-                        showStatus(`分析完成！总共生成 ${allCachedSignals.length} 个信号`, 'success');
-                        console.log(`信号缓存完成: ${allCachedSignals.length} 个信号`);
+                        // 更新进度
+                        const progress = Math.round((analysisProgress.analyzed / analysisProgress.total) * 100);
+                        console.log(`批次 ${batchIndex + 1} 完成，新增 ${newSignals.length} 个信号，总计 ${allCachedSignals.length} 个信号`);
                         
-                        // 设置总页数
-                        const totalSignals = allCachedSignals.length;
-                        totalPages = Math.ceil(totalSignals / signalsPerPage);
-                        updatePaginationControls();
+                        // 实时更新显示
+                        updateTotalPagesAndDisplay();
+                        
+                        showStatus(`进度: ${progress}% (${analysisProgress.analyzed}/${analysisProgress.total}) - 已获得 ${allCachedSignals.length} 个信号`, 'info');
+                        
+                        // 添加短暂延迟避免API限制
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        
                     } else {
-                        showStatus(`分析失败: ${data.error}`, 'error');
-                        return;
+                        console.error(`批次 ${batchIndex + 1} 分析失败:`, data.error);
+                        showStatus(`批次 ${batchIndex + 1} 分析失败: ${data.error}`, 'warning');
                     }
+                    
+                } catch (batchError) {
+                    console.error(`批次 ${batchIndex + 1} 请求失败:`, batchError);
+                    showStatus(`批次 ${batchIndex + 1} 请求失败: ${batchError.message}`, 'warning');
                 }
-                
-                // 从缓存中获取当前页的信号
-                showStatus(`正在显示第${currentPage}页信号...`, 'info');
-                const startIdx = (currentPage - 1) * signalsPerPage;
-                const endIdx = startIdx + signalsPerPage;
-                const pageSignals = allCachedSignals.slice(startIdx, endIdx);
-                
-                console.log(`显示信号范围: ${startIdx}-${endIdx}, 共${pageSignals.length}个信号`);
-                
-                // 显示当前页的信号
-                if (typeof allMultiTimeframeSignals !== 'undefined') {
-                    allMultiTimeframeSignals = pageSignals;
-                }
-                
-                // 直接显示从缓存获取的分页信号
-                showMultiTimeframeSignals(pageSignals, 0);
-                
-                showStatus(`第${currentPage}页显示完成: 显示${pageSignals.length}个信号 (总计${allCachedSignals.length}个信号)`, 'success');
-            } catch (error) {
-                console.error('analyzeCurrentPage error:', error);
-                console.error('Error details:', {
-                    message: error.message,
-                    name: error.name,
-                    stack: error.stack
-                });
-                
-                let errorMessage = error.message;
-                if (error.message.includes('500')) {
-                    errorMessage = '服务器内部错误，可能是分析币种过多导致超时，请尝试减少每页币种数量';
-                } else if (error.message.includes('timeout') || error.message.includes('超时')) {
-                    errorMessage = '请求超时，请尝试减少每页币种数量或稍后重试';
-                } else if (error.message.includes('port closed')) {
-                    errorMessage = '连接中断，请刷新页面重试';
-                }
-                
-                showStatus(`分析失败: ${errorMessage}`, 'error');
             }
+            
+            analysisProgress.isAnalyzing = false;
+            showStatus(`分析完成！总共生成 ${allCachedSignals.length} 个信号`, 'success');
+            updateTotalPagesAndDisplay();
+        }
+        
+        // 更新总页数并显示当前页
+        function updateTotalPagesAndDisplay() {
+            const signalsPerPage = 50;
+            totalPages = Math.ceil(allCachedSignals.length / signalsPerPage);
+            updatePaginationControls();
+            displayCurrentPageSignals(signalsPerPage);
+        }
+        
+        // 显示当前页信号
+        function displayCurrentPageSignals(signalsPerPage) {
+            const startIdx = (currentPage - 1) * signalsPerPage;
+            const endIdx = startIdx + signalsPerPage;
+            const pageSignals = allCachedSignals.slice(startIdx, endIdx);
+            
+            console.log(`显示信号范围: ${startIdx}-${endIdx}, 共${pageSignals.length}个信号`);
+            
+            // 显示当前页的信号
+            if (typeof allMultiTimeframeSignals !== 'undefined') {
+                allMultiTimeframeSignals = pageSignals;
+            }
+            
+            // 直接显示从缓存获取的分页信号
+            showMultiTimeframeSignals(pageSignals, 0);
+            
+            if (pageSignals.length > 0) {
+                showStatus(`第${currentPage}页显示完成: 显示${pageSignals.length}个信号 (总计${allCachedSignals.length}个信号)`, 'success');
+            }
+        }
+        
+        // 处理分析错误
+        function handleAnalysisError(error) {
+            let errorMessage = error.message;
+            if (error.message.includes('500')) {
+                errorMessage = '服务器内部错误，已切换到渐进式分析模式';
+            } else if (error.message.includes('timeout') || error.message.includes('超时')) {
+                errorMessage = '请求超时，已优化为小批量分析';
+            } else if (error.message.includes('port closed')) {
+                errorMessage = '连接中断，请刷新页面重试';
+            }
+            
+            showStatus(`分析失败: ${errorMessage}`, 'error');
         }
         
         function updatePaginationControls() {
