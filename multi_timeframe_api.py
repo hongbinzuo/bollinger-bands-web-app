@@ -106,9 +106,9 @@ def analyze_multiple_symbols():
             logger.error("MultiTimeframeStrategy is not available")
             return jsonify({'error': 'Strategy service is not available. Please try again later.'}), 503
         
-        # 使用合理的批量大小分析币种，避免一次性处理过多币种导致超时
-        batch_size = min(20, len(processed_symbols))  # 每批最多20个币种
-        all_results = strategy.analyze_multiple_symbols(processed_symbols, 1, batch_size)
+        # 【修复分页问题】分析所有币种，让策略层处理分页逻辑
+        # 这里不应该限制批量大小，而应该传递完整的币种列表给策略层
+        all_results = strategy.analyze_multiple_symbols(processed_symbols, 1, len(processed_symbols))
         
         # 检查分析结果是否为空
         if not all_results:

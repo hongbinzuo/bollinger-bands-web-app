@@ -74,14 +74,15 @@
                     }
                     allSymbols = data.symbols;
                     
-                    // 重置分页
+                    // 重置分页和缓存
                     if (typeof currentPage === 'undefined') {
                         window.currentPage = 1;
                     }
-                    if (typeof currentPageSize === 'undefined') {
-                        window.currentPageSize = 50;
-                    }
                     currentPage = 1;
+                    
+                    // 【修复】重置信号缓存，强制重新分析
+                    signalsAnalyzed = false;
+                    allCachedSignals = [];
                     
                     // 开始分析
                     await analyzeCurrentPage();
@@ -435,6 +436,10 @@
             };
         }
         
+        // 全局变量用于缓存所有信号
+        let allCachedSignals = [];
+        let signalsAnalyzed = false;
+        
         // 多时间框架分页相关函数
         async function analyzeCurrentPage() {
             if (typeof allSymbols === 'undefined' || allSymbols.length === 0) {
@@ -443,47 +448,60 @@
             }
             
             try {
-                showStatus(`正在分析第${currentPage}页 (${currentPageSize}个币种)...`, 'info');
+                const signalsPerPage = 50; // 每页显示50个信号
                 
-                // 计算当前页的币种范围
-                const startIdx = (currentPage - 1) * currentPageSize;
-                const endIdx = startIdx + currentPageSize;
-                const pageSymbols = allSymbols.slice(startIdx, endIdx);
-                
-                console.log(`分析币种范围: ${startIdx}-${endIdx}, 共${pageSymbols.length}个币种`);
-                console.log(`当前页币种: ${pageSymbols.slice(0, 5).join(', ')}${pageSymbols.length > 5 ? '...' : ''}`);
-                
-                const response = await safeFetch('/multi_timeframe/analyze_multiple_symbols', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        symbols: allSymbols,
-                        page: currentPage,
-                        page_size: currentPageSize
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    // 更新分页信息
-                    if (typeof totalPages !== 'undefined') {
-                        totalPages = data.pagination.total_pages;
+                // 如果还没有分析过信号，或者需要重新分析
+                if (!signalsAnalyzed || allCachedSignals.length === 0) {
+                    showStatus(`正在分析所有币种以生成信号缓存，请稍候...`, 'info');
+                    
+                    console.log(`开始分析所有 ${allSymbols.length} 个币种`);
+                    
+                    const response = await safeFetch('/multi_timeframe/analyze_multiple_symbols', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            symbols: allSymbols,  // 发送所有币种
+                            page: 1,              // 获取第一页
+                            page_size: 999999     // 获取所有信号用于缓存
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // 缓存所有信号
+                        allCachedSignals = data.signals || [];
+                        signalsAnalyzed = true;
+                        
+                        showStatus(`分析完成！总共生成 ${allCachedSignals.length} 个信号`, 'success');
+                        console.log(`信号缓存完成: ${allCachedSignals.length} 个信号`);
+                        
+                        // 设置总页数
+                        const totalSignals = allCachedSignals.length;
+                        totalPages = Math.ceil(totalSignals / signalsPerPage);
                         updatePaginationControls();
+                    } else {
+                        showStatus(`分析失败: ${data.error}`, 'error');
+                        return;
                     }
-                    
-                    // 处理信号数据
-                    const allSignals = data.signals || [];
-                    if (typeof allMultiTimeframeSignals !== 'undefined') {
-                        allMultiTimeframeSignals = allSignals;
-                    }
-                    
-                    // 直接显示服务器返回的分页信号，不进行客户端过滤
-                    showMultiTimeframeSignals(allSignals, 0);
-                    
-                    showStatus(`第${currentPage}页分析完成: 显示${data.signals_shown}个信号 (总计${data.total_signals}个信号)`, 'success');
-                } else {
-                    showStatus(`分析失败: ${data.error}`, 'error');
                 }
+                
+                // 从缓存中获取当前页的信号
+                showStatus(`正在显示第${currentPage}页信号...`, 'info');
+                const startIdx = (currentPage - 1) * signalsPerPage;
+                const endIdx = startIdx + signalsPerPage;
+                const pageSignals = allCachedSignals.slice(startIdx, endIdx);
+                
+                console.log(`显示信号范围: ${startIdx}-${endIdx}, 共${pageSignals.length}个信号`);
+                
+                // 显示当前页的信号
+                if (typeof allMultiTimeframeSignals !== 'undefined') {
+                    allMultiTimeframeSignals = pageSignals;
+                }
+                
+                // 直接显示从缓存获取的分页信号
+                showMultiTimeframeSignals(pageSignals, 0);
+                
+                showStatus(`第${currentPage}页显示完成: 显示${pageSignals.length}个信号 (总计${allCachedSignals.length}个信号)`, 'success');
             } catch (error) {
                 console.error('analyzeCurrentPage error:', error);
                 console.error('Error details:', {
@@ -516,7 +534,7 @@
             }
             
             if (pageInfo) {
-                pageInfo.textContent = `第${currentPage}页，共${totalPages}页 (信号分页)`;
+                pageInfo.textContent = `第${currentPage}页，共${totalPages}页 (${allCachedSignals.length}个信号)`;
             }
             
             if (prevBtn) {
@@ -4868,11 +4886,9 @@
 
         // 更改页面大小
         function changePageSize() {
-            currentPageSize = parseInt(document.getElementById('pageSizeSelect').value);
-            currentPage = 1; // 重置到第一页
-            if (allSymbols.length > 0) {
-                analyzeCurrentPage();
-            }
+            // 【已修复】现在不需要改变页面大小，因为我们按信号分页
+            // 如果需要重新分析，可以清除缓存
+            showStatus('每页信号数量现在固定为50个', 'info');
         }
 
         // 上一页

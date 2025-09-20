@@ -862,14 +862,20 @@ class MultiTimeframeStrategy:
         }
     
     def analyze_multiple_symbols(self, symbols: List[str], page: int = 1, page_size: int = 20) -> Dict:
-        """分析多个币种 - 支持分页和多线程"""
+        """分析多个币种 - 【修复】现在分析所有币种，分页在API层处理"""
         try:
-            # 计算分页
-            start_idx = (page - 1) * page_size
-            end_idx = start_idx + page_size
-            page_symbols = symbols[start_idx:end_idx]
-            
-            logger.info(f"开始分析第{page}页币种: {len(page_symbols)}个 (总计{len(symbols)}个)")
+            # 【修复分页逻辑】不再在策略层分页，而是处理所有传入的币种
+            # API层会负责信号级别的分页
+            if page_size >= len(symbols):
+                # 如果页面大小大于或等于总币种数，处理所有币种
+                page_symbols = symbols
+                logger.info(f"分析所有币种: {len(page_symbols)}个")
+            else:
+                # 保持原有的分页逻辑用于向后兼容
+                start_idx = (page - 1) * page_size
+                end_idx = start_idx + page_size
+                page_symbols = symbols[start_idx:end_idx]
+                logger.info(f"开始分析第{page}页币种: {len(page_symbols)}个 (总计{len(symbols)}个)")
             
             all_results = {}
             
