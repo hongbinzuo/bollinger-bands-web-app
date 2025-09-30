@@ -48,6 +48,9 @@ class MultiTimeframeStrategy:
         # 记录每个币种每个时间框架的EMA使用情况
         self.ema_usage = {}
         
+        # 【优化】记录EMA使用频率，避免短期内重复触发
+        self.ema_frequency_tracker = {}  # 格式: {symbol_timeframe: {ema_period: [timestamps]}}
+        
         # 多线程配置
         self.max_workers = 8  # 最大并发线程数
         self.request_delay = 0.05  # 请求间隔（秒）
@@ -473,8 +476,55 @@ class MultiTimeframeStrategy:
         # 使用最新数据（时间升序，最新在最后）
         return df['ema89'].iloc[-1] < df['ema144'].iloc[-1] < df['ema233'].iloc[-1]
     
-    def find_ema_pullback_levels(self, df: pd.DataFrame, trend: str, timeframe: str = '4h') -> List[Dict]:
-        """【优化】根据时间框架使用对应的EMA组合"""
+    def check_ema_frequency(self, symbol: str, timeframe: str, ema_period: int, current_time: datetime) -> bool:
+        """【优化】检查EMA使用频率，避免短期内重复触发"""
+        key = f"{symbol}_{timeframe}"
+        
+        if key not in self.ema_frequency_tracker:
+            self.ema_frequency_tracker[key] = {}
+        
+        if ema_period not in self.ema_frequency_tracker[key]:
+            self.ema_frequency_tracker[key][ema_period] = []
+        
+        # 获取最近10根K线的时间范围
+        # 根据时间框架计算10根K线的时间跨度
+        timeframe_hours = {
+            '4h': 4, '8h': 8, '12h': 12, '1d': 24, '3d': 72, '1w': 168
+        }
+        
+        hours_per_candle = timeframe_hours.get(timeframe, 4)
+        recent_hours = 10 * hours_per_candle  # 10根K线的时间跨度
+        cutoff_time = current_time - timedelta(hours=recent_hours)
+        
+        # 清理过期的记录
+        self.ema_frequency_tracker[key][ema_period] = [
+            timestamp for timestamp in self.ema_frequency_tracker[key][ema_period]
+            if timestamp > cutoff_time
+        ]
+        
+        # 检查最近10根K线内是否已经触发过2次或以上
+        recent_triggers = len(self.ema_frequency_tracker[key][ema_period])
+        
+        if recent_triggers >= 2:
+            return False  # 频率过高，信号无效
+        
+        return True  # 频率正常，信号有效
+    
+    def record_ema_usage(self, symbol: str, timeframe: str, ema_period: int, current_time: datetime):
+        """【优化】记录EMA使用时间"""
+        key = f"{symbol}_{timeframe}"
+        
+        if key not in self.ema_frequency_tracker:
+            self.ema_frequency_tracker[key] = {}
+        
+        if ema_period not in self.ema_frequency_tracker[key]:
+            self.ema_frequency_tracker[key][ema_period] = []
+        
+        # 记录当前时间
+        self.ema_frequency_tracker[key][ema_period].append(current_time)
+    
+    def find_ema_pullback_levels(self, df: pd.DataFrame, trend: str, timeframe: str = '4h', symbol: str = '') -> List[Dict]:
+        """【优化】根据时间框架使用对应的EMA组合，并检查使用频率"""
         if len(df) < 20:
             return []
         
@@ -494,11 +544,18 @@ class MultiTimeframeStrategy:
                 if ema_value is None: 
                     continue
                 
+                # 【优化】检查EMA使用频率
+                if not self.check_ema_frequency(symbol, timeframe, period, current_time):
+                    continue  # 频率过高，跳过此EMA
+                
                 # 价格回踩到EMA附近 (10%范围内)
                 price_distance = abs(current_price - ema_value) / ema_value
                 if price_distance <= 0.10:  # 10%范围内
                     # 量能确认：当前成交量大于20周期均量
                     if current_candle['volume'] > avg_volume:
+                        # 记录EMA使用
+                        self.record_ema_usage(symbol, timeframe, period, current_time)
+                        
                         condition = f"【EMA{period}反弹信号】价格:{current_price:.4f} 接近EMA{period}:{ema_value:.4f}"
                         available_levels.append({
                             'ema_period': period,
@@ -519,10 +576,17 @@ class MultiTimeframeStrategy:
                 if ema_value is None: 
                     continue
                 
+                # 【优化】检查EMA使用频率
+                if not self.check_ema_frequency(symbol, timeframe, period, current_time):
+                    continue  # 频率过高，跳过此EMA
+                
                 # 价格反弹到EMA附近 (10%范围内)
                 price_distance = abs(current_price - ema_value) / ema_value
                 if price_distance <= 0.10:  # 10%范围内
                     if current_candle['volume'] > avg_volume:
+                        # 记录EMA使用
+                        self.record_ema_usage(symbol, timeframe, period, current_time)
+                        
                         condition = f"【EMA{period}拒绝信号】价格:{current_price:.4f} 接近EMA{period}:{ema_value:.4f}"
                         available_levels.append({
                             'ema_period': period,
@@ -740,8 +804,8 @@ class MultiTimeframeStrategy:
                     trend = 'neutral'
                     trend_strength = 'weak'
                 
-                # 【优化】根据时间框架使用对应的EMA组合
-                pullback_levels = self.find_ema_pullback_levels(df, trend, timeframe)
+                # 【优化】根据时间框架使用对应的EMA组合，并检查使用频率
+                pullback_levels = self.find_ema_pullback_levels(df, trend, timeframe, symbol)
                 
                 # 只保留对应时间框架的EMA回踩信号
                 all_signals = pullback_levels
