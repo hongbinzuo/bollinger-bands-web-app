@@ -16,7 +16,19 @@ logger = logging.getLogger(__name__)
 class MultiTimeframeStrategy:
     def __init__(self):
         self.timeframes = ['4h', '8h', '12h', '1d', '3d', '1w']
-        self.ema_periods = [89, 144, 233, 377]  # 89/144/233必须，377可选
+        
+        # 【优化】不同时间框架对应不同的EMA组合
+        self.timeframe_ema_mapping = {
+            '4h': [55, 89, 144, 233, 377],    # 4H: EMA55/89/144/233/377
+            '8h': [55, 89, 144, 233, 377],    # 8H: EMA55/89/144/233/377
+            '12h': [55, 89, 144, 233, 377],    # 12H: EMA55/89/144/233/377
+            '1d': [34, 55, 89, 144, 233, 377], # 1D: EMA34/55/89/144/233/377
+            '3d': [34, 55, 89, 144, 233],     # 3D: EMA34/55/89/144/233
+            '1w': [21, 55, 89, 144]           # 1W: EMA21/55/89/144
+        }
+        
+        # 保持原有的ema_periods用于兼容性
+        self.ema_periods = [89, 144, 233, 377]
         self.bb_period = 20  # 布林带周期
         self.bb_std = 2      # 布林带标准差
         
@@ -428,9 +440,12 @@ class MultiTimeframeStrategy:
         logger.warning(f"币安现货API所有格式都失败: {symbol}")
         return pd.DataFrame()
     
-    def calculate_emas(self, df: pd.DataFrame) -> pd.DataFrame:
-        """【已优化】使用Pandas内置函数计算EMA指标，性能更高"""
-        for period in self.ema_periods:
+    def calculate_emas(self, df: pd.DataFrame, timeframe: str = '4h') -> pd.DataFrame:
+        """【优化】根据时间框架计算对应的EMA指标"""
+        # 获取对应时间框架的EMA组合
+        ema_periods = self.timeframe_ema_mapping.get(timeframe, [89, 144, 233])
+        
+        for period in ema_periods:
             df[f'ema{period}'] = df['close'].ewm(span=period, adjust=False).mean()
         return df
     
@@ -458,8 +473,8 @@ class MultiTimeframeStrategy:
         # 使用最新数据（时间升序，最新在最后）
         return df['ema89'].iloc[-1] < df['ema144'].iloc[-1] < df['ema233'].iloc[-1]
     
-    def find_ema_pullback_levels(self, df: pd.DataFrame, trend: str) -> List[Dict]:
-        """【修复】所有大级别时间框架的EMA89/144/233回踩信号"""
+    def find_ema_pullback_levels(self, df: pd.DataFrame, trend: str, timeframe: str = '4h') -> List[Dict]:
+        """【优化】根据时间框架使用对应的EMA组合"""
         if len(df) < 20:
             return []
         
@@ -469,12 +484,12 @@ class MultiTimeframeStrategy:
         avg_volume = df['volume'].rolling(window=20).mean().iloc[-2] if len(df) >= 21 else df['volume'].mean()
         available_levels = []
 
-        # 【修复】检查所有EMA89/144/233的大级别位置信号
+        # 【优化】根据时间框架获取对应的EMA组合
+        ema_periods = self.timeframe_ema_mapping.get(timeframe, [89, 144, 233])
+        
         if trend == 'bullish' and self.is_bullish_trend(df):
-            # 检查EMA89/144/233回踩信号
-            required_periods = [89, 144, 233]
-            
-            for period in required_periods:
+            # 检查对应时间框架的EMA回踩信号
+            for period in ema_periods:
                 ema_value = current_candle.get(f'ema{period}')
                 if ema_value is None: 
                     continue
@@ -498,10 +513,8 @@ class MultiTimeframeStrategy:
                         })
         
         elif trend == 'bearish' and self.is_bearish_trend(df):
-            # 检查EMA89/144/233反弹信号
-            required_periods = [89, 144, 233]
-            
-            for period in required_periods:
+            # 检查对应时间框架的EMA反弹信号
+            for period in ema_periods:
                 ema_value = current_candle.get(f'ema{period}')
                 if ema_value is None: 
                     continue
@@ -707,7 +720,7 @@ class MultiTimeframeStrategy:
                     continue
                 
                 # 计算技术指标
-                df = self.calculate_emas(df)
+                df = self.calculate_emas(df, timeframe)
                 df = self.calculate_bollinger_bands(df)
                 df.dropna(inplace=True) # 删除计算指标后产生的NaN行
                 
@@ -727,10 +740,10 @@ class MultiTimeframeStrategy:
                     trend = 'neutral'
                     trend_strength = 'weak'
                 
-                # 【修复】只保留EMA回踩信号，删除其他信号类型
-                pullback_levels = self.find_ema_pullback_levels(df, trend)
+                # 【优化】根据时间框架使用对应的EMA组合
+                pullback_levels = self.find_ema_pullback_levels(df, trend, timeframe)
                 
-                # 只保留EMA89/144/233回踩信号
+                # 只保留对应时间框架的EMA回踩信号
                 all_signals = pullback_levels
                 
                 # 去重信号 - 基于更严格的标识符
