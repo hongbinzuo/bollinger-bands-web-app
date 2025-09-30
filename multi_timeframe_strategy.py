@@ -484,7 +484,7 @@ class MultiTimeframeStrategy:
                 if price_distance <= 0.10:  # 10%范围内
                     # 量能确认：当前成交量大于20周期均量
                     if current_candle['volume'] > avg_volume:
-                        condition = f"EMA{period}反弹信号 (价格:{current_price:.4f} 接近EMA{period}:{ema_value:.4f})"
+                        condition = f"【EMA{period}反弹信号】价格:{current_price:.4f} 接近EMA{period}:{ema_value:.4f}"
                         available_levels.append({
                             'ema_period': period,
                             'ema_value': float(ema_value),
@@ -494,7 +494,7 @@ class MultiTimeframeStrategy:
                             'price_distance': float(price_distance),
                             'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
                             'condition': condition,
-                            'description': f"多头趋势中，价格({current_price:.4f})回踩至EMA{period}({ema_value:.4f})附近，距离{price_distance:.2%}，形成反弹买入信号"
+                            'description': f"【触发EMA{period}】多头趋势中，价格({current_price:.4f})回踩至EMA{period}({ema_value:.4f})附近，距离{price_distance:.2%}，形成反弹买入信号"
                         })
         
         elif trend == 'bearish' and self.is_bearish_trend(df):
@@ -510,7 +510,7 @@ class MultiTimeframeStrategy:
                 price_distance = abs(current_price - ema_value) / ema_value
                 if price_distance <= 0.10:  # 10%范围内
                     if current_candle['volume'] > avg_volume:
-                        condition = f"EMA{period}拒绝信号 (价格:{current_price:.4f} 接近EMA{period}:{ema_value:.4f})"
+                        condition = f"【EMA{period}拒绝信号】价格:{current_price:.4f} 接近EMA{period}:{ema_value:.4f}"
                         available_levels.append({
                             'ema_period': period,
                             'ema_value': float(ema_value),
@@ -520,7 +520,7 @@ class MultiTimeframeStrategy:
                             'price_distance': float(price_distance),
                             'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
                             'condition': condition,
-                            'description': f"空头趋势中，价格({current_price:.4f})反弹至EMA{period}({ema_value:.4f})附近，距离{price_distance:.2%}，形成拒绝卖出信号"
+                            'description': f"【触发EMA{period}】空头趋势中，价格({current_price:.4f})反弹至EMA{period}({ema_value:.4f})附近，距离{price_distance:.2%}，形成拒绝卖出信号"
                         })
         
         return available_levels
@@ -727,18 +727,11 @@ class MultiTimeframeStrategy:
                     trend = 'neutral'
                     trend_strength = 'weak'
                 
-                # 【修复】寻找所有大级别位置信号
+                # 【修复】只保留EMA回踩信号，删除其他信号类型
                 pullback_levels = self.find_ema_pullback_levels(df, trend)
-                crossover_signals = self.find_ema_crossover_signals(df)
-                breakout_signals = self.find_price_breakout_signals(df)
-                support_resistance_signals = self.find_support_resistance_signals(df)
                 
-                # 合并所有信号
-                all_signals = []
-                all_signals.extend(pullback_levels)
-                all_signals.extend(crossover_signals)
-                all_signals.extend(breakout_signals)
-                all_signals.extend(support_resistance_signals)
+                # 只保留EMA89/144/233回踩信号
+                all_signals = pullback_levels
                 
                 # 去重信号 - 基于更严格的标识符
                 unique_signals = []
@@ -840,9 +833,6 @@ class MultiTimeframeStrategy:
                     'ema89': latest_data.get('ema89'), 'ema144': latest_data.get('ema144'), 
                     'ema233': latest_data.get('ema233'), 'ema377': latest_data.get('ema377'),
                     'pullback_levels': pullback_levels,
-                    'crossover_signals': crossover_signals,
-                    'breakout_signals': breakout_signals,
-                    'support_resistance_signals': support_resistance_signals,
                     'all_signals': all_signals,
                     'take_profit_timeframe': take_profit_timeframe,
                     'take_profit_price': take_profit_price,
