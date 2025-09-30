@@ -381,7 +381,17 @@
         }
         
         function changePage(direction) {
-            showStatus('翻页功能', 'info');
+            if (direction === -1 && currentPage > 1) {
+                currentPage--;
+                displayCurrentPageSignals(50);
+                updatePaginationControls();
+                showStatus(`切换到第${currentPage}页`, 'success');
+            } else if (direction === 1 && currentPage < totalPages) {
+                currentPage++;
+                displayCurrentPageSignals(50);
+                updatePaginationControls();
+                showStatus(`切换到第${currentPage}页`, 'success');
+            }
         }
         
         // 日内交易相关函数
@@ -449,15 +459,18 @@
         }
         
         function changePageSize() {
-            showStatus('更改页面大小', 'info');
+            const newPageSize = parseInt(document.getElementById('pageSizeSelect').value);
+            if (newPageSize !== 50) {
+                showStatus('每页信号数量现在固定为50个，请使用分页按钮浏览', 'info');
+            }
         }
         
         function previousPage() {
-            showStatus('上一页', 'info');
+            changePage(-1);
         }
         
         function nextPage() {
-            showStatus('下一页', 'info');
+            changePage(1);
         }
         
         // 日志相关函数
@@ -1813,9 +1826,9 @@
                 
                 <!-- 分页控制 -->
                 <div class="pagination-controls">
-                    <button onclick="changePage(-1)" id="prevPage">上一页</button>
+                    <button onclick="previousSignalPage()" id="prevPage">上一页</button>
                     <span id="pageInfo">第 1 页，共 1 页</span>
-                    <button onclick="changePage(1)" id="nextPage">下一页</button>
+                    <button onclick="nextSignalPage()" id="nextPage">下一页</button>
                     <select id="pageSize" onchange="changePageSize()">
                         <option value="20">20条/页</option>
                         <option value="50">50条/页</option>
@@ -5129,31 +5142,23 @@
             showStatus('每页信号数量现在固定为50个', 'info');
         }
 
-        // 上一页
-        function previousPage() {
+        // 上一页信号
+        function previousSignalPage() {
             if (currentPage > 1) {
                 currentPage--;
-                // 【修复】如果已有缓存数据，直接显示，否则重新分析
-                if (allCachedSignals.length > 0) {
-                    displayCurrentPageSignals(50);
-                    updatePaginationControls();
-                } else {
-                    analyzeCurrentPage();
-                }
+                displayCurrentPageSignals(50);
+                updatePaginationControls();
+                showStatus(`切换到第${currentPage}页`, 'success');
             }
         }
 
-        // 下一页
-        function nextPage() {
+        // 下一页信号
+        function nextSignalPage() {
             if (currentPage < totalPages) {
                 currentPage++;
-                // 【修复】如果已有缓存数据，直接显示，否则重新分析
-                if (allCachedSignals.length > 0) {
-                    displayCurrentPageSignals(50);
-                    updatePaginationControls();
-                } else {
-                    analyzeCurrentPage();
-                }
+                displayCurrentPageSignals(50);
+                updatePaginationControls();
+                showStatus(`切换到第${currentPage}页`, 'success');
             }
         }
 

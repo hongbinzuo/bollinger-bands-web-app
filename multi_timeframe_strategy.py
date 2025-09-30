@@ -23,14 +23,14 @@ class MultiTimeframeStrategy:
         # 北京时间时区 (UTC+8)
         self.beijing_tz = timezone(timedelta(hours=8))
         
-        # 时间框架对应的止盈时间框架
+        # 【修复】所有大级别时间框架对应的止盈时间框架
         self.take_profit_timeframes = {
-            '4h': '3m',   # 4小时对应3分钟
-            '8h': '5m',   # 8小时对应5分钟
-            '12h': '15m', # 12小时对应15分钟 (移除10m，Gate.io不支持)
-            '1d': '15m',  # 1天对应15分钟
-            '3d': '30m',  # 3天对应30分钟
-            '1w': '1h'    # 1周对应1小时
+            '4h': '5m',   # 4小时 -> 5分钟布林中轨
+            '8h': '15m',  # 8小时 -> 15分钟布林中轨  
+            '12h': '30m', # 12小时 -> 30分钟布林中轨
+            '1d': '1h',   # 1天 -> 1小时布林中轨
+            '3d': '4h',   # 3天 -> 4小时布林中轨
+            '1w': '1d'    # 1周 -> 1天布林中轨
         }
         
         # 记录每个币种每个时间框架的EMA使用情况
@@ -459,28 +459,27 @@ class MultiTimeframeStrategy:
         return df['ema89'].iloc[-1] < df['ema144'].iloc[-1] < df['ema233'].iloc[-1]
     
     def find_ema_pullback_levels(self, df: pd.DataFrame, trend: str) -> List[Dict]:
-        """改进：加入趋势确认和量能过滤的回踩信号"""
-        # 数据现在是时间升序，最新数据在最后 (iloc[-1])
-        if len(df) < 20: # 确保有足够数据计算滚动均值
+        """【修复】所有大级别时间框架的EMA89/144/233回踩信号"""
+        if len(df) < 20:
             return []
         
-        current_candle = df.iloc[-1]  # 最新K线
+        current_candle = df.iloc[-1]
         current_price = current_candle['close']
-        current_time = self.get_beijing_time()  # 使用北京时间作为信号时间
-        # 修复成交量均值计算，使用前一根K线的滚动量
+        current_time = self.get_beijing_time()
         avg_volume = df['volume'].rolling(window=20).mean().iloc[-2] if len(df) >= 21 else df['volume'].mean()
         available_levels = []
 
+        # 【修复】检查所有EMA89/144/233的大级别位置信号
         if trend == 'bullish' and self.is_bullish_trend(df):
-            # 优先使用89/144/233，377可选
+            # 检查EMA89/144/233回踩信号
             required_periods = [89, 144, 233]
-            optional_periods = [377]
             
-            for period in required_periods + optional_periods:
+            for period in required_periods:
                 ema_value = current_candle.get(f'ema{period}')
-                if ema_value is None: continue
+                if ema_value is None: 
+                    continue
                 
-                # 价格回踩到EMA附近 (放宽条件：价格在EMA的10%范围内)
+                # 价格回踩到EMA附近 (10%范围内)
                 price_distance = abs(current_price - ema_value) / ema_value
                 if price_distance <= 0.10:  # 10%范围内
                     # 量能确认：当前成交量大于20周期均量
@@ -491,23 +490,23 @@ class MultiTimeframeStrategy:
                             'ema_value': float(ema_value),
                             'type': 'long',
                             'signal': 'long',
-                            'entry_price': float(current_price),  # 使用当前价格作为入场价
+                            'entry_price': float(current_price),
                             'price_distance': float(price_distance),
                             'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
                             'condition': condition,
-                            'description': f"牛市趋势中，价格({current_price:.4f})回踩至EMA{period}({ema_value:.4f})附近，距离{price_distance:.2%}，形成反弹买入信号"
+                            'description': f"多头趋势中，价格({current_price:.4f})回踩至EMA{period}({ema_value:.4f})附近，距离{price_distance:.2%}，形成反弹买入信号"
                         })
         
         elif trend == 'bearish' and self.is_bearish_trend(df):
-            # 优先使用89/144/233，377可选
+            # 检查EMA89/144/233反弹信号
             required_periods = [89, 144, 233]
-            optional_periods = [377]
             
-            for period in required_periods + optional_periods:
+            for period in required_periods:
                 ema_value = current_candle.get(f'ema{period}')
-                if ema_value is None: continue
+                if ema_value is None: 
+                    continue
                 
-                # 价格反弹到EMA附近 (放宽条件：价格在EMA的10%范围内)
+                # 价格反弹到EMA附近 (10%范围内)
                 price_distance = abs(current_price - ema_value) / ema_value
                 if price_distance <= 0.10:  # 10%范围内
                     if current_candle['volume'] > avg_volume:
@@ -517,11 +516,11 @@ class MultiTimeframeStrategy:
                             'ema_value': float(ema_value),
                             'type': 'short',
                             'signal': 'short',
-                            'entry_price': float(current_price),  # 使用当前价格作为入场价
+                            'entry_price': float(current_price),
                             'price_distance': float(price_distance),
                             'signal_time': current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time),
                             'condition': condition,
-                            'description': f"熊市趋势中，价格({current_price:.4f})反弹至EMA{period}({ema_value:.4f})附近，距离{price_distance:.2%}，形成拒绝卖出信号"
+                            'description': f"空头趋势中，价格({current_price:.4f})反弹至EMA{period}({ema_value:.4f})附近，距离{price_distance:.2%}，形成拒绝卖出信号"
                         })
         
         return available_levels
@@ -728,7 +727,7 @@ class MultiTimeframeStrategy:
                     trend = 'neutral'
                     trend_strength = 'weak'
                 
-                # 寻找各种信号
+                # 【修复】寻找所有大级别位置信号
                 pullback_levels = self.find_ema_pullback_levels(df, trend)
                 crossover_signals = self.find_ema_crossover_signals(df)
                 breakout_signals = self.find_price_breakout_signals(df)
