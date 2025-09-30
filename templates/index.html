@@ -159,6 +159,43 @@
             showStatus('多时间框架缓存已清除', 'success');
         }
         
+        // 【新增】分页功能测试
+        function testPagination() {
+            console.log('开始测试分页功能...');
+            console.log(`当前状态: 第${currentPage}页，共${totalPages}页`);
+            console.log(`缓存信号数量: ${allCachedSignals.length}`);
+            
+            if (allCachedSignals.length === 0) {
+                showStatus('请先分析币种以获取信号数据', 'warning');
+                return;
+            }
+            
+            // 测试显示第一页
+            currentPage = 1;
+            displayCurrentPageSignals(50);
+            updatePaginationControls();
+            
+            showStatus(`分页测试: 显示第${currentPage}页 (共${totalPages}页)`, 'info');
+            
+            // 2秒后测试下一页
+            if (totalPages > 1) {
+                setTimeout(() => {
+                    currentPage = 2;
+                    displayCurrentPageSignals(50);
+                    updatePaginationControls();
+                    showStatus(`分页测试: 切换到第${currentPage}页`, 'success');
+                    
+                    // 再2秒后回到第一页
+                    setTimeout(() => {
+                        currentPage = 1;
+                        displayCurrentPageSignals(50);
+                        updatePaginationControls();
+                        showStatus('分页测试完成: 回到第1页', 'success');
+                    }, 2000);
+                }, 2000);
+            }
+        }
+        
         // 【新增】自动测试功能
         async function runAutoTest() {
             showStatus('开始运行自动测试...', 'info');
@@ -664,17 +701,48 @@
             
             console.log(`显示信号范围: ${startIdx}-${endIdx}, 共${pageSignals.length}个信号`);
             
-            // 显示当前页的信号
-            if (typeof allMultiTimeframeSignals !== 'undefined') {
-                allMultiTimeframeSignals = pageSignals;
-            }
-            
-            // 直接显示从缓存获取的分页信号
-            showMultiTimeframeSignals(pageSignals, 0);
+            // 【修复】统一分页逻辑，直接更新表格显示
+            updateSignalDisplay(pageSignals);
             
             if (pageSignals.length > 0) {
                 showStatus(`第${currentPage}页显示完成: 显示${pageSignals.length}个信号 (总计${allCachedSignals.length}个信号)`, 'success');
             }
+        }
+        
+        // 【新增】统一的信号显示函数
+        function updateSignalDisplay(signals) {
+            const tbody = document.getElementById('multiTimeframeSignalsTableBody');
+            if (!tbody) return;
+            
+            if (!signals || signals.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #666;">当前页暂无信号</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            signals.forEach((signal, index) => {
+                const rowClass = signal.signal_type === 'long' ? 'signal-long' : 'signal-short';
+                const profitClass = signal.profit_pct >= 0 ? 'profit-positive' : 'profit-negative';
+                
+                html += `
+                    <tr class="${rowClass}">
+                        <td>${signal.symbol}</td>
+                        <td>${signal.timeframe}</td>
+                        <td class="trend-${signal.trend}">${signal.trend}</td>
+                        <td class="signal-type-${signal.signal_type}">${signal.signal_type}</td>
+                        <td>${parseFloat(signal.entry_price).toFixed(6)}</td>
+                        <td>${signal.take_profit > 0 ? parseFloat(signal.take_profit).toFixed(6) : 'N/A'}</td>
+                        <td class="${profitClass}">${signal.profit_pct.toFixed(2)}%</td>
+                        <td>${signal.signal_time}</td>
+                        <td class="condition-cell" title="${signal.description || '无描述'}">${signal.condition}</td>
+                        <td class="actions">
+                            <button class="btn-detail" onclick="showSignalDetails('${signal.symbol}', '${signal.timeframe}', '${signal.condition}', '${signal.description || ''}')">详情</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
         }
         
         // 处理分析错误
@@ -4886,38 +4954,40 @@
             }
         }
 
-        // 显示多时间框架信号
+        // 【已重构】统一的多时间框架信号显示
         function showMultiTimeframeSignals(signals, minProfit = 0) {
-            const tbody = document.getElementById('multiTimeframeSignalsTableBody');
-            
-            console.log('showMultiTimeframeSignals 被调用');
+            console.log('showMultiTimeframeSignals 被调用 - 使用统一分页系统');
             console.log('传入的信号数据:', signals);
             console.log('信号数量:', signals ? signals.length : 0);
-            console.log('最小收益率过滤:', minProfit);
             
-            // 存储所有信号用于分页
-            allSignals = signals || [];
-            currentSignalPage = 1;
-            
-            // 过滤信号
-            let filteredSignals = allSignals;
-            if (minProfit > 0) {
-                filteredSignals = allSignals.filter(signal => signal.profit_pct >= minProfit);
+            // 如果有信号数据，更新缓存（这通常在首次加载时发生）
+            if (signals && signals.length > 0) {
+                // 过滤信号
+                let filteredSignals = signals;
+                if (minProfit > 0) {
+                    filteredSignals = signals.filter(signal => signal.profit_pct >= minProfit);
+                }
+                
+                console.log('过滤后的信号数量:', filteredSignals.length);
+                
+                // 更新缓存
+                allCachedSignals = filteredSignals;
+                
+                // 重新计算总页数  
+                const signalsPerPage = 50;
+                totalPages = Math.ceil(allCachedSignals.length / signalsPerPage);
+                currentPage = 1; // 重置到第一页
+                
+                // 更新分页控件并显示第一页
+                updatePaginationControls();
+                displayCurrentPageSignals(signalsPerPage);
+            } else {
+                // 没有信号，显示空状态
+                updateSignalDisplay([]);
             }
-            
-            console.log('过滤后的信号数量:', filteredSignals.length);
-            
-            // 计算总页数
-            const totalSignalPages = Math.ceil(filteredSignals.length / signalsPerPage);
-            
-            // 显示当前页的信号
-            displaySignalPage(filteredSignals, currentSignalPage, totalSignalPages);
-            
-            // 更新分页控制
-            updateSignalPagination(totalSignalPages);
         }
         
-        // 显示信号页面
+        // 【已废弃】旧的信号页面显示函数，保留以避免调用错误
         function displaySignalPage(filteredSignals, page, totalPages) {
             const tbody = document.getElementById('multiTimeframeSignalsTableBody');
             if (!tbody) return;
@@ -5063,7 +5133,13 @@
         function previousPage() {
             if (currentPage > 1) {
                 currentPage--;
-                analyzeCurrentPage();
+                // 【修复】如果已有缓存数据，直接显示，否则重新分析
+                if (allCachedSignals.length > 0) {
+                    displayCurrentPageSignals(50);
+                    updatePaginationControls();
+                } else {
+                    analyzeCurrentPage();
+                }
             }
         }
 
@@ -5071,7 +5147,13 @@
         function nextPage() {
             if (currentPage < totalPages) {
                 currentPage++;
-                analyzeCurrentPage();
+                // 【修复】如果已有缓存数据，直接显示，否则重新分析
+                if (allCachedSignals.length > 0) {
+                    displayCurrentPageSignals(50);
+                    updatePaginationControls();
+                } else {
+                    analyzeCurrentPage();
+                }
             }
         }
 
