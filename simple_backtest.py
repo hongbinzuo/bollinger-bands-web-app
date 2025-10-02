@@ -1,210 +1,220 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-简化历史回测脚本
-测试最近3个月的20个币种数据
+简化版回测脚本：测试GATE.IO数据获取和策略
 """
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from multi_timeframe_strategy import MultiTimeframeStrategy
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-import logging
 import time
+import logging
 
-# 设置日志
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from multi_timeframe_strategy import MultiTimeframeStrategy
+
+# 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def test_single_symbol(symbol: str, strategy: MultiTimeframeStrategy):
-    """测试单个币种"""
-    logger.info(f"开始测试 {symbol}...")
-    
-    results = {
-        'symbol': symbol,
-        'timeframes': {},
-        'total_signals': 0
-    }
-    
-    for timeframe in ['4h', '8h', '12h', '1d']:  # 只测试主要时间框架
-        try:
-            logger.info(f"  测试 {symbol} {timeframe}...")
+def get_gate_top_symbols(limit=10):
+    """获取GATE.IO前10个币种（测试用）"""
+    try:
+        import requests
+        
+        # 获取交易量数据
+        ticker_url = "https://api.gateio.ws/api/v4/spot/tickers"
+        response = requests.get(ticker_url, timeout=10)
+        
+        if response.status_code == 200:
+            tickers = response.json()
+            # 筛选USDT交易对，按24h交易量排序
+            usdt_tickers = [t for t in tickers if t['currency_pair'].endswith('_USDT')]
+            usdt_tickers.sort(key=lambda x: float(x.get('base_volume', 0)), reverse=True)
             
+            top_symbols = [t['currency_pair'] for t in usdt_tickers[:limit]]
+            logger.info(f"获取到GATE.IO前{len(top_symbols)}个币种: {top_symbols}")
+            return top_symbols
+        else:
+            logger.error(f"获取交易量数据失败: {response.status_code}")
+            return []
+            
+    except Exception as e:
+        logger.error(f"获取GATE.IO币种失败: {e}")
+        return []
+
+def get_historical_data(symbol, timeframe='1d', days=7):
+    """获取历史数据"""
+    try:
+        import requests
+        
+        # 计算时间范围
+        end_time = datetime.now()
+        start_time = end_time - timedelta(days=days)
+        
+        # 转换为时间戳
+        start_ts = int(start_time.timestamp())
+        end_ts = int(end_time.timestamp())
+        
+        # 获取K线数据
+        url = f"https://api.gateio.ws/api/v4/spot/candlesticks"
+        params = {
+            'currency_pair': symbol,
+            'interval': timeframe,
+            'from': start_ts,
+            'to': end_ts
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0:
+                # 转换为DataFrame
+                df = pd.DataFrame(data, columns=['timestamp', 'volume', 'close', 'high', 'low', 'open'])
+                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
+                df = df.sort_values('timestamp').reset_index(drop=True)
+                
+                # 转换数据类型
+                for col in ['open', 'high', 'low', 'close', 'volume']:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+                df = df.dropna()
+                logger.info(f"获取{symbol} {timeframe}数据: {len(df)}条")
+                return df
+            else:
+                logger.warning(f"{symbol} {timeframe}无数据")
+                return pd.DataFrame()
+        else:
+            logger.error(f"获取{symbol}数据失败: {response.status_code}")
+            return pd.DataFrame()
+            
+    except Exception as e:
+        logger.error(f"获取{symbol}历史数据失败: {e}")
+        return pd.DataFrame()
+
+def test_strategy_on_symbol(strategy, symbol):
+    """测试单个币种的策略"""
+    logger.info(f"测试{symbol} - 策略: {strategy.strategy_type}")
+    
+    results = []
+    
+    # 测试每个时间框架
+    for timeframe in strategy.timeframes:
+        logger.info(f"  分析时间框架: {timeframe}")
+        
+        try:
             # 获取数据
-            df = strategy.get_klines_data(symbol, timeframe, 200)
-            if df.empty:
-                logger.warning(f"    {symbol} {timeframe}: 无数据")
+            df = get_historical_data(symbol, timeframe, days=7)
+            if df.empty or len(df) < 50:
+                logger.warning(f"    {symbol} {timeframe}数据不足")
                 continue
             
-            # 计算指标
-            df = strategy.calculate_emas(df)
+            # 计算技术指标
+            df = strategy.calculate_emas(df, timeframe)
             df = strategy.calculate_bollinger_bands(df)
-            df.dropna(inplace=True)
+            df = df.dropna()
             
             if df.empty:
-                logger.warning(f"    {symbol} {timeframe}: 计算指标后无数据")
+                logger.warning(f"    {symbol} {timeframe}计算指标后数据为空")
                 continue
             
             # 判断趋势
-            is_bullish = strategy.is_bullish_trend(df)
-            is_bearish = strategy.is_bearish_trend(df)
-            trend = 'bullish' if is_bullish else 'bearish' if is_bearish else 'neutral'
+            if strategy.is_bullish_trend(df):
+                trend = 'bullish'
+                logger.info(f"    {symbol} {timeframe}: 多头趋势")
+            elif strategy.is_bearish_trend(df):
+                trend = 'bearish'
+                logger.info(f"    {symbol} {timeframe}: 空头趋势")
+            else:
+                logger.info(f"    {symbol} {timeframe}: 中性趋势")
+                continue
             
             # 寻找信号
-            pullback_signals = strategy.find_ema_pullback_levels(df, trend)
+            signals = strategy.find_ema_pullback_levels(df, trend, timeframe, symbol)
             
-            # 计算止盈
-            take_profit_timeframe = strategy.take_profit_timeframes.get(timeframe, '15m')
-            take_profit_price = None
+            if signals:
+                logger.info(f"    {symbol} {timeframe}: 找到{len(signals)}个信号")
+                for signal in signals:
+                    results.append({
+                        'symbol': symbol,
+                        'timeframe': timeframe,
+                        'strategy': strategy.strategy_type,
+                        'signal_type': signal['signal'],
+                        'ema_period': signal['ema_period'],
+                        'entry_price': signal['entry_price'],
+                        'condition': signal['condition']
+                    })
+            else:
+                logger.info(f"    {symbol} {timeframe}: 无信号")
             
-            try:
-                tp_df = strategy.get_klines_data(symbol, take_profit_timeframe, 100)
-                if not tp_df.empty:
-                    tp_df = strategy.calculate_bollinger_bands(tp_df)
-                    tp_df.dropna(inplace=True)
-                    if not tp_df.empty:
-                        take_profit_price = tp_df['bb_middle'].iloc[-1]
-            except:
-                pass
-            
-            # 计算收益率
-            for signal in pullback_signals:
-                entry_price = signal.get('entry_price', 0)
-                if entry_price > 0 and take_profit_price and take_profit_price > 0:
-                    if signal.get('signal') == 'long':
-                        profit_pct = ((take_profit_price - entry_price) / entry_price) * 100
-                    else:
-                        profit_pct = ((entry_price - take_profit_price) / entry_price) * 100
-                    signal['profit_pct'] = round(profit_pct, 2)
-                    signal['take_profit_price'] = take_profit_price
-                else:
-                    signal['profit_pct'] = 0
-                    signal['take_profit_price'] = 0
-            
-            results['timeframes'][timeframe] = {
-                'trend': trend,
-                'signals': pullback_signals,
-                'signal_count': len(pullback_signals),
-                'take_profit_price': take_profit_price,
-                'current_price': df['close'].iloc[-1] if not df.empty else 0
-            }
-            
-            results['total_signals'] += len(pullback_signals)
-            
-            logger.info(f"    {symbol} {timeframe}: {len(pullback_signals)} 个信号")
-            
-            # 显示信号详情
-            for i, signal in enumerate(pullback_signals[:3]):  # 只显示前3个
-                logger.info(f"      信号 {i+1}: {signal.get('signal')} EMA{signal.get('ema_period')} "
-                          f"入场:{signal.get('entry_price'):.2f} 止盈:{signal.get('take_profit_price', 0):.2f} "
-                          f"收益:{signal.get('profit_pct', 0):.1f}%")
+            # 添加延迟
+            time.sleep(0.1)
             
         except Exception as e:
-            logger.error(f"    {symbol} {timeframe} 测试失败: {e}")
-            results['timeframes'][timeframe] = {
-                'error': str(e),
-                'signals': [],
-                'signal_count': 0
-            }
+            logger.error(f"    {symbol} {timeframe}分析失败: {e}")
+            continue
     
     return results
 
 def main():
     """主函数"""
     logger.info("=" * 60)
-    logger.info("开始历史回测 - 最近3个月数据")
+    logger.info("开始简化版回测")
     logger.info("=" * 60)
     
-    # 测试币种列表
-    test_symbols = [
-        'ENAUSDT', 'SOLUSDT', 'ETCUSDT', 'ETHUSDT', 'BTCUSDT',
-        'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'DOTUSDT', 'DOGEUSDT',
-        'AVAXUSDT', 'SHIBUSDT', 'MATICUSDT', 'LTCUSDT', 'UNIUSDT',
-        'LINKUSDT', 'ATOMUSDT', 'XLMUSDT', 'BCHUSDT', 'FILUSDT'
-    ]
+    # 获取前10个币种
+    logger.info("获取GATE.IO前10个币种...")
+    symbols = get_gate_top_symbols(10)
     
-    strategy = MultiTimeframeStrategy()
-    all_results = []
+    if not symbols:
+        logger.error("无法获取币种列表")
+        return
     
-    start_time = time.time()
+    # 创建策略实例
+    original_strategy = MultiTimeframeStrategy('original')
+    modified_strategy = MultiTimeframeStrategy('modified')
     
-    for i, symbol in enumerate(test_symbols):
-        logger.info(f"\n测试币种 {i+1}/{len(test_symbols)}: {symbol}")
-        
-        try:
-            result = test_single_symbol(symbol, strategy)
-            all_results.append(result)
-            
-            # 添加延迟避免API限制
-            if i < len(test_symbols) - 1:
-                time.sleep(2)
-                
-        except Exception as e:
-            logger.error(f"测试 {symbol} 失败: {e}")
-            all_results.append({
-                'symbol': symbol,
-                'error': str(e),
-                'total_signals': 0
-            })
+    logger.info(f"原策略时间框架: {original_strategy.timeframes}")
+    logger.info(f"修改策略时间框架: {modified_strategy.timeframes}")
     
-    # 计算总结
-    total_signals = sum(r.get('total_signals', 0) for r in all_results)
-    successful_symbols = len([r for r in all_results if r.get('total_signals', 0) > 0])
+    # 测试原策略
+    logger.info("\n" + "=" * 40)
+    logger.info("测试原策略")
+    logger.info("=" * 40)
     
+    original_results = []
+    for symbol in symbols[:3]:  # 只测试前3个币种
+        results = test_strategy_on_symbol(original_strategy, symbol)
+        original_results.extend(results)
+    
+    # 测试修改策略
+    logger.info("\n" + "=" * 40)
+    logger.info("测试修改策略")
+    logger.info("=" * 40)
+    
+    modified_results = []
+    for symbol in symbols[:3]:  # 只测试前3个币种
+        results = test_strategy_on_symbol(modified_strategy, symbol)
+        modified_results.extend(results)
+    
+    # 输出结果
     logger.info("\n" + "=" * 60)
-    logger.info("回测总结")
+    logger.info("回测结果")
     logger.info("=" * 60)
-    logger.info(f"测试币种数量: {len(test_symbols)}")
-    logger.info(f"成功分析币种: {successful_symbols}")
-    logger.info(f"总信号数量: {total_signals}")
-    logger.info(f"回测耗时: {time.time() - start_time:.1f} 秒")
     
-    # 显示每个币种的结果
-    logger.info("\n各币种信号统计:")
-    for result in all_results:
-        symbol = result['symbol']
-        total = result.get('total_signals', 0)
-        if total > 0:
-            logger.info(f"  {symbol}: {total} 个信号")
-            
-            # 显示时间框架详情
-            for tf, tf_result in result.get('timeframes', {}).items():
-                if tf_result.get('signal_count', 0) > 0:
-                    logger.info(f"    {tf}: {tf_result['signal_count']} 个信号")
-                    
-                    # 显示信号详情
-                    for signal in tf_result.get('signals', [])[:2]:  # 只显示前2个
-                        profit = signal.get('profit_pct', 0)
-                        logger.info(f"      {signal.get('signal')} EMA{signal.get('ema_period')} "
-                                  f"收益:{profit:.1f}%")
-        else:
-            logger.info(f"  {symbol}: 无信号")
+    logger.info(f"原策略信号数: {len(original_results)}")
+    for result in original_results:
+        logger.info(f"  {result['symbol']} {result['timeframe']} {result['signal_type']} EMA{result['ema_period']}")
     
-    # 计算平均收益率
-    all_profits = []
-    for result in all_results:
-        for tf_result in result.get('timeframes', {}).values():
-            for signal in tf_result.get('signals', []):
-                profit = signal.get('profit_pct', 0)
-                if profit != 0:
-                    all_profits.append(profit)
+    logger.info(f"修改策略信号数: {len(modified_results)}")
+    for result in modified_results:
+        logger.info(f"  {result['symbol']} {result['timeframe']} {result['signal_type']} EMA{result['ema_period']}")
     
-    if all_profits:
-        avg_profit = np.mean(all_profits)
-        max_profit = np.max(all_profits)
-        min_profit = np.min(all_profits)
-        
-        logger.info(f"\n收益率统计:")
-        logger.info(f"  平均收益率: {avg_profit:.1f}%")
-        logger.info(f"  最大收益率: {max_profit:.1f}%")
-        logger.info(f"  最小收益率: {min_profit:.1f}%")
-        logger.info(f"  有收益率的信号: {len(all_profits)} 个")
-    
-    logger.info("\n回测完成！")
+    logger.info("回测完成！")
 
 if __name__ == "__main__":
     main()

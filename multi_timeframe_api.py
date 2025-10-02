@@ -10,18 +10,20 @@ from multi_timeframe_strategy import MultiTimeframeStrategy
 # --- Blueprint and Global Instances ---
 multi_timeframe_bp = Blueprint('multi_timeframe', __name__, url_prefix='/multi_timeframe')
 
-# Create a single strategy instance for the application
+# Create strategy instances for both types
 # Note: In a multi-worker production environment (e.g., Gunicorn), each worker
 # will have its own instance. State stored in `strategy.ema_usage` will not be shared.
 # For shared state, consider using a database or a cache like Redis.
 try:
-    strategy = MultiTimeframeStrategy()
+    original_strategy = MultiTimeframeStrategy('original')
+    modified_strategy = MultiTimeframeStrategy('modified')
     logger = logging.getLogger(__name__)
-    logger.info("MultiTimeframeStrategy initialized successfully")
+    logger.info("MultiTimeframeStrategy instances initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize MultiTimeframeStrategy: {e}", exc_info=True)
-    # Create a fallback strategy instance
-    strategy = None
+    # Create fallback strategy instances
+    original_strategy = None
+    modified_strategy = None
 
 # --- Helper Function for Code Reusability ---
 def _process_symbol(symbol: str) -> str:
@@ -48,6 +50,16 @@ def analyze_symbol():
         symbol = _process_symbol(data['symbol'])
         if not symbol:
             return jsonify({'error': 'Symbol cannot be empty.'}), 400
+        
+        # 获取策略类型，默认为原策略
+        strategy_type = data.get('strategy_type', 'original')
+        if strategy_type not in ['original', 'modified']:
+            return jsonify({'error': 'Invalid strategy_type. Must be "original" or "modified".'}), 400
+        
+        # 选择对应的策略实例
+        strategy = original_strategy if strategy_type == 'original' else modified_strategy
+        if strategy is None:
+            return jsonify({'error': 'Strategy not available.'}), 500
         
         logger.info(f"Received request to analyze symbol: {symbol}")
         
@@ -83,6 +95,16 @@ def analyze_multiple_symbols():
         symbols_list = data.get('symbols', [])
         if not symbols_list:
             return jsonify({'error': 'The "symbols" list cannot be empty.'}), 400
+        
+        # 获取策略类型，默认为原策略
+        strategy_type = data.get('strategy_type', 'original')
+        if strategy_type not in ['original', 'modified']:
+            return jsonify({'error': 'Invalid strategy_type. Must be "original" or "modified".'}), 400
+        
+        # 选择对应的策略实例
+        strategy = original_strategy if strategy_type == 'original' else modified_strategy
+        if strategy is None:
+            return jsonify({'error': 'Strategy not available.'}), 500
         
         # 分页参数 - 现在按信号数量分页
         page = data.get('page', 1)

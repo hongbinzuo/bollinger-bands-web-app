@@ -56,7 +56,9 @@
         // 多时间框架相关函数 - 需要在HTML之前定义
         async function analyzeMultiTimeframeSymbols() {
             try {
-                showStatus('正在获取前500个币种...', 'info');
+                // 获取策略类型
+                const strategyType = document.getElementById('strategyTypeSelect').value;
+                showStatus(`正在获取前500个币种 (策略: ${strategyType === 'original' ? '原策略' : '修改策略'})...`, 'info');
                 
                 // 使用安全的fetch函数
                 const response = await safeFetch('/multi_timeframe/get_top_symbols', {
@@ -88,8 +90,8 @@
                         isAnalyzing: false
                     };
                     
-                    // 开始分析
-                    await analyzeCurrentPage();
+                    // 开始分析，传递策略类型
+                    await analyzeCurrentPage(strategyType);
                 } else {
                     showStatus(`获取币种失败: ${data.error}`, 'error');
                 }
@@ -610,7 +612,7 @@
         };
         
         // 多时间框架分页相关函数
-        async function analyzeCurrentPage() {
+        async function analyzeCurrentPage(strategyType = 'original') {
             if (typeof allSymbols === 'undefined' || allSymbols.length === 0) {
                 showStatus('请先获取币种列表', 'error');
                 return;
@@ -621,7 +623,7 @@
                 
                 // 如果还没有开始分析，启动渐进式分析
                 if (!analysisProgress.isAnalyzing && analysisProgress.analyzed === 0) {
-                    await startProgressiveAnalysis();
+                    await startProgressiveAnalysis(strategyType);
                 }
                 
                 // 从缓存中获取当前页的信号
@@ -634,7 +636,7 @@
         }
         
         // 渐进式分析函数
-        async function startProgressiveAnalysis() {
+        async function startProgressiveAnalysis(strategyType = 'original') {
             analysisProgress.isAnalyzing = true;
             analysisProgress.total = allSymbols.length;
             analysisProgress.analyzed = 0;
@@ -658,7 +660,8 @@
                         body: JSON.stringify({
                             symbols: batchSymbols,
                             page: 1,
-                            page_size: 999999 // 获取这批币种的所有信号
+                            page_size: 999999, // 获取这批币种的所有信号
+                            strategy_type: strategyType
                         })
                     });
                     
@@ -2073,6 +2076,14 @@
             <h3>📈 多时间框架策略</h3>
             <div class="help-text">
                 <strong>策略说明：</strong>基于EMA144/233/377/610的多时间框架趋势跟踪策略。从4H开始，依次分析8H/12H/1D/3D/1W，价格回踩均线时开仓，止盈使用对应时间框架的布林中轨。
+            </div>
+            
+            <div class="form-group">
+                <label for="strategyTypeSelect">策略类型:</label>
+                <select id="strategyTypeSelect" class="form-control" style="width: 300px; display: inline-block;">
+                    <option value="original">原策略 (4H/8H/12H/1D/3D/1W，不同止盈)</option>
+                    <option value="modified">修改策略 (8H/12H/1D/3D/1W，统一3分钟止盈)</option>
+                </select>
             </div>
             
             <div class="form-group">
@@ -4850,9 +4861,9 @@
         // analyzeMultiTimeframeSymbols函数已移到HTML前面定义
 
         // 分析多个币种的多时间框架策略
-        async function analyzeMultipleMultiTimeframeSymbols(symbols) {
+        async function analyzeMultipleMultiTimeframeSymbols(symbols, strategyType = 'original') {
             try {
-                showStatus(`开始分析 ${symbols.length} 个币种的多时间框架策略...`, 'info');
+                showStatus(`开始分析 ${symbols.length} 个币种的多时间框架策略 (策略: ${strategyType === 'original' ? '原策略' : '修改策略'})...`, 'info');
                 
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 120000); // 2分钟超时
@@ -4862,7 +4873,10 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ symbols: symbols }),
+                    body: JSON.stringify({ 
+                        symbols: symbols,
+                        strategy_type: strategyType
+                    }),
                     signal: controller.signal
                 });
                 clearTimeout(timeoutId);
@@ -4903,8 +4917,9 @@
             const symbols = symbolInput.split(',').map(s => s.trim().toUpperCase());
             
             try {
-                showStatus(`开始分析自定义币种: ${symbols.join(', ')}`, 'info');
-                await analyzeMultipleMultiTimeframeSymbols(symbols);
+                const strategyType = document.getElementById('strategyTypeSelect').value;
+                showStatus(`开始分析自定义币种: ${symbols.join(', ')} (策略: ${strategyType === 'original' ? '原策略' : '修改策略'})`, 'info');
+                await analyzeMultipleMultiTimeframeSymbols(symbols, strategyType);
             } catch (error) {
                 showStatus(`分析失败: ${error.message}`, 'error');
             }

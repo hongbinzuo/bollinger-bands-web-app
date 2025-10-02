@@ -14,8 +14,34 @@ logger = logging.getLogger(__name__)
 
 
 class MultiTimeframeStrategy:
-    def __init__(self):
-        self.timeframes = ['4h', '8h', '12h', '1d', '3d', '1w']
+    def __init__(self, strategy_type='original'):
+        """
+        初始化策略
+        strategy_type: 'original' 或 'modified'
+        """
+        self.strategy_type = strategy_type
+        
+        if strategy_type == 'original':
+            # 原策略：包含4H，不同时间框架对应不同止盈
+            self.timeframes = ['4h', '8h', '12h', '1d', '3d', '1w']
+            self.take_profit_timeframes = {
+                '4h': '5m',   # 4小时 -> 5分钟布林中轨
+                '8h': '15m',  # 8小时 -> 15分钟布林中轨  
+                '12h': '30m', # 12小时 -> 30分钟布林中轨
+                '1d': '1h',   # 1天 -> 1小时布林中轨
+                '3d': '4h',   # 3天 -> 4小时布林中轨
+                '1w': '1d'    # 1周 -> 1天布林中轨
+            }
+        else:
+            # 修改策略：去掉4H，所有止盈改为3分钟布林中轨
+            self.timeframes = ['8h', '12h', '1d', '3d', '1w']
+            self.take_profit_timeframes = {
+                '8h': '3m',   # 8小时 -> 3分钟布林中轨
+                '12h': '3m',  # 12小时 -> 3分钟布林中轨
+                '1d': '3m',   # 1天 -> 3分钟布林中轨
+                '3d': '3m',   # 3天 -> 3分钟布林中轨
+                '1w': '3m'    # 1周 -> 3分钟布林中轨
+            }
         
         # 【优化】不同时间框架对应不同的EMA组合
         self.timeframe_ema_mapping = {
@@ -34,16 +60,6 @@ class MultiTimeframeStrategy:
         
         # 北京时间时区 (UTC+8)
         self.beijing_tz = timezone(timedelta(hours=8))
-        
-        # 【修复】所有大级别时间框架对应的止盈时间框架
-        self.take_profit_timeframes = {
-            '4h': '5m',   # 4小时 -> 5分钟布林中轨
-            '8h': '15m',  # 8小时 -> 15分钟布林中轨  
-            '12h': '30m', # 12小时 -> 30分钟布林中轨
-            '1d': '1h',   # 1天 -> 1小时布林中轨
-            '3d': '4h',   # 3天 -> 4小时布林中轨
-            '1w': '1d'    # 1周 -> 1天布林中轨
-        }
         
         # 记录每个币种每个时间框架的EMA使用情况
         self.ema_usage = {}
@@ -541,8 +557,8 @@ class MultiTimeframeStrategy:
             # 检查对应时间框架的EMA回踩信号
             for period in ema_periods:
                 ema_value = current_candle.get(f'ema{period}')
-                if ema_value is None: 
-                    continue
+                if ema_value is None or pd.isna(ema_value): 
+                    continue  # 如果EMA不存在或为NaN，跳过此EMA
                 
                 # 【优化】检查EMA使用频率
                 if not self.check_ema_frequency(symbol, timeframe, period, current_time):
@@ -573,8 +589,8 @@ class MultiTimeframeStrategy:
             # 检查对应时间框架的EMA反弹信号
             for period in ema_periods:
                 ema_value = current_candle.get(f'ema{period}')
-                if ema_value is None: 
-                    continue
+                if ema_value is None or pd.isna(ema_value): 
+                    continue  # 如果EMA不存在或为NaN，跳过此EMA
                 
                 # 【优化】检查EMA使用频率
                 if not self.check_ema_frequency(symbol, timeframe, period, current_time):
@@ -773,10 +789,12 @@ class MultiTimeframeStrategy:
         for timeframe in self.timeframes:
             try:
                 # 获取K线数据
-                # 由于EMA计算需要历史数据，需要获取比最大EMA周期更多的K线
-                required_data_points = 233 + 50  # 只需要233+50=283个数据点，377可选 
+                # 根据时间框架的EMA组合动态计算所需数据量
+                ema_periods = self.timeframe_ema_mapping.get(timeframe, [89, 144, 233])
+                max_ema = max(ema_periods) if ema_periods else 233
+                required_data_points = max_ema + 50  # 最大EMA周期 + 50个缓冲
                 df = self.get_klines_data(symbol, timeframe, required_data_points)
-                if df.empty or len(df) < 233:  # 只需要233个数据点
+                if df.empty or len(df) < max_ema:  # 检查是否满足最大EMA周期
                     results.append({
                         'timeframe': timeframe, 'status': 'error',
                         'message': f'数据不足: 仅获取到 {len(df)} 条'

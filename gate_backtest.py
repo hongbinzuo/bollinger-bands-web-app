@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-最终回测：使用GATE.IO前50个币种测试新策略
+使用GATE.IO数据回测新策略
 """
 
 import sys
@@ -77,16 +77,20 @@ def get_historical_data(symbol, timeframe='1d', days=30):
                     df[col] = pd.to_numeric(df[col], errors='coerce')
                 
                 df = df.dropna()
+                logger.info(f"获取{symbol} {timeframe}数据: {len(df)}条")
                 return df
             else:
+                logger.warning(f"{symbol} {timeframe}无数据")
                 return pd.DataFrame()
         else:
+            logger.error(f"获取{symbol}数据失败: {response.status_code}")
             return pd.DataFrame()
             
     except Exception as e:
+        logger.error(f"获取{symbol}历史数据失败: {e}")
         return pd.DataFrame()
 
-def backtest_strategy(strategy, symbols, test_count=20):
+def backtest_strategy(strategy, symbols, test_count=10):
     """回测策略"""
     logger.info(f"开始回测策略: {strategy.strategy_type}")
     logger.info(f"时间框架: {strategy.timeframes}")
@@ -105,6 +109,7 @@ def backtest_strategy(strategy, symbols, test_count=20):
                     # 获取数据
                     df = get_historical_data(symbol, tf, days=30)
                     if df.empty or len(df) < 50:
+                        logger.warning(f"  {symbol} {tf}数据不足")
                         continue
                     
                     # 计算技术指标
@@ -166,9 +171,11 @@ def backtest_strategy(strategy, symbols, test_count=20):
                     time.sleep(0.1)
                     
                 except Exception as e:
+                    logger.error(f"  {symbol} {tf}分析失败: {e}")
                     continue
             
         except Exception as e:
+            logger.error(f"分析{symbol}失败: {e}")
             continue
     
     logger.info(f"策略{strategy.strategy_type}回测完成，共生成{total_signals}个信号")
@@ -189,6 +196,18 @@ def analyze_results(original_results, modified_results):
         logger.info(f"  最大收益率: {np.max(original_profits):.2f}%")
         logger.info(f"  最小收益率: {np.min(original_profits):.2f}%")
         logger.info(f"  正收益信号: {sum(1 for p in original_profits if p > 0)}/{len(original_profits)}")
+        
+        # 按时间框架统计
+        tf_stats = {}
+        for result in original_results:
+            tf = result['timeframe']
+            if tf not in tf_stats:
+                tf_stats[tf] = []
+            tf_stats[tf].append(result['profit_pct'])
+        
+        logger.info("  按时间框架统计:")
+        for tf, profits in tf_stats.items():
+            logger.info(f"    {tf}: {len(profits)}个信号, 平均收益率: {np.mean(profits):.2f}%")
     
     # 修改策略结果
     logger.info("\n修改策略结果:")
@@ -199,6 +218,18 @@ def analyze_results(original_results, modified_results):
         logger.info(f"  最大收益率: {np.max(modified_profits):.2f}%")
         logger.info(f"  最小收益率: {np.min(modified_profits):.2f}%")
         logger.info(f"  正收益信号: {sum(1 for p in modified_profits if p > 0)}/{len(modified_profits)}")
+        
+        # 按时间框架统计
+        tf_stats = {}
+        for result in modified_results:
+            tf = result['timeframe']
+            if tf not in tf_stats:
+                tf_stats[tf] = []
+            tf_stats[tf].append(result['profit_pct'])
+        
+        logger.info("  按时间框架统计:")
+        for tf, profits in tf_stats.items():
+            logger.info(f"    {tf}: {len(profits)}个信号, 平均收益率: {np.mean(profits):.2f}%")
     
     # 策略对比
     logger.info("\n策略对比:")
@@ -218,13 +249,13 @@ def analyze_results(original_results, modified_results):
     # 保存结果
     if original_results:
         original_df = pd.DataFrame(original_results)
-        original_df.to_csv('final_backtest_original.csv', index=False, encoding='utf-8-sig')
-        logger.info("原策略结果已保存到: final_backtest_original.csv")
+        original_df.to_csv('backtest_original_strategy.csv', index=False, encoding='utf-8-sig')
+        logger.info("原策略结果已保存到: backtest_original_strategy.csv")
     
     if modified_results:
         modified_df = pd.DataFrame(modified_results)
-        modified_df.to_csv('final_backtest_modified.csv', index=False, encoding='utf-8-sig')
-        logger.info("修改策略结果已保存到: final_backtest_modified.csv")
+        modified_df.to_csv('backtest_modified_strategy.csv', index=False, encoding='utf-8-sig')
+        logger.info("修改策略结果已保存到: backtest_modified_strategy.csv")
 
 def main():
     """主函数"""
@@ -246,17 +277,17 @@ def main():
     original_strategy = MultiTimeframeStrategy('original')
     modified_strategy = MultiTimeframeStrategy('modified')
     
-    # 回测原策略（测试前20个币种）
+    # 回测原策略（测试前10个币种）
     logger.info("\n" + "=" * 40)
     logger.info("回测原策略")
     logger.info("=" * 40)
-    original_results = backtest_strategy(original_strategy, symbols, test_count=20)
+    original_results = backtest_strategy(original_strategy, symbols, test_count=10)
     
-    # 回测修改策略（测试前20个币种）
+    # 回测修改策略（测试前10个币种）
     logger.info("\n" + "=" * 40)
     logger.info("回测修改策略")
     logger.info("=" * 40)
-    modified_results = backtest_strategy(modified_strategy, symbols, test_count=20)
+    modified_results = backtest_strategy(modified_strategy, symbols, test_count=10)
     
     # 分析结果
     analyze_results(original_results, modified_results)
