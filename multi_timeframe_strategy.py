@@ -865,47 +865,47 @@ class MultiTimeframeStrategy:
                 logger.info(f"策略层去重: {len(all_signals)} -> {len(unique_signals)} 个信号")
                 all_signals = unique_signals
                 
-                            # 计算止盈目标 - 使用3分钟布林中轨
-                            take_profit_timeframe = self.take_profit_timeframes.get(timeframe, '3m')
-                            tp_df = self.get_klines_data(symbol, take_profit_timeframe, 200)
+                # 计算止盈目标 - 使用3分钟布林中轨
+                take_profit_timeframe = self.take_profit_timeframes.get(timeframe, '3m')
+                tp_df = self.get_klines_data(symbol, take_profit_timeframe, 200)
+                take_profit_price = None
+                if tp_df is not None and not tp_df.empty:
+                    tp_df = self.calculate_bollinger_bands(tp_df)
+                    tp_df.dropna(inplace=True)
+                    if not tp_df.empty:
+                        bb_middle = tp_df['bb_middle'].iloc[-1]  # 3分钟布林中轨
+                        entry_price = latest_data['close']
+                        
+                        # 【新增】止损逻辑：检查3分钟布林中轨是否有利于信号方向
+                        signal_valid = True
+                        
+                        # 获取主要信号类型
+                        main_signal_type = 'long'  # 默认
+                        if all_signals:
+                            # 统计信号类型
+                            short_count = sum(1 for s in all_signals if s.get('signal') == 'short')
+                            long_count = sum(1 for s in all_signals if s.get('signal') == 'long')
+                            if short_count > long_count:
+                                main_signal_type = 'short'
+                        
+                        # 检查止损条件
+                        if main_signal_type == 'short':
+                            # 做空信号：3分钟布林中轨应该低于入场价格
+                            if bb_middle >= entry_price:
+                                signal_valid = False
+                                logger.info(f"【止损】{symbol} {timeframe} 做空信号被舍弃：入场价{entry_price:.4f}，3分钟布林中轨{bb_middle:.4f}")
+                        else:
+                            # 做多信号：3分钟布林中轨应该高于入场价格
+                            if bb_middle <= entry_price:
+                                signal_valid = False
+                                logger.info(f"【止损】{symbol} {timeframe} 做多信号被舍弃：入场价{entry_price:.4f}，3分钟布林中轨{bb_middle:.4f}")
+                        
+                        if signal_valid:
+                            take_profit_price = bb_middle
+                            logger.info(f"【止盈】{symbol} {timeframe} 信号有效：入场价{entry_price:.4f}，3分钟布林中轨{bb_middle:.4f}")
+                        else:
+                            # 信号被止损，不设置止盈价格
                             take_profit_price = None
-                            if tp_df is not None and not tp_df.empty:
-                                tp_df = self.calculate_bollinger_bands(tp_df)
-                                tp_df.dropna(inplace=True)
-                                if not tp_df.empty:
-                                    bb_middle = tp_df['bb_middle'].iloc[-1]  # 3分钟布林中轨
-                                    entry_price = latest_data['close']
-                                    
-                                    # 【新增】止损逻辑：检查3分钟布林中轨是否有利于信号方向
-                                    signal_valid = True
-                                    
-                                    # 获取主要信号类型
-                                    main_signal_type = 'long'  # 默认
-                                    if all_signals:
-                                        # 统计信号类型
-                                        short_count = sum(1 for s in all_signals if s.get('signal') == 'short')
-                                        long_count = sum(1 for s in all_signals if s.get('signal') == 'long')
-                                        if short_count > long_count:
-                                            main_signal_type = 'short'
-                                    
-                                    # 检查止损条件
-                                    if main_signal_type == 'short':
-                                        # 做空信号：3分钟布林中轨应该低于入场价格
-                                        if bb_middle >= entry_price:
-                                            signal_valid = False
-                                            logger.info(f"【止损】{symbol} {timeframe} 做空信号被舍弃：入场价{entry_price:.4f}，3分钟布林中轨{bb_middle:.4f}")
-                                    else:
-                                        # 做多信号：3分钟布林中轨应该高于入场价格
-                                        if bb_middle <= entry_price:
-                                            signal_valid = False
-                                            logger.info(f"【止损】{symbol} {timeframe} 做多信号被舍弃：入场价{entry_price:.4f}，3分钟布林中轨{bb_middle:.4f}")
-                                    
-                                    if signal_valid:
-                                        take_profit_price = bb_middle
-                                        logger.info(f"【止盈】{symbol} {timeframe} 信号有效：入场价{entry_price:.4f}，3分钟布林中轨{bb_middle:.4f}")
-                                    else:
-                                        # 信号被止损，不设置止盈价格
-                                        take_profit_price = None
 
                 # 【新增】过滤有效信号：只保留有止盈价格的信号
                 valid_signals = []
