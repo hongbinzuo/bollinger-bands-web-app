@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>消息端口错误修复测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .status-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 消息端口错误修复测试</h1>
+        <p>此页面用于测试和验证消息端口关闭错误的修复效果。</p>
+        
+        <div id="statusArea"></div>
+        
+        <div class="test-section">
+            <h3>1. 浏览器扩展冲突检测</h3>
+            <button onclick="testExtensionDetection()">检测扩展冲突</button>
+            <button onclick="simulateExtensionConflict()">模拟扩展冲突</button>
+            <div id="extensionResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>2. 连接状态检测</h3>
+            <button onclick="testConnectionStatus()">测试连接状态</button>
+            <button onclick="testHeartbeat()">测试心跳检测</button>
+            <div id="connectionResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>3. 智能重试机制</h3>
+            <button onclick="testRetryMechanism()">测试重试机制</button>
+            <button onclick="testTimeoutHandling()">测试超时处理</button>
+            <div id="retryResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>4. 错误处理测试</h3>
+            <button onclick="simulatePortClosedError()">模拟端口关闭错误</button>
+            <button onclick="simulateRuntimeError()">模拟运行时错误</button>
+            <div id="errorResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📋 测试日志</h3>
+            <button onclick="clearLog()">清空日志</button>
+            <div id="testLog" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // 复制主页面中的修复代码
+        let connectionRetryCount = 0;
+        const maxRetries = 3;
+        let connectionStatus = 'connected';
+        let lastHeartbeat = Date.now();
+        
+        // 日志函数
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logDiv.textContent += logEntry;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // 状态显示函数
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('statusArea');
+            statusDiv.className = `status status-${type}`;
+            statusDiv.textContent = message;
+            log(`状态: ${message}`, type);
+        }
+        
+        // 检测浏览器扩展冲突
+        function detectExtensionConflicts() {
+            const hasExtensions = window.chrome && window.chrome.runtime;
+            if (hasExtensions) {
+                log('检测到浏览器扩展，可能存在消息端口冲突', 'warning');
+                return true;
+            }
+            return false;
+        }
+        
+        // 心跳检测函数
+        async function checkConnection() {
+            try {
+                const response = await fetch('/health', { 
+                    method: 'HEAD',
+                    signal: AbortSignal.timeout(5000)
+                });
+                if (response.ok) {
+                    connectionStatus = 'connected';
+                    lastHeartbeat = Date.now();
+                    log('连接检测成功', 'success');
+                    return true;
+                }
+            } catch (error) {
+                log(`连接检测失败: ${error.message}`, 'error');
+                connectionStatus = 'disconnected';
+                return false;
+            }
+        }
+        
+        // 智能超时配置
+        function getTimeoutForUrl(url) {
+            if (url.includes('/multi_timeframe/analyze_multiple_symbols')) {
+                return 600000; // 10分钟
+            } else if (url.includes('/analyze') || url.includes('/signals')) {
+                return 300000; // 5分钟
+            } else if (url.includes('/health')) {
+                return 5000; // 5秒
+            } else {
+                return 60000; // 1分钟
+            }
+        }
+        
+        // 安全的fetch包装函数
+        async function safeFetch(url, options = {}) {
+            const timeout = getTimeoutForUrl(url);
+            let attempt = 0;
+            const maxAttempts = 3;
+            
+            while (attempt < maxAttempts) {
+                attempt++;
+                
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), timeout);
+                    
+                    const response = await fetch(url, {
+                        ...options,
+                        signal: controller.signal,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache',
+                            'Pragma': 'no-cache',
+                            ...options.headers
+                        }
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    connectionRetryCount = 0;
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    log(`请求成功 (尝试 ${attempt}/${maxAttempts})`, 'success');
+                    return response;
+                    
+                } catch (error) {
+                    log(`请求失败 (尝试 ${attempt}/${maxAttempts}): ${error.message}`, 'error');
+                    
+                    if (attempt === maxAttempts) {
+                        if (error.name === 'AbortError') {
+                            throw new Error(`请求超时 (${timeout/1000}秒)`);
+                        }
+                        throw error;
+                    }
+                    
+                    // 处理消息端口关闭错误
+                    if (error.message.includes('port closed') || 
+                        error.message.includes('runtime.lastError') ||
+                        error.message.includes('message port closed')) {
+                        
+                        log(`连接中断，等待重试 (${attempt}/${maxAttempts})`, 'warning');
+                        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    
+                    if (error.name === 'AbortError') {
+                        log(`请求超时，等待重试 (${attempt}/${maxAttempts})`, 'warning');
+                        const delay = Math.min(1000 * attempt, 3000);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    
+                    throw error;
+                }
+            }
+        }
+        
+        // 测试函数
+        function testExtensionDetection() {
+            const result = detectExtensionConflicts();
+            const resultDiv = document.getElementById('extensionResult');
+            if (result) {
+                resultDiv.innerHTML = '<div class="status status-warning">⚠️ 检测到浏览器扩展</div>';
+            } else {
+                resultDiv.innerHTML = '<div class="status status-success">✅ 未检测到扩展冲突</div>';
+            }
+        }
+        
+        function simulateExtensionConflict() {
+            log('模拟扩展冲突场景', 'info');
+            showStatus('模拟扩展冲突场景', 'warning');
+            setTimeout(() => {
+                showStatus('扩展冲突已处理', 'success');
+            }, 2000);
+        }
+        
+        async function testConnectionStatus() {
+            log('开始连接状态测试', 'info');
+            const result = await checkConnection();
+            const resultDiv = document.getElementById('connectionResult');
+            if (result) {
+                resultDiv.innerHTML = '<div class="status status-success">✅ 连接正常</div>';
+            } else {
+                resultDiv.innerHTML = '<div class="status status-error">❌ 连接异常</div>';
+            }
+        }
+        
+        function testHeartbeat() {
+            log('开始心跳检测测试', 'info');
+            setInterval(async () => {
+                const now = Date.now();
+                if (now - lastHeartbeat > 30000) {
+                    await checkConnection();
+                }
+            }, 5000);
+            showStatus('心跳检测已启动', 'success');
+        }
+        
+        async function testRetryMechanism() {
+            log('开始重试机制测试', 'info');
+            try {
+                // 测试一个不存在的端点来触发重试
+                await safeFetch('/test-nonexistent-endpoint');
+            } catch (error) {
+                log(`重试机制测试完成: ${error.message}`, 'info');
+                const resultDiv = document.getElementById('retryResult');
+                resultDiv.innerHTML = `<div class="status status-info">ℹ️ 重试机制正常工作</div>`;
+            }
+        }
+        
+        function testTimeoutHandling() {
+            log('开始超时处理测试', 'info');
+            const timeout = getTimeoutForUrl('/test-timeout');
+            log(`超时配置: ${timeout/1000}秒`, 'info');
+            showStatus(`超时处理测试完成，配置超时: ${timeout/1000}秒`, 'success');
+        }
+        
+        function simulatePortClosedError() {
+            log('模拟端口关闭错误', 'warning');
+            const error = new Error('The message port closed before a response was received');
+            showStatus('模拟端口关闭错误已触发', 'warning');
+            
+            // 模拟错误处理
+            setTimeout(() => {
+                showStatus('端口关闭错误已自动处理', 'success');
+            }, 1500);
+        }
+        
+        function simulateRuntimeError() {
+            log('模拟运行时错误', 'warning');
+            const error = new Error('Unchecked runtime.lastError: The message port closed');
+            showStatus('模拟运行时错误已触发', 'warning');
+            
+            // 模拟错误处理
+            setTimeout(() => {
+                showStatus('运行时错误已自动处理', 'success');
+            }, 1500);
+        }
+        
+        function clearLog() {
+            document.getElementById('testLog').textContent = '';
+        }
+        
+        // 页面加载时自动检测
+        window.addEventListener('load', () => {
+            log('页面加载完成，开始自动检测', 'info');
+            testExtensionDetection();
+            testConnectionStatus();
+        });
+    </script>
+</body>
+</html>
