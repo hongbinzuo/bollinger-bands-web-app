@@ -135,18 +135,27 @@
         // 心跳检测函数
         async function checkConnection() {
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
                 const response = await fetch('/health', { 
                     method: 'HEAD',
-                    signal: AbortSignal.timeout(5000)
+                    signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
+                
                 if (response.ok) {
                     connectionStatus = 'connected';
                     lastHeartbeat = Date.now();
                     log('连接检测成功', 'success');
                     return true;
                 }
+                return false;
             } catch (error) {
-                log(`连接检测失败: ${error.message}`, 'error');
+                if (error.name !== 'AbortError') {
+                    log(`连接检测失败: ${error.message}`, 'error');
+                }
                 connectionStatus = 'disconnected';
                 return false;
             }

@@ -302,29 +302,66 @@
         // 心跳检测函数
         async function checkConnection() {
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
                 const response = await fetch('/health', { 
                     method: 'HEAD',
-                    signal: AbortSignal.timeout(5000)
+                    signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
+                
                 if (response.ok) {
                     connectionStatus = 'connected';
                     lastHeartbeat = Date.now();
                     return true;
                 }
+                return false;
             } catch (error) {
-                console.warn('连接检测失败:', error);
+                // 静默处理连接检测失败，避免控制台噪音
+                if (error.name !== 'AbortError') {
+                    console.warn('连接检测失败:', error.message);
+                }
                 connectionStatus = 'disconnected';
                 return false;
             }
         }
         
-        // 定期心跳检测
-        setInterval(async () => {
-            const now = Date.now();
-            if (now - lastHeartbeat > 30000) { // 30秒无心跳
-                await checkConnection();
+        // 定期心跳检测（仅在必要时）
+        let heartbeatInterval = null;
+        function startHeartbeat() {
+            if (!heartbeatInterval) {
+                heartbeatInterval = setInterval(async () => {
+                    const now = Date.now();
+                    if (now - lastHeartbeat > 60000) { // 60秒无心跳
+                        await checkConnection();
+                    }
+                }, 30000); // 每30秒检查一次
             }
-        }, 10000); // 每10秒检查一次
+        }
+        
+        function stopHeartbeat() {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+        }
+        
+        // 页面可见性变化时控制心跳
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopHeartbeat();
+            } else {
+                startHeartbeat();
+                checkConnection(); // 页面恢复时立即检查一次
+            }
+        });
+        
+        // 页面加载时启动心跳
+        if (!document.hidden) {
+            startHeartbeat();
+        }
         
         // 全局错误处理
         window.addEventListener('error', function(event) {
@@ -377,14 +414,19 @@
         const maxRetries = 3;
         
         // 检测浏览器扩展冲突
+        let extensionDetected = false;
         function detectExtensionConflicts() {
+            if (extensionDetected !== null && extensionDetected !== undefined) {
+                return extensionDetected;
+            }
+            
             const hasExtensions = window.chrome && window.chrome.runtime;
+            extensionDetected = hasExtensions;
+            
             if (hasExtensions) {
                 console.warn('检测到浏览器扩展，可能存在消息端口冲突');
-                showStatus('检测到浏览器扩展，如果遇到连接问题，请尝试禁用扩展或使用无痕模式', 'warning');
-                return true;
             }
-            return false;
+            return hasExtensions;
         }
         
         // 显示扩展冲突提示
@@ -447,6 +489,9 @@
             const timeout = getTimeoutForUrl(url);
             let attempt = 0;
             const maxAttempts = 3;
+            
+            // 更新心跳时间戳
+            lastHeartbeat = Date.now();
             
             while (attempt < maxAttempts) {
                 attempt++;
@@ -2008,6 +2053,9 @@
                         <option value="50">50条/页</option>
                         <option value="100">100条/页</option>
                     </select>
+                    <button class="btn btn-success" onclick="exportAnalysisResultsToCSV()" style="margin-left: 20px;">
+                        📥 导出分析结果 (CSV)
+                    </button>
                 </div>
                 
                 <!-- 结果表格 -->
@@ -2295,6 +2343,9 @@
                 <button class="btn btn-sm btn-outline-primary" onclick="previousSignalPage()" id="prevBtn" disabled>上一页</button>
                     <span id="pageInfo" style="margin: 0 10px;">第1页，共1页 (信号分页)</span>
                 <button class="btn btn-sm btn-outline-primary" onclick="nextSignalPage()" id="nextBtn" disabled>下一页</button>
+                <button class="btn btn-sm btn-success" onclick="exportAllSignalsToCSV()" style="margin-left: 20px;">
+                    📥 导出全部数据 (CSV)
+                </button>
             </div>
             
             <!-- 多时间框架信号表格 -->
@@ -5330,21 +5381,151 @@
 
         // 上一页信号
         function previousSignalPage() {
+            console.log(`previousSignalPage 被调用: currentPage=${currentPage}, totalPages=${totalPages}`);
+            
+            if (!allCachedSignals || allCachedSignals.length === 0) {
+                showStatus('没有可显示的信号数据', 'warning');
+                return;
+            }
+            
             if (currentPage > 1) {
                 currentPage--;
                 displayCurrentPageSignals(50);
                 updatePaginationControls();
                 showStatus(`切换到第${currentPage}页`, 'success');
+            } else {
+                showStatus('已经是第一页了', 'info');
             }
         }
 
         // 下一页信号
         function nextSignalPage() {
+            console.log(`nextSignalPage 被调用: currentPage=${currentPage}, totalPages=${totalPages}, allCachedSignals.length=${allCachedSignals.length}`);
+            
+            if (!allCachedSignals || allCachedSignals.length === 0) {
+                showStatus('没有可显示的信号数据', 'warning');
+                return;
+            }
+            
             if (currentPage < totalPages) {
                 currentPage++;
                 displayCurrentPageSignals(50);
                 updatePaginationControls();
                 showStatus(`切换到第${currentPage}页`, 'success');
+            } else {
+                showStatus('已经是最后一页了', 'info');
+            }
+        }
+
+        // 导出全部信号到CSV
+        function exportAllSignalsToCSV() {
+            if (!allCachedSignals || allCachedSignals.length === 0) {
+                showStatus('没有可导出的数据', 'warning');
+                return;
+            }
+            
+            try {
+                showStatus('正在生成CSV文件...', 'info');
+                
+                // CSV表头
+                const headers = ['币种', '时间框架', '信号描述', '入场价格', '止盈价格', '潜在收益率', '信号数量', '分析时间'];
+                
+                // 构建CSV内容
+                let csvContent = headers.join(',') + '\n';
+                
+                allCachedSignals.forEach(signal => {
+                    const row = [
+                        signal.symbol || '',
+                        signal.timeframe || '',
+                        `"${(signal.description || '').replace(/"/g, '""')}"`, // 转义引号
+                        signal.entry_price || '',
+                        signal.take_profit_price || '',
+                        signal.potential_profit ? `${(signal.potential_profit * 100).toFixed(2)}%` : '',
+                        signal.signal_count || 0,
+                        signal.timestamp || new Date().toLocaleString('zh-CN')
+                    ];
+                    csvContent += row.join(',') + '\n';
+                });
+                
+                // 创建Blob并下载
+                const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                const filename = `multi_timeframe_signals_${timestamp}.csv`;
+                
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showStatus(`成功导出 ${allCachedSignals.length} 条信号数据到 ${filename}`, 'success');
+                
+            } catch (error) {
+                console.error('导出CSV失败:', error);
+                showStatus(`导出失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 导出币种分析结果到CSV
+        function exportAnalysisResultsToCSV() {
+            const dataToExport = filteredResults.length > 0 ? filteredResults : currentResults;
+            
+            if (!dataToExport || dataToExport.length === 0) {
+                showStatus('没有可导出的分析数据，请先运行分析', 'warning');
+                return;
+            }
+            
+            try {
+                showStatus('正在生成CSV文件...', 'info');
+                
+                // CSV表头
+                const headers = ['币种', '当前价格', '挂单价格', '时间级别', 'EMA89', 'EMA144', 'EMA233', 'EMA365', '布林上轨', '布林中轨', '布林下轨', '最后更新时间'];
+                
+                // 构建CSV内容
+                let csvContent = headers.join(',') + '\n';
+                
+                dataToExport.forEach(result => {
+                    const row = [
+                        result.symbol || '',
+                        result.current_price || '',
+                        result.order_price || '',
+                        result.timeframe || '',
+                        result.ema89 || '',
+                        result.ema144 || '',
+                        result.ema233 || '',
+                        result.ema365 || '',
+                        result.bb_upper || '',
+                        result.bb_middle || '',
+                        result.bb_lower || '',
+                        result.last_updated || new Date().toLocaleString('zh-CN')
+                    ];
+                    csvContent += row.join(',') + '\n';
+                });
+                
+                // 创建Blob并下载
+                const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                const filename = `analysis_results_${timestamp}.csv`;
+                
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showStatus(`成功导出 ${dataToExport.length} 条分析结果到 ${filename}`, 'success');
+                
+            } catch (error) {
+                console.error('导出CSV失败:', error);
+                showStatus(`导出失败: ${error.message}`, 'error');
             }
         }
 
