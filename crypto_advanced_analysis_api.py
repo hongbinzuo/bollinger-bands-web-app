@@ -107,7 +107,20 @@ class AdvancedCryptoAnalyzer:
                 return pd.DataFrame()
             
             # 转换为DataFrame
-            df = pd.DataFrame(all_data, columns=['timestamp', 'volume', 'close', 'high', 'low', 'open'])
+            # Gate.io返回格式: [timestamp, volume, close, high, low, open, amount, ...]
+            # 先创建DataFrame不指定列名，然后选择需要的列
+            df_raw = pd.DataFrame(all_data)
+            
+            # 确保至少有6列
+            if len(df_raw.columns) < 6:
+                logger.error(f"获取 {symbol} 历史数据列数不足: {len(df_raw.columns)} 列")
+                return pd.DataFrame()
+            
+            # 提取前6列并重命名
+            df = df_raw.iloc[:, :6].copy()
+            df.columns = ['timestamp', 'volume', 'close', 'high', 'low', 'open']
+            
+            # 转换时间戳
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
             
             # 转换数据类型
