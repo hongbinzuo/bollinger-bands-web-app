@@ -2509,36 +2509,36 @@
             <!-- 分析结果概览 -->
             <div id="hotCoinsSummary" style="display: none; margin: 20px 0;">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
-                    <div class="stat-card">
-                        <div class="stat-value" id="totalCoins">0</div>
-                        <div class="stat-label">总币种数</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #fff; margin-bottom: 5px;" id="totalCoins">0</div>
+                        <div style="font-size: 12px; color: #999;">总币种数</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="successCoins">0</div>
-                        <div class="stat-label">成功获取</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #fff; margin-bottom: 5px;" id="successCoins">0</div>
+                        <div style="font-size: 12px; color: #999;">成功获取</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="positiveCoins">0</div>
-                        <div class="stat-label">上涨币种</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #28a745; margin-bottom: 5px;" id="positiveCoins">0</div>
+                        <div style="font-size: 12px; color: #999;">上涨币种</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="avgChange">0%</div>
-                        <div class="stat-label">平均涨跌</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #fff; margin-bottom: 5px;" id="avgChange">0%</div>
+                        <div style="font-size: 12px; color: #999;">平均涨跌</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="maxGain">0%</div>
-                        <div class="stat-label">最大涨幅</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #28a745; margin-bottom: 5px;" id="maxGain">0%</div>
+                        <div style="font-size: 12px; color: #999;">最大涨幅</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="maxLoss">0%</div>
-                        <div class="stat-label">最大跌幅</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #dc3545; margin-bottom: 5px;" id="maxLoss">0%</div>
+                        <div style="font-size: 12px; color: #999;">最大跌幅</div>
                     </div>
                 </div>
             </div>
             
             <!-- Tab切换 -->
             <div id="hotCoinsTabsContainer" style="display: none; margin: 20px 0;">
-                <div style="border-bottom: 2px solid #ddd; margin-bottom: 20px;">
+                <div style="border-bottom: 2px solid #444; margin-bottom: 20px;">
                     <button class="cross-tab active" onclick="showHotCoinsSubTab('gainers', event)">🚀 涨幅榜</button>
                     <button class="cross-tab" onclick="showHotCoinsSubTab('losers', event)">📉 跌幅榜</button>
                     <button class="cross-tab" onclick="showHotCoinsSubTab('volume', event)">💰 交易量榜</button>
@@ -2548,33 +2548,33 @@
                 
                 <!-- 涨幅榜 -->
                 <div id="gainersTab" class="cross-tab-content active">
-                    <h4>🚀 TOP 20 涨幅榜</h4>
+                    <h4 style="color: #e0e0e0;">🚀 TOP 20 涨幅榜</h4>
                     <div id="gainersContent"></div>
                 </div>
                 
                 <!-- 跌幅榜 -->
                 <div id="losersTab" class="cross-tab-content">
-                    <h4>📉 TOP 20 跌幅榜</h4>
+                    <h4 style="color: #e0e0e0;">📉 TOP 20 跌幅榜</h4>
                     <div id="losersContent"></div>
                 </div>
                 
                 <!-- 交易量榜 -->
                 <div id="volumeTab" class="cross-tab-content">
-                    <h4>💰 TOP 20 交易量榜</h4>
+                    <h4 style="color: #e0e0e0;">💰 TOP 20 交易量榜</h4>
                     <div id="volumeContent"></div>
                 </div>
                 
                 <!-- 涨跌分布 -->
                 <div id="distributionTab" class="cross-tab-content">
-                    <h4>📊 涨跌分布统计</h4>
+                    <h4 style="color: #e0e0e0;">📊 涨跌分布统计</h4>
                     <div id="distributionContent"></div>
                 </div>
                 
                 <!-- 完整列表 -->
                 <div id="allTab" class="cross-tab-content">
-                    <h4>📋 所有币种列表</h4>
+                    <h4 style="color: #e0e0e0;">📋 所有币种列表</h4>
                     <div style="margin-bottom: 10px;">
-                        <input type="text" id="coinSearchInput" placeholder="搜索币种..." style="padding: 8px; width: 300px; border: 1px solid #ddd; border-radius: 4px;">
+                        <input type="text" id="coinSearchInput" placeholder="搜索币种..." style="padding: 8px; width: 300px; border: 1px solid #555; border-radius: 4px; background: #1a1a1a; color: #e0e0e0;">
                     </div>
                     <div id="allCoinsContent"></div>
                 </div>
@@ -5888,12 +5888,12 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    let html = '<div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">';
-                    html += `<h4>📋 分析币种列表（共 ${result.count} 个）</h4>`;
+                    let html = '<div style="background: #2b2b2b; padding: 20px; border-radius: 8px; border: 1px solid #444;">';
+                    html += `<h4 style="color: #e0e0e0;">📋 分析币种列表（共 ${result.count} 个）</h4>`;
                     html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-top: 15px;">';
                     
                     result.symbols.forEach(symbol => {
-                        html += `<div style="background: white; padding: 8px; border-radius: 4px; text-align: center; border: 1px solid #ddd;">${symbol}</div>`;
+                        html += `<div style="background: #1a1a1a; padding: 8px; border-radius: 4px; text-align: center; border: 1px solid #555; color: #e0e0e0;">${symbol}</div>`;
                     });
                     
                     html += '</div></div>';
@@ -5936,74 +5936,74 @@
         
         // 渲染涨幅榜
         function renderGainersTab(gainers) {
-            let html = '<table class="styled-table"><thead><tr>';
-            html += '<th>排名</th><th>币种</th><th>24h涨跌</th><th>当前价格</th><th>24h最高</th><th>24h最低</th><th>交易量</th>';
+            let html = '<div style="background: #2b2b2b; padding: 15px; border-radius: 8px; border: 1px solid #444;"><table style="width: 100%; border-collapse: collapse;"><thead><tr style="background: #1a1a1a;">';
+            html += '<th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">排名</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">币种</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">24h涨跌</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">当前价格</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">24h最高</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">24h最低</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">交易量</th>';
             html += '</tr></thead><tbody>';
             
             gainers.forEach((coin, index) => {
-                const changeClass = coin.change_24h >= 0 ? 'positive' : 'negative';
-                html += `<tr>
-                    <td>${index + 1}</td>
-                    <td><strong>${coin.symbol}</strong></td>
-                    <td class="${changeClass}">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
-                    <td>$${coin.price.toFixed(6)}</td>
-                    <td>$${coin.high_24h.toFixed(6)}</td>
-                    <td>$${coin.low_24h.toFixed(6)}</td>
-                    <td>${coin.volume.toFixed(2)}</td>
+                const changeColor = coin.change_24h >= 0 ? '#28a745' : '#dc3545';
+                html += `<tr style="border-bottom: 1px solid #444;">
+                    <td style="padding: 10px; color: #999;">${index + 1}</td>
+                    <td style="padding: 10px; color: #e0e0e0;"><strong>${coin.symbol}</strong></td>
+                    <td style="padding: 10px; color: ${changeColor}; font-weight: bold;">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
+                    <td style="padding: 10px; color: #e0e0e0;">$${coin.price.toFixed(6)}</td>
+                    <td style="padding: 10px; color: #e0e0e0;">$${coin.high_24h.toFixed(6)}</td>
+                    <td style="padding: 10px; color: #e0e0e0;">$${coin.low_24h.toFixed(6)}</td>
+                    <td style="padding: 10px; color: #e0e0e0;">${coin.volume.toFixed(2)}</td>
                 </tr>`;
             });
             
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
             document.getElementById('gainersContent').innerHTML = html;
         }
         
         // 渲染跌幅榜
         function renderLosersTab(losers) {
-            let html = '<table class="styled-table"><thead><tr>';
-            html += '<th>排名</th><th>币种</th><th>24h涨跌</th><th>当前价格</th><th>24h最高</th><th>24h最低</th><th>交易量</th>';
+            let html = '<div style="background: #2b2b2b; padding: 15px; border-radius: 8px; border: 1px solid #444;"><table style="width: 100%; border-collapse: collapse;"><thead><tr style="background: #1a1a1a;">';
+            html += '<th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">排名</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">币种</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">24h涨跌</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">当前价格</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">24h最高</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">24h最低</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">交易量</th>';
             html += '</tr></thead><tbody>';
             
             losers.forEach((coin, index) => {
-                const changeClass = coin.change_24h >= 0 ? 'positive' : 'negative';
-                html += `<tr>
-                    <td>${index + 1}</td>
-                    <td><strong>${coin.symbol}</strong></td>
-                    <td class="${changeClass}">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
-                    <td>$${coin.price.toFixed(6)}</td>
-                    <td>$${coin.high_24h.toFixed(6)}</td>
-                    <td>$${coin.low_24h.toFixed(6)}</td>
-                    <td>${coin.volume.toFixed(2)}</td>
+                const changeColor = coin.change_24h >= 0 ? '#28a745' : '#dc3545';
+                html += `<tr style="border-bottom: 1px solid #444;">
+                    <td style="padding: 10px; color: #999;">${index + 1}</td>
+                    <td style="padding: 10px; color: #e0e0e0;"><strong>${coin.symbol}</strong></td>
+                    <td style="padding: 10px; color: ${changeColor}; font-weight: bold;">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
+                    <td style="padding: 10px; color: #e0e0e0;">$${coin.price.toFixed(6)}</td>
+                    <td style="padding: 10px; color: #e0e0e0;">$${coin.high_24h.toFixed(6)}</td>
+                    <td style="padding: 10px; color: #e0e0e0;">$${coin.low_24h.toFixed(6)}</td>
+                    <td style="padding: 10px; color: #e0e0e0;">${coin.volume.toFixed(2)}</td>
                 </tr>`;
             });
             
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
             document.getElementById('losersContent').innerHTML = html;
         }
         
         // 渲染交易量榜
         function renderVolumeTab(volumes) {
-            let html = '<table class="styled-table"><thead><tr>';
-            html += '<th>排名</th><th>币种</th><th>交易量</th><th>24h涨跌</th><th>当前价格</th>';
+            let html = '<div style="background: #2b2b2b; padding: 15px; border-radius: 8px; border: 1px solid #444;"><table style="width: 100%; border-collapse: collapse;"><thead><tr style="background: #1a1a1a;">';
+            html += '<th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">排名</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">币种</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">交易量</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">24h涨跌</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">当前价格</th>';
             html += '</tr></thead><tbody>';
             
             volumes.forEach((coin, index) => {
-                const changeClass = coin.change_24h >= 0 ? 'positive' : 'negative';
-                html += `<tr>
-                    <td>${index + 1}</td>
-                    <td><strong>${coin.symbol}</strong></td>
-                    <td>${coin.volume.toFixed(2)}</td>
-                    <td class="${changeClass}">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
-                    <td>$${coin.price.toFixed(6)}</td>
+                const changeColor = coin.change_24h >= 0 ? '#28a745' : '#dc3545';
+                html += `<tr style="border-bottom: 1px solid #444;">
+                    <td style="padding: 10px; color: #999;">${index + 1}</td>
+                    <td style="padding: 10px; color: #e0e0e0;"><strong>${coin.symbol}</strong></td>
+                    <td style="padding: 10px; color: #e0e0e0;">${coin.volume.toFixed(2)}</td>
+                    <td style="padding: 10px; color: ${changeColor}; font-weight: bold;">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
+                    <td style="padding: 10px; color: #e0e0e0;">$${coin.price.toFixed(6)}</td>
                 </tr>`;
             });
             
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
             document.getElementById('volumeContent').innerHTML = html;
         }
         
         // 渲染涨跌分布
         function renderDistributionTab(distribution) {
-            let html = '<div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">';
+            let html = '<div style="background: #2b2b2b; padding: 20px; border-radius: 8px; border: 1px solid #444;">';
             
             const categories = [
                 { label: '涨幅 ≥10%', value: distribution.up_10_plus, color: '#28a745' },
@@ -6021,10 +6021,10 @@
                 html += `
                     <div style="margin-bottom: 15px;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                            <span><strong>${cat.label}</strong></span>
-                            <span>${cat.value} 个 (${percentage}%)</span>
+                            <span style="color: #e0e0e0;"><strong>${cat.label}</strong></span>
+                            <span style="color: #bbb;">${cat.value} 个 (${percentage}%)</span>
                         </div>
-                        <div style="background: #e0e0e0; height: 30px; border-radius: 5px; overflow: hidden;">
+                        <div style="background: #1a1a1a; height: 30px; border-radius: 5px; overflow: hidden; border: 1px solid #444;">
                             <div style="background: ${cat.color}; height: 100%; width: ${percentage}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
                                 ${percentage}%
                             </div>
@@ -6045,25 +6045,25 @@
                 filterCoins(this.value.toUpperCase());
             };
             
-            let html = '<table class="styled-table" id="allCoinsTable"><thead><tr>';
-            html += '<th>币种</th><th>24h涨跌</th><th>当前价格</th><th>24h最高</th><th>24h最低</th><th>交易量</th><th>数据源</th>';
+            let html = '<div style="background: #2b2b2b; padding: 15px; border-radius: 8px; border: 1px solid #444;"><table style="width: 100%; border-collapse: collapse;"><thead><tr style="background: #1a1a1a;">';
+            html += '<th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">币种</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">24h涨跌</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">当前价格</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">24h最高</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">24h最低</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">交易量</th><th style="padding: 12px; text-align: left; color: #e0e0e0; border-bottom: 2px solid #555;">数据源</th>';
             html += '</tr></thead><tbody>';
             
             coins.forEach(coin => {
-                const changeClass = coin.change_24h >= 0 ? 'positive' : 'negative';
-                const dataClass = coin.source === 'Failed' ? 'text-muted' : '';
-                html += `<tr class="coin-row" data-symbol="${coin.symbol}">
-                    <td class="${dataClass}"><strong>${coin.symbol}</strong></td>
-                    <td class="${changeClass}">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
-                    <td class="${dataClass}">$${coin.price.toFixed(6)}</td>
-                    <td class="${dataClass}">$${coin.high_24h.toFixed(6)}</td>
-                    <td class="${dataClass}">$${coin.low_24h.toFixed(6)}</td>
-                    <td class="${dataClass}">${coin.volume.toFixed(2)}</td>
-                    <td class="${dataClass}">${coin.source}</td>
+                const changeColor = coin.change_24h >= 0 ? '#28a745' : '#dc3545';
+                const textColor = coin.source === 'Failed' ? '#666' : '#e0e0e0';
+                html += `<tr class="coin-row" data-symbol="${coin.symbol}" style="border-bottom: 1px solid #444;">
+                    <td style="padding: 10px; color: ${textColor};"><strong>${coin.symbol}</strong></td>
+                    <td style="padding: 10px; color: ${changeColor}; font-weight: bold;">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
+                    <td style="padding: 10px; color: ${textColor};">$${coin.price.toFixed(6)}</td>
+                    <td style="padding: 10px; color: ${textColor};">$${coin.high_24h.toFixed(6)}</td>
+                    <td style="padding: 10px; color: ${textColor};">$${coin.low_24h.toFixed(6)}</td>
+                    <td style="padding: 10px; color: ${textColor};">${coin.volume.toFixed(2)}</td>
+                    <td style="padding: 10px; color: ${textColor};">${coin.source}</td>
                 </tr>`;
             });
             
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
             document.getElementById('allCoinsContent').innerHTML = html;
         }
         
@@ -6199,10 +6199,10 @@
         function displayHistoricalResults(data) {
             if (!data.results || data.results.length === 0) {
                 document.getElementById('hotCoinsResults').innerHTML = `
-                    <div style="text-align: center; padding: 40px; background: #f9f9f9; border-radius: 8px;">
-                        <h3>😢 未找到符合条件的币种</h3>
-                        <p>在指定时间段内，没有币种达到 ${data.min_gain_ratio}倍的涨幅</p>
-                        <p>建议：降低涨幅倍数或扩大时间范围</p>
+                    <div style="text-align: center; padding: 40px; background: #2b2b2b; border-radius: 8px; border: 1px solid #444;">
+                        <h3 style="color: #e0e0e0;">😢 未找到符合条件的币种</h3>
+                        <p style="color: #bbb;">在指定时间段内，没有币种的最高点达到 ${data.min_gain_ratio}倍涨幅</p>
+                        <p style="color: #999;">建议：降低涨幅倍数或扩大时间范围</p>
                     </div>
                 `;
                 return;
@@ -6213,33 +6213,33 @@
             // 概览卡片
             html += `
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
-                    <div class="stat-card">
-                        <div class="stat-value">${data.total_analyzed}</div>
-                        <div class="stat-label">分析币种数</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #fff; margin-bottom: 5px;">${data.total_analyzed}</div>
+                        <div style="font-size: 12px; color: #999;">分析币种数</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" style="color: #28a745;">${data.qualified_count}</div>
-                        <div class="stat-label">符合条件</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #28a745; margin-bottom: 5px;">${data.qualified_count}</div>
+                        <div style="font-size: 12px; color: #999;">符合条件</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.start_date}</div>
-                        <div class="stat-label">开始日期</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #fff; margin-bottom: 5px;">${data.start_date}</div>
+                        <div style="font-size: 12px; color: #999;">开始日期</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.end_date}</div>
-                        <div class="stat-label">结束日期</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #fff; margin-bottom: 5px;">${data.end_date}</div>
+                        <div style="font-size: 12px; color: #999;">结束日期</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${data.min_gain_ratio}x</div>
-                        <div class="stat-label">最小涨幅</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #fff; margin-bottom: 5px;">${data.min_gain_ratio}x</div>
+                        <div style="font-size: 12px; color: #999;">最小涨幅</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" style="color: #dc3545;">${data.results[0].gain_ratio.toFixed(2)}x</div>
-                        <div class="stat-label">最高涨幅</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #dc3545; margin-bottom: 5px;">${data.results[0].gain_ratio.toFixed(2)}x</div>
+                        <div style="font-size: 12px; color: #999;">最高涨幅</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" style="color: #ffc107;">${data.failed_count || 0}</div>
-                        <div class="stat-label">分析失败</div>
+                    <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #444;">
+                        <div style="font-size: 28px; font-weight: bold; color: #ffc107; margin-bottom: 5px;">${data.failed_count || 0}</div>
+                        <div style="font-size: 12px; color: #999;">分析失败</div>
                     </div>
                 </div>
             `;
@@ -6256,20 +6256,20 @@
             }
             
             // 币种列表
-            html += '<h3 style="margin-top: 30px;">🏆 超级牛币榜单</h3>';
+            html += '<h3 style="margin-top: 30px; color: #e0e0e0; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">🏆 超级牛币榜单</h3>';
             
             data.results.forEach((coin, index) => {
                 html += `
-                    <div style="background: white; border: 2px solid #28a745; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="background: #1a1a1a; border: 2px solid #28a745; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                             <div>
-                                <span style="font-size: 24px; font-weight: bold; color: #333;">
+                                <span style="font-size: 24px; font-weight: bold; color: #e0e0e0;">
                                     ${index + 1}. ${coin.symbol}
                                 </span>
                                 <span style="font-size: 32px; font-weight: bold; color: #28a745; margin-left: 20px;">
                                     ${coin.gain_ratio.toFixed(2)}x 🚀
                                 </span>
-                                <span style="color: #666; margin-left: 10px;">(最高点+${coin.gain_percent.toFixed(2)}%)</span>
+                                <span style="color: #999; margin-left: 10px;">(最高点+${coin.gain_percent.toFixed(2)}%)</span>
                             </div>
                             <div>
                                 <button class="btn btn-info" onclick="showCoinDetail('${coin.symbol}', ${index})">📊 查看详情</button>
@@ -6277,31 +6277,31 @@
                             </div>
                         </div>
                         
-                        <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <div style="background: #2b2b2b; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #444;">
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                                 <div>
-                                    <strong>📅 时间跨度:</strong><br>
-                                    ${coin.start_date} 至 ${coin.end_date}
+                                    <strong style="color: #bbb;">📅 时间跨度:</strong><br>
+                                    <span style="color: #e0e0e0;">${coin.start_date} 至 ${coin.end_date}</span>
                                 </div>
                                 <div>
-                                    <strong>💰 起始价格:</strong><br>
-                                    $${coin.start_price.toFixed(6)}
+                                    <strong style="color: #bbb;">💰 起始价格:</strong><br>
+                                    <span style="color: #e0e0e0;">$${coin.start_price.toFixed(6)}</span>
                                 </div>
                                 <div>
-                                    <strong>📈 最高价:</strong><br>
-                                    <span style="color: #28a745; font-size: 18px;">$${coin.max_price.toFixed(6)}</span>
+                                    <strong style="color: #bbb;">📈 最高价:</strong><br>
+                                    <span style="color: #28a745; font-size: 18px; font-weight: bold;">$${coin.max_price.toFixed(6)}</span>
                                 </div>
                                 <div>
-                                    <strong>📉 最低价:</strong><br>
-                                    $${coin.min_price.toFixed(6)}
+                                    <strong style="color: #bbb;">📉 最低价:</strong><br>
+                                    <span style="color: #e0e0e0;">$${coin.min_price.toFixed(6)}</span>
                                 </div>
                                 <div>
-                                    <strong>💵 当前价格:</strong><br>
-                                    $${coin.end_price.toFixed(6)}
+                                    <strong style="color: #bbb;">💵 当前价格:</strong><br>
+                                    <span style="color: #e0e0e0;">$${coin.end_price.toFixed(6)}</span>
                                 </div>
                                 <div>
-                                    <strong>📊 当前涨幅:</strong><br>
-                                    <span style="color: ${coin.current_gain_percent >= 0 ? '#28a745' : '#dc3545'};">
+                                    <strong style="color: #bbb;">📊 当前涨幅:</strong><br>
+                                    <span style="color: ${coin.current_gain_percent >= 0 ? '#28a745' : '#dc3545'}; font-weight: bold;">
                                         ${coin.current_gain_ratio ? coin.current_gain_ratio.toFixed(2) : 'N/A'}x (${coin.current_gain_percent >= 0 ? '+' : ''}${coin.current_gain_percent ? coin.current_gain_percent.toFixed(2) : 'N/A'}%)
                                     </span>
                                 </div>
@@ -6309,38 +6309,38 @@
                         </div>
                         
                         ${coin.project_info ? `
-                            <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                                <h4 style="margin: 0 0 10px 0;">📋 项目信息</h4>
+                            <div style="background: #2b2b2b; padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #444;">
+                                <h4 style="margin: 0 0 10px 0; color: #17a2b8;">📋 项目信息</h4>
                                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-                                    <div><strong>项目名称:</strong> ${coin.project_info.name}</div>
-                                    <div><strong>市值排名:</strong> #${coin.project_info.market_cap_rank}</div>
-                                    <div><strong>技术赛道:</strong> ${coin.project_info.categories.join(', ') || '未知'}</div>
-                                    <div><strong>市值:</strong> $${(coin.project_info.market_cap / 1e6).toFixed(2)}M</div>
+                                    <div><strong style="color: #bbb;">项目名称:</strong> <span style="color: #e0e0e0;">${coin.project_info.name}</span></div>
+                                    <div><strong style="color: #bbb;">市值排名:</strong> <span style="color: #e0e0e0;">#${coin.project_info.market_cap_rank}</span></div>
+                                    <div><strong style="color: #bbb;">技术赛道:</strong> <span style="color: #28a745;">${coin.project_info.categories.join(', ') || '未知'}</span></div>
+                                    <div><strong style="color: #bbb;">市值:</strong> <span style="color: #e0e0e0;">$${(coin.project_info.market_cap / 1e6).toFixed(2)}M</span></div>
                                 </div>
                                 <div style="margin-top: 10px;">
-                                    <strong>项目简介:</strong> ${coin.project_info.description || '暂无描述'}
+                                    <strong style="color: #bbb;">项目简介:</strong> <span style="color: #ccc;">${coin.project_info.description || '暂无描述'}</span>
                                 </div>
                                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px;">
-                                    <div><strong>Twitter粉丝:</strong> ${coin.project_info.twitter_followers.toLocaleString()}</div>
-                                    <div><strong>GitHub星标:</strong> ${coin.project_info.github_stars}</div>
-                                    <div><strong>4周代码提交:</strong> ${coin.project_info.github_commits_4w}</div>
+                                    <div><strong style="color: #bbb;">Twitter粉丝:</strong> <span style="color: #e0e0e0;">${coin.project_info.twitter_followers.toLocaleString()}</span></div>
+                                    <div><strong style="color: #bbb;">GitHub星标:</strong> <span style="color: #e0e0e0;">${coin.project_info.github_stars}</span></div>
+                                    <div><strong style="color: #bbb;">4周代码提交:</strong> <span style="color: #e0e0e0;">${coin.project_info.github_commits_4w}</span></div>
                                 </div>
                                 <div style="margin-top: 10px;">
-                                    ${coin.project_info.homepage ? `<a href="${coin.project_info.homepage}" target="_blank" style="margin-right: 15px;">🌐 官网</a>` : ''}
-                                    ${coin.project_info.github ? `<a href="${coin.project_info.github}" target="_blank" style="margin-right: 15px;">💻 GitHub</a>` : ''}
-                                    ${coin.project_info.twitter ? `<a href="https://twitter.com/${coin.project_info.twitter}" target="_blank">🐦 Twitter</a>` : ''}
+                                    ${coin.project_info.homepage ? `<a href="${coin.project_info.homepage}" target="_blank" style="margin-right: 15px; color: #17a2b8; text-decoration: none;">🌐 官网</a>` : ''}
+                                    ${coin.project_info.github ? `<a href="${coin.project_info.github}" target="_blank" style="margin-right: 15px; color: #17a2b8; text-decoration: none;">💻 GitHub</a>` : ''}
+                                    ${coin.project_info.twitter ? `<a href="https://twitter.com/${coin.project_info.twitter}" target="_blank" style="color: #17a2b8; text-decoration: none;">🐦 Twitter</a>` : ''}
                                 </div>
                             </div>
                         ` : ''}
                         
                         ${coin.money_flow ? `
-                            <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                                <h4 style="margin: 0 0 10px 0;">💰 资金流向分析</h4>
+                            <div style="background: #2b2b2b; padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #444;">
+                                <h4 style="margin: 0 0 10px 0; color: #ffc107;">💰 资金流向分析</h4>
                                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-                                    <div><strong>最新资金流:</strong> ${coin.money_flow.latest_flow > 0 ? '✅ 流入' : '⚠️ 流出'} ${Math.abs(coin.money_flow.latest_flow).toFixed(2)}</div>
-                                    <div><strong>累计资金流:</strong> ${coin.money_flow.cumulative_flow.toFixed(2)}</div>
-                                    <div><strong>日均成交量:</strong> ${coin.money_flow.avg_daily_volume.toFixed(2)}</div>
-                                    <div><strong>OBV指标:</strong> ${coin.money_flow.obv.toFixed(2)}</div>
+                                    <div><strong style="color: #bbb;">最新资金流:</strong> <span style="color: ${coin.money_flow.latest_flow > 0 ? '#28a745' : '#dc3545'};">${coin.money_flow.latest_flow > 0 ? '✅ 流入' : '⚠️ 流出'} ${Math.abs(coin.money_flow.latest_flow).toFixed(2)}</span></div>
+                                    <div><strong style="color: #bbb;">累计资金流:</strong> <span style="color: #e0e0e0;">${coin.money_flow.cumulative_flow.toFixed(2)}</span></div>
+                                    <div><strong style="color: #bbb;">日均成交量:</strong> <span style="color: #e0e0e0;">${coin.money_flow.avg_daily_volume.toFixed(2)}</span></div>
+                                    <div><strong style="color: #bbb;">OBV指标:</strong> <span style="color: #e0e0e0;">${coin.money_flow.obv.toFixed(2)}</span></div>
                                 </div>
                                 <button class="btn btn-info" onclick="showMoneyFlowChart('${coin.symbol}')" style="margin-top: 10px;">
                                     📊 查看资金流向图表
@@ -6359,37 +6359,38 @@
         function showCoinDetail(symbol, index) {
             const coin = historicalAnalysisData.results[index];
             let html = `
-                <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;" onclick="this.remove()">
-                    <div style="background: white; padding: 30px; border-radius: 15px; max-width: 800px; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
-                        <h2>${coin.symbol} - 详细报告</h2>
-                        <button onclick="this.parentElement.parentElement.remove()" style="position: absolute; right: 20px; top: 20px; background: #f44336; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">关闭</button>
+                <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 10000; display: flex; align-items: center; justify-content: center;" onclick="this.remove()">
+                    <div style="background: #1a1a1a; padding: 30px; border-radius: 15px; max-width: 800px; max-height: 90vh; overflow-y: auto; border: 2px solid #444;" onclick="event.stopPropagation()">
+                        <h2 style="color: #e0e0e0;">${coin.symbol} - 详细报告</h2>
+                        <button onclick="this.parentElement.parentElement.remove()" style="position: absolute; right: 20px; top: 20px; background: #dc3545; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">关闭</button>
                         
-                        <div style="margin-top: 20px;">
-                            <h3>💹 涨幅数据</h3>
-                            <p><strong>涨幅倍数:</strong> ${coin.gain_ratio.toFixed(2)}x (+${coin.gain_percent.toFixed(2)}%)</p>
-                            <p><strong>价格变化:</strong> $${coin.start_price.toFixed(6)} → $${coin.end_price.toFixed(6)}</p>
-                            <p><strong>价格区间:</strong> 最低 $${coin.min_price.toFixed(6)}, 最高 $${coin.max_price.toFixed(6)}</p>
+                        <div style="margin-top: 20px; padding: 15px; background: #2b2b2b; border-radius: 8px; border: 1px solid #444;">
+                            <h3 style="color: #28a745;">💹 涨幅数据</h3>
+                            <p style="color: #e0e0e0;"><strong style="color: #bbb;">最高点涨幅:</strong> ${coin.gain_ratio.toFixed(2)}x (+${coin.gain_percent.toFixed(2)}%)</p>
+                            <p style="color: #e0e0e0;"><strong style="color: #bbb;">当前涨幅:</strong> ${coin.current_gain_ratio ? coin.current_gain_ratio.toFixed(2) : 'N/A'}x (+${coin.current_gain_percent ? coin.current_gain_percent.toFixed(2) : 'N/A'}%)</p>
+                            <p style="color: #e0e0e0;"><strong style="color: #bbb;">价格变化:</strong> $${coin.start_price.toFixed(6)} → $${coin.end_price.toFixed(6)}</p>
+                            <p style="color: #e0e0e0;"><strong style="color: #bbb;">价格区间:</strong> 最低 <span style="color: #dc3545;">$${coin.min_price.toFixed(6)}</span>, 最高 <span style="color: #28a745;">$${coin.max_price.toFixed(6)}</span></p>
                         </div>
                         
                         ${coin.project_info ? `
-                            <div style="margin-top: 20px;">
-                                <h3>📋 项目详情</h3>
-                                <p><strong>完整名称:</strong> ${coin.project_info.name}</p>
-                                <p><strong>市值排名:</strong> #${coin.project_info.market_cap_rank}</p>
-                                <p><strong>技术赛道:</strong> ${coin.project_info.categories.join(', ')}</p>
-                                <p><strong>流通量:</strong> ${coin.project_info.circulating_supply.toLocaleString()}</p>
-                                <p><strong>总供应量:</strong> ${coin.project_info.total_supply.toLocaleString()}</p>
+                            <div style="margin-top: 20px; padding: 15px; background: #2b2b2b; border-radius: 8px; border: 1px solid #444;">
+                                <h3 style="color: #17a2b8;">📋 项目详情</h3>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">完整名称:</strong> ${coin.project_info.name}</p>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">市值排名:</strong> #${coin.project_info.market_cap_rank}</p>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">技术赛道:</strong> <span style="color: #28a745;">${coin.project_info.categories.join(', ')}</span></p>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">流通量:</strong> ${coin.project_info.circulating_supply.toLocaleString()}</p>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">总供应量:</strong> ${coin.project_info.total_supply.toLocaleString()}</p>
                                 
-                                <h4 style="margin-top: 15px;">社区活跃度</h4>
-                                <p><strong>Twitter:</strong> ${coin.project_info.twitter_followers.toLocaleString()} 粉丝</p>
-                                <p><strong>Reddit:</strong> ${coin.project_info.reddit_subscribers.toLocaleString()} 订阅者</p>
-                                <p><strong>Telegram:</strong> ${coin.project_info.telegram_users.toLocaleString()} 用户</p>
+                                <h4 style="margin-top: 15px; color: #20c997;">社区活跃度</h4>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">Twitter:</strong> ${coin.project_info.twitter_followers.toLocaleString()} 粉丝</p>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">Reddit:</strong> ${coin.project_info.reddit_subscribers.toLocaleString()} 订阅者</p>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">Telegram:</strong> ${coin.project_info.telegram_users.toLocaleString()} 用户</p>
                                 
-                                <h4 style="margin-top: 15px;">开发活跃度</h4>
-                                <p><strong>GitHub星标:</strong> ${coin.project_info.github_stars}</p>
-                                <p><strong>Forks:</strong> ${coin.project_info.github_forks}</p>
-                                <p><strong>最近4周提交:</strong> ${coin.project_info.github_commits_4w} 次</p>
-                                <p><strong>Issues:</strong> ${coin.project_info.github_total_issues} (已关闭: ${coin.project_info.github_closed_issues})</p>
+                                <h4 style="margin-top: 15px; color: #ffc107;">开发活跃度</h4>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">GitHub星标:</strong> ${coin.project_info.github_stars}</p>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">Forks:</strong> ${coin.project_info.github_forks}</p>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">最近4周提交:</strong> ${coin.project_info.github_commits_4w} 次</p>
+                                <p style="color: #e0e0e0;"><strong style="color: #bbb;">Issues:</strong> ${coin.project_info.github_total_issues} (已关闭: ${coin.project_info.github_closed_issues})</p>
                             </div>
                         ` : ''}
                     </div>
@@ -6433,19 +6434,21 @@
         // 显示价格图表（使用Chart.js）
         function displayPriceChart(symbol, data) {
             const modal = document.createElement('div');
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 10000; display: flex; align-items: center; justify-content: center;';
             modal.onclick = () => modal.remove();
             
             const chartContainer = document.createElement('div');
-            chartContainer.style.cssText = 'background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 1200px; max-height: 90vh; overflow-y: auto;';
+            chartContainer.style.cssText = 'background: #1a1a1a; padding: 30px; border-radius: 15px; width: 90%; max-width: 1200px; max-height: 90vh; overflow-y: auto; border: 2px solid #444;';
             chartContainer.onclick = (e) => e.stopPropagation();
             
             chartContainer.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2>${symbol} - 历史价格走势</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #1a1a1a; padding: 15px; border-radius: 8px;">
+                    <h2 style="color: #e0e0e0; margin: 0;">${symbol} - 历史价格走势</h2>
                     <button onclick="this.closest('[style*=fixed]').remove()" class="btn btn-danger">关闭</button>
                 </div>
-                <canvas id="priceChart" style="max-height: 500px;"></canvas>
+                <div style="background: #2b2b2b; padding: 20px; border-radius: 8px;">
+                    <canvas id="priceChart" style="max-height: 500px;"></canvas>
+                </div>
             `;
             
             modal.appendChild(chartContainer);
@@ -6461,7 +6464,7 @@
                         label: '价格 (USD)',
                         data: data.prices,
                         borderColor: '#28a745',
-                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        backgroundColor: 'rgba(40, 167, 69, 0.2)',
                         tension: 0.4,
                         fill: true
                     }]
@@ -6472,25 +6475,40 @@
                     plugins: {
                         legend: {
                             display: true,
-                            position: 'top'
+                            position: 'top',
+                            labels: {
+                                color: '#e0e0e0',
+                                font: { size: 14 }
+                            }
                         },
                         tooltip: {
                             mode: 'index',
-                            intersect: false
+                            intersect: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#e0e0e0',
+                            borderColor: '#444',
+                            borderWidth: 1
                         }
                     },
                     scales: {
                         y: {
                             beginAtZero: false,
+                            ticks: { color: '#e0e0e0' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
                             title: {
                                 display: true,
-                                text: '价格 (USD)'
+                                text: '价格 (USD)',
+                                color: '#e0e0e0'
                             }
                         },
                         x: {
+                            ticks: { color: '#e0e0e0' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
                             title: {
                                 display: true,
-                                text: '日期'
+                                text: '日期',
+                                color: '#e0e0e0'
                             }
                         }
                     }
@@ -6532,20 +6550,24 @@
         // 显示资金流向图表
         function displayMoneyFlowChart(symbol, data) {
             const modal = document.createElement('div');
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 10000; display: flex; align-items: center; justify-content: center;';
             modal.onclick = () => modal.remove();
             
             const chartContainer = document.createElement('div');
-            chartContainer.style.cssText = 'background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 1200px; max-height: 90vh; overflow-y: auto;';
+            chartContainer.style.cssText = 'background: #1a1a1a; padding: 30px; border-radius: 15px; width: 90%; max-width: 1200px; max-height: 90vh; overflow-y: auto; border: 2px solid #444;';
             chartContainer.onclick = (e) => e.stopPropagation();
             
             chartContainer.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2>${symbol} - 资金流向分析</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #2b2b2b; padding: 15px; border-radius: 8px;">
+                    <h2 style="color: #e0e0e0; margin: 0;">${symbol} - 资金流向分析</h2>
                     <button onclick="this.closest('[style*=fixed]').remove()" class="btn btn-danger">关闭</button>
                 </div>
-                <canvas id="moneyFlowChart" style="max-height: 400px;"></canvas>
-                <canvas id="obvChart" style="max-height: 300px; margin-top: 30px;"></canvas>
+                <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <canvas id="moneyFlowChart" style="max-height: 400px;"></canvas>
+                </div>
+                <div style="background: #2b2b2b; padding: 20px; border-radius: 8px;">
+                    <canvas id="obvChart" style="max-height: 300px;"></canvas>
+                </div>
             `;
             
             modal.appendChild(chartContainer);
@@ -6560,15 +6582,15 @@
                     datasets: [{
                         label: '每日资金流向',
                         data: data.money_flow,
-                        backgroundColor: data.money_flow.map(v => v >= 0 ? 'rgba(40, 167, 69, 0.6)' : 'rgba(220, 53, 69, 0.6)'),
+                        backgroundColor: data.money_flow.map(v => v >= 0 ? 'rgba(40, 167, 69, 0.7)' : 'rgba(220, 53, 69, 0.7)'),
                         borderColor: data.money_flow.map(v => v >= 0 ? '#28a745' : '#dc3545'),
                         borderWidth: 1
                     }, {
                         label: '累计资金流',
                         data: data.cumulative_flow,
                         type: 'line',
-                        borderColor: '#2196F3',
-                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        borderColor: '#17a2b8',
+                        backgroundColor: 'rgba(23, 162, 184, 0.1)',
                         tension: 0.4,
                         fill: false,
                         yAxisID: 'y1'
@@ -6577,15 +6599,43 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#e0e0e0',
+                                font: { size: 14 }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#e0e0e0'
+                        }
+                    },
                     scales: {
                         y: {
                             position: 'left',
-                            title: { display: true, text: '每日资金流' }
+                            ticks: { color: '#e0e0e0' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            title: { 
+                                display: true, 
+                                text: '每日资金流',
+                                color: '#e0e0e0'
+                            }
                         },
                         y1: {
                             position: 'right',
-                            title: { display: true, text: '累计资金流' },
-                            grid: { drawOnChartArea: false }
+                            ticks: { color: '#e0e0e0' },
+                            grid: { drawOnChartArea: false },
+                            title: { 
+                                display: true, 
+                                text: '累计资金流',
+                                color: '#e0e0e0'
+                            }
+                        },
+                        x: {
+                            ticks: { color: '#e0e0e0' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
                         }
                     }
                 }
@@ -6600,8 +6650,8 @@
                     datasets: [{
                         label: 'OBV (能量潮)',
                         data: data.obv,
-                        borderColor: '#FF9800',
-                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                        borderColor: '#ffc107',
+                        backgroundColor: 'rgba(255, 193, 7, 0.2)',
                         tension: 0.4,
                         fill: true
                     }]
@@ -6610,7 +6660,28 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: true }
+                        legend: { 
+                            display: true,
+                            labels: {
+                                color: '#e0e0e0',
+                                font: { size: 14 }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#e0e0e0'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: { color: '#e0e0e0' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        x: {
+                            ticks: { color: '#e0e0e0' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
                     }
                 }
             });
@@ -6661,16 +6732,16 @@
             });
             
             let html = `
-                <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; overflow-y: auto;" onclick="this.remove()">
-                    <div style="background: white; padding: 30px; border-radius: 15px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; margin: 20px;" onclick="event.stopPropagation()">
+                <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 10000; display: flex; align-items: center; justify-content: center; overflow-y: auto;" onclick="this.remove()">
+                    <div style="background: #1a1a1a; padding: 30px; border-radius: 15px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; margin: 20px; border: 2px solid #444;" onclick="event.stopPropagation()">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #ffc107; padding-bottom: 15px;">
-                            <h2 style="margin: 0;">⚠️ 失败记录</h2>
+                            <h2 style="margin: 0; color: #e0e0e0;">⚠️ 失败记录</h2>
                             <button onclick="this.closest('[style*=fixed]').remove()" class="btn btn-danger">关闭</button>
                         </div>
                         
-                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
-                            <strong>📊 统计概览</strong>
-                            <div style="margin-top: 10px;">
+                        <div style="background: #2b2b2b; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+                            <strong style="color: #ffc107;">📊 统计概览</strong>
+                            <div style="margin-top: 10px; color: #e0e0e0;">
                                 <p>• 总分析数: ${historicalAnalysisData.total_analyzed} 个币种</p>
                                 <p>• 成功数: ${historicalAnalysisData.qualified_count} 个</p>
                                 <p>• 失败数: ${historicalAnalysisData.failed_count} 个</p>
@@ -6693,13 +6764,13 @@
                         <h3 style="color: ${reasonColor}; border-bottom: 2px solid ${reasonColor}; padding-bottom: 10px;">
                             ${reason} (${records.length}个)
                         </h3>
-                        <div style="max-height: 200px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px;">
+                        <div style="max-height: 200px; overflow-y: auto; background: #2b2b2b; padding: 15px; border-radius: 8px; margin-top: 10px; border: 1px solid #444;">
                             <table style="width: 100%; border-collapse: collapse;">
                                 <thead>
-                                    <tr style="background: #e9ecef;">
-                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6;">序号</th>
-                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6;">币种</th>
-                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6;">详细原因</th>
+                                    <tr style="background: #1a1a1a;">
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #555; color: #e0e0e0;">序号</th>
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #555; color: #e0e0e0;">币种</th>
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #555; color: #e0e0e0;">详细原因</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -6707,10 +6778,10 @@
                 
                 records.forEach((record, index) => {
                     html += `
-                        <tr style="border-bottom: 1px solid #dee2e6;">
-                            <td style="padding: 8px;">${index + 1}</td>
-                            <td style="padding: 8px;"><strong>${record.symbol}</strong></td>
-                            <td style="padding: 8px; color: #666;">${record.detail}</td>
+                        <tr style="border-bottom: 1px solid #444;">
+                            <td style="padding: 8px; color: #999;">${index + 1}</td>
+                            <td style="padding: 8px;"><strong style="color: #e0e0e0;">${record.symbol}</strong></td>
+                            <td style="padding: 8px; color: #bbb;">${record.detail}</td>
                         </tr>
                     `;
                 });
@@ -6725,7 +6796,7 @@
             
             // 添加导出功能
             html += `
-                <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 2px solid #dee2e6;">
+                <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 2px solid #444;">
                     <button class="btn btn-info" onclick="exportFailedRecords()">
                         📥 导出失败记录（CSV）
                     </button>
