@@ -1992,6 +1992,7 @@
             <button class="tab" onclick="showTab('intraday', event)">⚡ 日内交易</button>
             <button class="tab" onclick="showTab('ultraShort', event)">🚀 日内超短</button>
             <button class="tab" onclick="showTab('multiTimeframe', event)">📈 多时间框架</button>
+            <button class="tab" onclick="showTab('hotCoins', event)">🔥 热点币种分析</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
         </div>
@@ -2045,9 +2046,9 @@
                 
                 <!-- 分页控制 -->
                 <div class="pagination-controls">
-                    <button onclick="previousSignalPage()" id="prevPage">上一页</button>
+                    <button onclick="changePage(-1)" id="prevPage">上一页</button>
                     <span id="pageInfo">第 1 页，共 1 页</span>
-                    <button onclick="nextSignalPage()" id="nextPage">下一页</button>
+                    <button onclick="changePage(1)" id="nextPage">下一页</button>
                     <select id="pageSize" onchange="changePageSize()">
                         <option value="20">20条/页</option>
                         <option value="50">50条/页</option>
@@ -2429,7 +2430,159 @@
             </div>
         </div>
 
-
+        <!-- 热点币种分析Tab -->
+        <div id="hotCoins" class="tab-content">
+            <h3>🔥 热点币种分析</h3>
+            
+            <!-- 功能模式切换 -->
+            <div style="margin-bottom: 20px;">
+                <button class="cross-tab active" onclick="switchHotCoinsMode('realtime', event)">⚡ 实时分析</button>
+                <button class="cross-tab" onclick="switchHotCoinsMode('historical', event)">📈 历史时段分析</button>
+            </div>
+            
+            <!-- 实时分析模式 -->
+            <div id="realtimeMode" style="display: block;">
+                <div class="help-text">
+                    <strong>功能说明：</strong>实时分析350个主流币种的24小时价格表现，找出市场热点和投资机会。数据源：Gate.io
+                </div>
+                
+                <div class="form-group">
+                    <button class="btn btn-success" onclick="analyzeHotCoins()">🔍 开始分析</button>
+                    <button class="btn btn-info" onclick="showHotCoinsSymbols()">📋 查看币种列表</button>
+                </div>
+            </div>
+            
+            <!-- 历史时段分析模式 -->
+            <div id="historicalMode" style="display: none;">
+                <div class="help-text">
+                    <strong>功能说明：</strong>分析指定时间段内的币种涨幅，筛选超级牛币，并提供项目详情、研发进展、资金流向等深度分析。
+                </div>
+                
+                <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">📅 开始日期</label>
+                            <input type="date" id="advStartDate" class="form-control" value="2024-08-20" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">📅 结束日期（可选）</label>
+                            <input type="date" id="advEndDate" class="form-control" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">🎯 最小涨幅倍数</label>
+                            <input type="number" id="minGainRatio" value="3" min="1" step="0.1" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
+                            <small style="color: #666;">如输入3表示筛选涨幅≥3倍的币种</small>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 15px;">
+                        <label style="margin-right: 20px;">
+                            <input type="checkbox" id="includeProjectInfo" checked>
+                            <strong>📋 包含项目详情</strong>（名称、描述、赛道、链接、社区数据等）
+                        </label>
+                        <label>
+                            <input type="checkbox" id="includeMoneyFlow" checked>
+                            <strong>💰 包含资金流向</strong>（每日资金流入流出分析）
+                        </label>
+                    </div>
+                    
+                    <div style="margin-top: 15px;">
+                        <button class="btn btn-success" onclick="analyzeHistoricalPeriod()">🚀 开始历史分析</button>
+                        <button class="btn btn-info" onclick="showAdvancedExample()">💡 查看示例</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 分析进度 -->
+            <div id="hotCoinsProgress" style="display: none; margin: 20px 0;">
+                <div style="background: #f0f0f0; border-radius: 5px; padding: 15px;">
+                    <div style="margin-bottom: 10px;">
+                        <strong>分析进度：</strong>
+                        <span id="hotCoinsProgressText">0/0</span>
+                    </div>
+                    <div style="background: #fff; height: 20px; border-radius: 10px; overflow: hidden;">
+                        <div id="hotCoinsProgressBar" style="background: linear-gradient(90deg, #4CAF50, #8BC34A); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 分析结果概览 -->
+            <div id="hotCoinsSummary" style="display: none; margin: 20px 0;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalCoins">0</div>
+                        <div class="stat-label">总币种数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="successCoins">0</div>
+                        <div class="stat-label">成功获取</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="positiveCoins">0</div>
+                        <div class="stat-label">上涨币种</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="avgChange">0%</div>
+                        <div class="stat-label">平均涨跌</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="maxGain">0%</div>
+                        <div class="stat-label">最大涨幅</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="maxLoss">0%</div>
+                        <div class="stat-label">最大跌幅</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tab切换 -->
+            <div id="hotCoinsTabsContainer" style="display: none; margin: 20px 0;">
+                <div style="border-bottom: 2px solid #ddd; margin-bottom: 20px;">
+                    <button class="cross-tab active" onclick="showHotCoinsSubTab('gainers', event)">🚀 涨幅榜</button>
+                    <button class="cross-tab" onclick="showHotCoinsSubTab('losers', event)">📉 跌幅榜</button>
+                    <button class="cross-tab" onclick="showHotCoinsSubTab('volume', event)">💰 交易量榜</button>
+                    <button class="cross-tab" onclick="showHotCoinsSubTab('distribution', event)">📊 涨跌分布</button>
+                    <button class="cross-tab" onclick="showHotCoinsSubTab('all', event)">📋 完整列表</button>
+                </div>
+                
+                <!-- 涨幅榜 -->
+                <div id="gainersTab" class="cross-tab-content active">
+                    <h4>🚀 TOP 20 涨幅榜</h4>
+                    <div id="gainersContent"></div>
+                </div>
+                
+                <!-- 跌幅榜 -->
+                <div id="losersTab" class="cross-tab-content">
+                    <h4>📉 TOP 20 跌幅榜</h4>
+                    <div id="losersContent"></div>
+                </div>
+                
+                <!-- 交易量榜 -->
+                <div id="volumeTab" class="cross-tab-content">
+                    <h4>💰 TOP 20 交易量榜</h4>
+                    <div id="volumeContent"></div>
+                </div>
+                
+                <!-- 涨跌分布 -->
+                <div id="distributionTab" class="cross-tab-content">
+                    <h4>📊 涨跌分布统计</h4>
+                    <div id="distributionContent"></div>
+                </div>
+                
+                <!-- 完整列表 -->
+                <div id="allTab" class="cross-tab-content">
+                    <h4>📋 所有币种列表</h4>
+                    <div style="margin-bottom: 10px;">
+                        <input type="text" id="coinSearchInput" placeholder="搜索币种..." style="padding: 8px; width: 300px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div id="allCoinsContent"></div>
+                </div>
+            </div>
+            
+            <!-- 结果显示区域 -->
+            <div id="hotCoinsResults"></div>
+        </div>
 
         <!-- 系统管理Tab -->
         <div id="management" class="tab-content">
@@ -2611,10 +2764,15 @@
 
                  // 显示分析结果
          function showAnalysisResults(results) {
+             console.log(`showAnalysisResults 被调用: results.length=${results.length}`);
+             
              const resultsContainer = document.getElementById('analysisResults');
              
              if (results.length === 0) {
                  document.getElementById('analysisTableBody').innerHTML = '<tr><td colspan="6" style="text-align: center;">没有找到结果</td></tr>';
+                 filteredResults = [];
+                 currentResults = [];
+                 console.warn('分析结果为空');
              } else {
                  // 为每个结果添加时间级别
                  const resultsWithTimeframe = results.map(result => ({
@@ -2624,6 +2782,9 @@
                  
                  currentResults = resultsWithTimeframe;
                  filteredResults = [...resultsWithTimeframe];
+                 
+                 console.log(`设置 filteredResults: length=${filteredResults.length}`);
+                 console.log(`设置 currentResults: length=${currentResults.length}`);
                  
                  // 重置分页
                  currentPage = 1;
@@ -2644,13 +2805,28 @@
          
          // 渲染表格
          function renderTable() {
+             console.log(`renderTable 被调用: currentPage=${currentPage}, pageSize=${pageSize}, filteredResults.length=${filteredResults.length}`);
+             
              const tbody = document.getElementById('analysisTableBody');
+             if (!tbody) {
+                 console.error('找不到 analysisTableBody 元素');
+                 return;
+             }
+             
+             if (!filteredResults || filteredResults.length === 0) {
+                 tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">没有数据，请先运行分析</td></tr>';
+                 console.warn('没有 filteredResults 数据');
+                 return;
+             }
+             
              const startIndex = (currentPage - 1) * pageSize;
              const endIndex = startIndex + pageSize;
              const pageData = filteredResults.slice(startIndex, endIndex);
              
+             console.log(`显示数据范围: ${startIndex}-${endIndex}, 当前页数据: ${pageData.length}条`);
+             
              if (pageData.length === 0) {
-                 tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">没有数据</td></tr>';
+                 tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">当前页没有数据</td></tr>';
                  return;
              }
              
@@ -2692,13 +2868,27 @@
          }
          
          function changePage(delta) {
+             console.log(`changePage 被调用: delta=${delta}, currentPage=${currentPage}, filteredResults.length=${filteredResults.length}, pageSize=${pageSize}`);
+             
+             if (!filteredResults || filteredResults.length === 0) {
+                 showStatus('没有分析数据，请先运行币种分析', 'warning');
+                 return;
+             }
+             
              const totalPages = Math.ceil(filteredResults.length / pageSize);
              const newPage = currentPage + delta;
+             
+             console.log(`计算结果: totalPages=${totalPages}, newPage=${newPage}`);
              
              if (newPage >= 1 && newPage <= totalPages) {
                  currentPage = newPage;
                  renderTable();
                  updatePagination();
+                 showStatus(`切换到第${currentPage}页`, 'success');
+             } else if (newPage < 1) {
+                 showStatus('已经是第一页了', 'info');
+             } else if (newPage > totalPages) {
+                 showStatus('已经是最后一页了', 'info');
              }
          }
          
@@ -5632,6 +5822,790 @@
             
             document.body.appendChild(modal);
         }
+
+        // ==================== 热点币种分析功能 ====================
+        
+        let hotCoinsData = null;
+        
+        // 分析热点币种
+        async function analyzeHotCoins() {
+            try {
+                showStatus('正在分析350个币种，请耐心等待...', 'info');
+                
+                // 显示进度条
+                document.getElementById('hotCoinsProgress').style.display = 'block';
+                document.getElementById('hotCoinsProgressText').textContent = '分析中...';
+                document.getElementById('hotCoinsProgressBar').style.width = '50%';
+                
+                // 隐藏之前的结果
+                document.getElementById('hotCoinsSummary').style.display = 'none';
+                document.getElementById('hotCoinsTabsContainer').style.display = 'none';
+                
+                const response = await safeFetch('/crypto_analysis/analyze');
+                const result = await response.json();
+                
+                if (result.success) {
+                    hotCoinsData = result.data;
+                    
+                    // 更新进度条
+                    document.getElementById('hotCoinsProgressBar').style.width = '100%';
+                    document.getElementById('hotCoinsProgressText').textContent = '分析完成！';
+                    
+                    // 显示结果
+                    displayHotCoinsResults(hotCoinsData);
+                    
+                    showStatus(`✅ 分析完成！成功分析 ${hotCoinsData.summary.successful_coins}/${hotCoinsData.summary.total_coins} 个币种`, 'success');
+                    
+                    // 隐藏进度条
+                    setTimeout(() => {
+                        document.getElementById('hotCoinsProgress').style.display = 'none';
+                    }, 2000);
+                } else {
+                    showStatus(`分析失败: ${result.error}`, 'error');
+                    document.getElementById('hotCoinsProgress').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('分析失败:', error);
+                showStatus(`分析失败: ${error.message}`, 'error');
+                document.getElementById('hotCoinsProgress').style.display = 'none';
+            }
+        }
+        
+        // 显示币种列表
+        async function showHotCoinsSymbols() {
+            try {
+                const response = await safeFetch('/crypto_analysis/get_symbols');
+                const result = await response.json();
+                
+                if (result.success) {
+                    let html = '<div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">';
+                    html += `<h4>📋 分析币种列表（共 ${result.count} 个）</h4>`;
+                    html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-top: 15px;">';
+                    
+                    result.symbols.forEach(symbol => {
+                        html += `<div style="background: white; padding: 8px; border-radius: 4px; text-align: center; border: 1px solid #ddd;">${symbol}</div>`;
+                    });
+                    
+                    html += '</div></div>';
+                    
+                    document.getElementById('hotCoinsResults').innerHTML = html;
+                    showStatus(`✅ 已加载 ${result.count} 个币种`, 'success');
+                } else {
+                    showStatus(`获取币种列表失败: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('获取币种列表失败:', error);
+                showStatus(`获取币种列表失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 显示分析结果
+        function displayHotCoinsResults(data) {
+            // 显示概览
+            document.getElementById('hotCoinsSummary').style.display = 'block';
+            document.getElementById('totalCoins').textContent = data.summary.total_coins;
+            document.getElementById('successCoins').textContent = data.summary.successful_coins;
+            document.getElementById('positiveCoins').textContent = data.summary.positive_coins;
+            
+            if (data.statistics) {
+                document.getElementById('avgChange').textContent = data.statistics.avg_change.toFixed(2) + '%';
+                document.getElementById('maxGain').textContent = '+' + data.statistics.max_gain.toFixed(2) + '%';
+                document.getElementById('maxLoss').textContent = data.statistics.max_loss.toFixed(2) + '%';
+            }
+            
+            // 显示Tab容器
+            document.getElementById('hotCoinsTabsContainer').style.display = 'block';
+            
+            // 渲染各个Tab内容
+            renderGainersTab(data.top_gainers);
+            renderLosersTab(data.top_losers);
+            renderVolumeTab(data.top_volume);
+            renderDistributionTab(data.distribution);
+            renderAllCoinsTab(data.all_coins);
+        }
+        
+        // 渲染涨幅榜
+        function renderGainersTab(gainers) {
+            let html = '<table class="styled-table"><thead><tr>';
+            html += '<th>排名</th><th>币种</th><th>24h涨跌</th><th>当前价格</th><th>24h最高</th><th>24h最低</th><th>交易量</th>';
+            html += '</tr></thead><tbody>';
+            
+            gainers.forEach((coin, index) => {
+                const changeClass = coin.change_24h >= 0 ? 'positive' : 'negative';
+                html += `<tr>
+                    <td>${index + 1}</td>
+                    <td><strong>${coin.symbol}</strong></td>
+                    <td class="${changeClass}">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
+                    <td>$${coin.price.toFixed(6)}</td>
+                    <td>$${coin.high_24h.toFixed(6)}</td>
+                    <td>$${coin.low_24h.toFixed(6)}</td>
+                    <td>${coin.volume.toFixed(2)}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('gainersContent').innerHTML = html;
+        }
+        
+        // 渲染跌幅榜
+        function renderLosersTab(losers) {
+            let html = '<table class="styled-table"><thead><tr>';
+            html += '<th>排名</th><th>币种</th><th>24h涨跌</th><th>当前价格</th><th>24h最高</th><th>24h最低</th><th>交易量</th>';
+            html += '</tr></thead><tbody>';
+            
+            losers.forEach((coin, index) => {
+                const changeClass = coin.change_24h >= 0 ? 'positive' : 'negative';
+                html += `<tr>
+                    <td>${index + 1}</td>
+                    <td><strong>${coin.symbol}</strong></td>
+                    <td class="${changeClass}">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
+                    <td>$${coin.price.toFixed(6)}</td>
+                    <td>$${coin.high_24h.toFixed(6)}</td>
+                    <td>$${coin.low_24h.toFixed(6)}</td>
+                    <td>${coin.volume.toFixed(2)}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('losersContent').innerHTML = html;
+        }
+        
+        // 渲染交易量榜
+        function renderVolumeTab(volumes) {
+            let html = '<table class="styled-table"><thead><tr>';
+            html += '<th>排名</th><th>币种</th><th>交易量</th><th>24h涨跌</th><th>当前价格</th>';
+            html += '</tr></thead><tbody>';
+            
+            volumes.forEach((coin, index) => {
+                const changeClass = coin.change_24h >= 0 ? 'positive' : 'negative';
+                html += `<tr>
+                    <td>${index + 1}</td>
+                    <td><strong>${coin.symbol}</strong></td>
+                    <td>${coin.volume.toFixed(2)}</td>
+                    <td class="${changeClass}">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
+                    <td>$${coin.price.toFixed(6)}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('volumeContent').innerHTML = html;
+        }
+        
+        // 渲染涨跌分布
+        function renderDistributionTab(distribution) {
+            let html = '<div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">';
+            
+            const categories = [
+                { label: '涨幅 ≥10%', value: distribution.up_10_plus, color: '#00C853' },
+                { label: '涨幅 5%-10%', value: distribution.up_5_10, color: '#64DD17' },
+                { label: '涨幅 0%-5%', value: distribution.up_0_5, color: '#AEEA00' },
+                { label: '跌幅 0%-5%', value: distribution.down_0_5, color: '#FFD600' },
+                { label: '跌幅 5%-10%', value: distribution.down_5_10, color: '#FF6D00' },
+                { label: '跌幅 ≥10%', value: distribution.down_10_plus, color: '#DD2C00' }
+            ];
+            
+            const total = categories.reduce((sum, cat) => sum + cat.value, 0);
+            
+            categories.forEach(cat => {
+                const percentage = total > 0 ? (cat.value / total * 100).toFixed(1) : 0;
+                html += `
+                    <div style="margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span><strong>${cat.label}</strong></span>
+                            <span>${cat.value} 个 (${percentage}%)</span>
+                        </div>
+                        <div style="background: #e0e0e0; height: 30px; border-radius: 5px; overflow: hidden;">
+                            <div style="background: ${cat.color}; height: 100%; width: ${percentage}%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                                ${percentage}%
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            document.getElementById('distributionContent').innerHTML = html;
+        }
+        
+        // 渲染所有币种列表
+        function renderAllCoinsTab(coins) {
+            // 添加搜索功能
+            const searchInput = document.getElementById('coinSearchInput');
+            searchInput.onkeyup = function() {
+                filterCoins(this.value.toUpperCase());
+            };
+            
+            let html = '<table class="styled-table" id="allCoinsTable"><thead><tr>';
+            html += '<th>币种</th><th>24h涨跌</th><th>当前价格</th><th>24h最高</th><th>24h最低</th><th>交易量</th><th>数据源</th>';
+            html += '</tr></thead><tbody>';
+            
+            coins.forEach(coin => {
+                const changeClass = coin.change_24h >= 0 ? 'positive' : 'negative';
+                const dataClass = coin.source === 'Failed' ? 'text-muted' : '';
+                html += `<tr class="coin-row" data-symbol="${coin.symbol}">
+                    <td class="${dataClass}"><strong>${coin.symbol}</strong></td>
+                    <td class="${changeClass}">${coin.change_24h >= 0 ? '+' : ''}${coin.change_24h.toFixed(2)}%</td>
+                    <td class="${dataClass}">$${coin.price.toFixed(6)}</td>
+                    <td class="${dataClass}">$${coin.high_24h.toFixed(6)}</td>
+                    <td class="${dataClass}">$${coin.low_24h.toFixed(6)}</td>
+                    <td class="${dataClass}">${coin.volume.toFixed(2)}</td>
+                    <td class="${dataClass}">${coin.source}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('allCoinsContent').innerHTML = html;
+        }
+        
+        // 过滤币种
+        function filterCoins(searchTerm) {
+            const rows = document.querySelectorAll('.coin-row');
+            rows.forEach(row => {
+                const symbol = row.getAttribute('data-symbol');
+                if (symbol.indexOf(searchTerm) > -1) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+        
+        // 切换子Tab
+        function showHotCoinsSubTab(tabName, event) {
+            // 更新按钮状态
+            document.querySelectorAll('#hotCoinsTabsContainer .cross-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+            
+            // 更新内容显示
+            document.querySelectorAll('#hotCoinsTabsContainer .cross-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            const tabMap = {
+                'gainers': 'gainersTab',
+                'losers': 'losersTab',
+                'volume': 'volumeTab',
+                'distribution': 'distributionTab',
+                'all': 'allTab'
+            };
+            
+            const targetTab = document.getElementById(tabMap[tabName]);
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+        }
+        
+        // ==================== 热点币种分析功能结束 ====================
+        
+        // ==================== 高级历史分析功能 ====================
+        
+        let historicalAnalysisData = null;
+        
+        // 切换分析模式
+        function switchHotCoinsMode(mode, event) {
+            // 更新按钮状态
+            event.target.parentElement.querySelectorAll('.cross-tab').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 切换显示
+            if (mode === 'realtime') {
+                document.getElementById('realtimeMode').style.display = 'block';
+                document.getElementById('historicalMode').style.display = 'none';
+            } else {
+                document.getElementById('realtimeMode').style.display = 'none';
+                document.getElementById('historicalMode').style.display = 'block';
+            }
+            
+            // 清空结果
+            document.getElementById('hotCoinsResults').innerHTML = '';
+            document.getElementById('hotCoinsSummary').style.display = 'none';
+            document.getElementById('hotCoinsTabsContainer').style.display = 'none';
+        }
+        
+        // 历史时段分析
+        async function analyzeHistoricalPeriod() {
+            try {
+                const startDate = document.getElementById('advStartDate').value;
+                const endDate = document.getElementById('advEndDate').value;
+                const minGainRatio = parseFloat(document.getElementById('minGainRatio').value);
+                const includeProjectInfo = document.getElementById('includeProjectInfo').checked;
+                const includeMoneyFlow = document.getElementById('includeMoneyFlow').checked;
+                
+                if (!startDate) {
+                    showStatus('请选择开始日期', 'error');
+                    return;
+                }
+                
+                showStatus(`正在分析 ${startDate} ${endDate ? '到 ' + endDate : '至今'} 的数据，筛选涨幅≥${minGainRatio}倍的币种...`, 'info');
+                
+                // 显示进度条
+                document.getElementById('hotCoinsProgress').style.display = 'block';
+                document.getElementById('hotCoinsProgressText').textContent = '分析中...这可能需要几分钟';
+                document.getElementById('hotCoinsProgressBar').style.width = '30%';
+                
+                const requestData = {
+                    start_date: startDate,
+                    end_date: endDate || null,
+                    min_gain_ratio: minGainRatio,
+                    include_project_info: includeProjectInfo,
+                    include_money_flow: includeMoneyFlow
+                };
+                
+                const response = await safeFetch('/crypto_advanced/analyze_period', {
+                    method: 'POST',
+                    body: JSON.stringify(requestData)
+                });
+                
+                document.getElementById('hotCoinsProgressBar').style.width = '100%';
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    historicalAnalysisData = result.data;
+                    displayHistoricalResults(historicalAnalysisData);
+                    showStatus(`✅ 分析完成！找到 ${historicalAnalysisData.qualified_count} 个符合条件的币种`, 'success');
+                } else {
+                    showStatus(`分析失败: ${result.error}`, 'error');
+                }
+                
+                setTimeout(() => {
+                    document.getElementById('hotCoinsProgress').style.display = 'none';
+                }, 2000);
+                
+            } catch (error) {
+                console.error('历史分析失败:', error);
+                showStatus(`分析失败: ${error.message}`, 'error');
+                document.getElementById('hotCoinsProgress').style.display = 'none';
+            }
+        }
+        
+        // 显示历史分析结果
+        function displayHistoricalResults(data) {
+            if (!data.results || data.results.length === 0) {
+                document.getElementById('hotCoinsResults').innerHTML = `
+                    <div style="text-align: center; padding: 40px; background: #f9f9f9; border-radius: 8px;">
+                        <h3>😢 未找到符合条件的币种</h3>
+                        <p>在指定时间段内，没有币种达到 ${data.min_gain_ratio}倍的涨幅</p>
+                        <p>建议：降低涨幅倍数或扩大时间范围</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div style="margin-top: 20px;">';
+            
+            // 概览卡片
+            html += `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                    <div class="stat-card">
+                        <div class="stat-value">${data.total_analyzed}</div>
+                        <div class="stat-label">分析币种数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: #4CAF50;">${data.qualified_count}</div>
+                        <div class="stat-label">符合条件</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.start_date}</div>
+                        <div class="stat-label">开始日期</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.end_date}</div>
+                        <div class="stat-label">结束日期</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.min_gain_ratio}x</div>
+                        <div class="stat-label">最小涨幅</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: #FF5722;">${data.results[0].gain_ratio.toFixed(2)}x</div>
+                        <div class="stat-label">最高涨幅</div>
+                    </div>
+                </div>
+            `;
+            
+            // 币种列表
+            html += '<h3 style="margin-top: 30px;">🏆 超级牛币榜单</h3>';
+            
+            data.results.forEach((coin, index) => {
+                html += `
+                    <div style="background: white; border: 2px solid #4CAF50; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <div>
+                                <span style="font-size: 24px; font-weight: bold; color: #333;">
+                                    ${index + 1}. ${coin.symbol}
+                                </span>
+                                <span style="font-size: 32px; font-weight: bold; color: #4CAF50; margin-left: 20px;">
+                                    ${coin.gain_ratio.toFixed(2)}x
+                                </span>
+                                <span style="color: #666; margin-left: 10px;">(+${coin.gain_percent.toFixed(2)}%)</span>
+                            </div>
+                            <div>
+                                <button class="btn btn-info" onclick="showCoinDetail('${coin.symbol}', ${index})">📊 查看详情</button>
+                                <button class="btn btn-success" onclick="showCoinChart('${coin.symbol}')">📈 查看图表</button>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                            <div>
+                                <strong>起始价格:</strong> $${coin.start_price.toFixed(6)}
+                            </div>
+                            <div>
+                                <strong>当前价格:</strong> $${coin.end_price.toFixed(6)}
+                            </div>
+                            <div>
+                                <strong>最高价:</strong> $${coin.max_price.toFixed(6)}
+                            </div>
+                            <div>
+                                <strong>最低价:</strong> $${coin.min_price.toFixed(6)}
+                            </div>
+                            <div>
+                                <strong>时间跨度:</strong> ${coin.start_date} 至 ${coin.end_date}
+                            </div>
+                            <div>
+                                <strong>平均成交量:</strong> ${coin.avg_volume.toFixed(2)}
+                            </div>
+                        </div>
+                        
+                        ${coin.project_info ? `
+                            <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                                <h4 style="margin: 0 0 10px 0;">📋 项目信息</h4>
+                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                                    <div><strong>项目名称:</strong> ${coin.project_info.name}</div>
+                                    <div><strong>市值排名:</strong> #${coin.project_info.market_cap_rank}</div>
+                                    <div><strong>技术赛道:</strong> ${coin.project_info.categories.join(', ') || '未知'}</div>
+                                    <div><strong>市值:</strong> $${(coin.project_info.market_cap / 1e6).toFixed(2)}M</div>
+                                </div>
+                                <div style="margin-top: 10px;">
+                                    <strong>项目简介:</strong> ${coin.project_info.description || '暂无描述'}
+                                </div>
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px;">
+                                    <div><strong>Twitter粉丝:</strong> ${coin.project_info.twitter_followers.toLocaleString()}</div>
+                                    <div><strong>GitHub星标:</strong> ${coin.project_info.github_stars}</div>
+                                    <div><strong>4周代码提交:</strong> ${coin.project_info.github_commits_4w}</div>
+                                </div>
+                                <div style="margin-top: 10px;">
+                                    ${coin.project_info.homepage ? `<a href="${coin.project_info.homepage}" target="_blank" style="margin-right: 15px;">🌐 官网</a>` : ''}
+                                    ${coin.project_info.github ? `<a href="${coin.project_info.github}" target="_blank" style="margin-right: 15px;">💻 GitHub</a>` : ''}
+                                    ${coin.project_info.twitter ? `<a href="https://twitter.com/${coin.project_info.twitter}" target="_blank">🐦 Twitter</a>` : ''}
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        ${coin.money_flow ? `
+                            <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                                <h4 style="margin: 0 0 10px 0;">💰 资金流向分析</h4>
+                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                                    <div><strong>最新资金流:</strong> ${coin.money_flow.latest_flow > 0 ? '✅ 流入' : '⚠️ 流出'} ${Math.abs(coin.money_flow.latest_flow).toFixed(2)}</div>
+                                    <div><strong>累计资金流:</strong> ${coin.money_flow.cumulative_flow.toFixed(2)}</div>
+                                    <div><strong>日均成交量:</strong> ${coin.money_flow.avg_daily_volume.toFixed(2)}</div>
+                                    <div><strong>OBV指标:</strong> ${coin.money_flow.obv.toFixed(2)}</div>
+                                </div>
+                                <button class="btn btn-info" onclick="showMoneyFlowChart('${coin.symbol}')" style="margin-top: 10px;">
+                                    📊 查看资金流向图表
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            document.getElementById('hotCoinsResults').innerHTML = html;
+        }
+        
+        // 显示币种详情（弹窗）
+        function showCoinDetail(symbol, index) {
+            const coin = historicalAnalysisData.results[index];
+            let html = `
+                <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;" onclick="this.remove()">
+                    <div style="background: white; padding: 30px; border-radius: 15px; max-width: 800px; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+                        <h2>${coin.symbol} - 详细报告</h2>
+                        <button onclick="this.parentElement.parentElement.remove()" style="position: absolute; right: 20px; top: 20px; background: #f44336; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer;">关闭</button>
+                        
+                        <div style="margin-top: 20px;">
+                            <h3>💹 涨幅数据</h3>
+                            <p><strong>涨幅倍数:</strong> ${coin.gain_ratio.toFixed(2)}x (+${coin.gain_percent.toFixed(2)}%)</p>
+                            <p><strong>价格变化:</strong> $${coin.start_price.toFixed(6)} → $${coin.end_price.toFixed(6)}</p>
+                            <p><strong>价格区间:</strong> 最低 $${coin.min_price.toFixed(6)}, 最高 $${coin.max_price.toFixed(6)}</p>
+                        </div>
+                        
+                        ${coin.project_info ? `
+                            <div style="margin-top: 20px;">
+                                <h3>📋 项目详情</h3>
+                                <p><strong>完整名称:</strong> ${coin.project_info.name}</p>
+                                <p><strong>市值排名:</strong> #${coin.project_info.market_cap_rank}</p>
+                                <p><strong>技术赛道:</strong> ${coin.project_info.categories.join(', ')}</p>
+                                <p><strong>流通量:</strong> ${coin.project_info.circulating_supply.toLocaleString()}</p>
+                                <p><strong>总供应量:</strong> ${coin.project_info.total_supply.toLocaleString()}</p>
+                                
+                                <h4 style="margin-top: 15px;">社区活跃度</h4>
+                                <p><strong>Twitter:</strong> ${coin.project_info.twitter_followers.toLocaleString()} 粉丝</p>
+                                <p><strong>Reddit:</strong> ${coin.project_info.reddit_subscribers.toLocaleString()} 订阅者</p>
+                                <p><strong>Telegram:</strong> ${coin.project_info.telegram_users.toLocaleString()} 用户</p>
+                                
+                                <h4 style="margin-top: 15px;">开发活跃度</h4>
+                                <p><strong>GitHub星标:</strong> ${coin.project_info.github_stars}</p>
+                                <p><strong>Forks:</strong> ${coin.project_info.github_forks}</p>
+                                <p><strong>最近4周提交:</strong> ${coin.project_info.github_commits_4w} 次</p>
+                                <p><strong>Issues:</strong> ${coin.project_info.github_total_issues} (已关闭: ${coin.project_info.github_closed_issues})</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+        
+        // 显示币种价格图表
+        async function showCoinChart(symbol) {
+            try {
+                showStatus(`正在加载 ${symbol} 的历史图表...`, 'info');
+                
+                const startDate = document.getElementById('advStartDate').value;
+                const endDate = document.getElementById('advEndDate').value;
+                
+                const response = await safeFetch('/crypto_advanced/get_historical_chart', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        start_date: startDate,
+                        end_date: endDate || null,
+                        interval: '1d'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayPriceChart(result.symbol, result.data);
+                } else {
+                    showStatus(`加载图表失败: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('加载图表失败:', error);
+                showStatus(`加载图表失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 显示价格图表（使用Chart.js）
+        function displayPriceChart(symbol, data) {
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+            modal.onclick = () => modal.remove();
+            
+            const chartContainer = document.createElement('div');
+            chartContainer.style.cssText = 'background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 1200px; max-height: 90vh; overflow-y: auto;';
+            chartContainer.onclick = (e) => e.stopPropagation();
+            
+            chartContainer.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>${symbol} - 历史价格走势</h2>
+                    <button onclick="this.closest('[style*=fixed]').remove()" class="btn btn-danger">关闭</button>
+                </div>
+                <canvas id="priceChart" style="max-height: 500px;"></canvas>
+            `;
+            
+            modal.appendChild(chartContainer);
+            document.body.appendChild(modal);
+            
+            // 绘制图表
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: '价格 (USD)',
+                        data: data.prices,
+                        borderColor: '#4CAF50',
+                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: '价格 (USD)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '日期'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 显示资金流向图表
+        async function showMoneyFlowChart(symbol) {
+            try {
+                showStatus(`正在加载 ${symbol} 的资金流向图表...`, 'info');
+                
+                const startDate = document.getElementById('advStartDate').value;
+                const endDate = document.getElementById('advEndDate').value;
+                
+                const response = await safeFetch('/crypto_advanced/get_money_flow_chart', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        start_date: startDate,
+                        end_date: endDate || null
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayMoneyFlowChart(result.symbol, result.data);
+                } else {
+                    showStatus(`加载资金流向失败: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('加载资金流向失败:', error);
+                showStatus(`加载资金流向失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 显示资金流向图表
+        function displayMoneyFlowChart(symbol, data) {
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+            modal.onclick = () => modal.remove();
+            
+            const chartContainer = document.createElement('div');
+            chartContainer.style.cssText = 'background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 1200px; max-height: 90vh; overflow-y: auto;';
+            chartContainer.onclick = (e) => e.stopPropagation();
+            
+            chartContainer.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>${symbol} - 资金流向分析</h2>
+                    <button onclick="this.closest('[style*=fixed]').remove()" class="btn btn-danger">关闭</button>
+                </div>
+                <canvas id="moneyFlowChart" style="max-height: 400px;"></canvas>
+                <canvas id="obvChart" style="max-height: 300px; margin-top: 30px;"></canvas>
+            `;
+            
+            modal.appendChild(chartContainer);
+            document.body.appendChild(modal);
+            
+            // 资金流向图表
+            const ctx1 = document.getElementById('moneyFlowChart').getContext('2d');
+            new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: '每日资金流向',
+                        data: data.money_flow,
+                        backgroundColor: data.money_flow.map(v => v >= 0 ? 'rgba(76, 175, 80, 0.6)' : 'rgba(244, 67, 54, 0.6)'),
+                        borderColor: data.money_flow.map(v => v >= 0 ? '#4CAF50' : '#f44336'),
+                        borderWidth: 1
+                    }, {
+                        label: '累计资金流',
+                        data: data.cumulative_flow,
+                        type: 'line',
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        tension: 0.4,
+                        fill: false,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            position: 'left',
+                            title: { display: true, text: '每日资金流' }
+                        },
+                        y1: {
+                            position: 'right',
+                            title: { display: true, text: '累计资金流' },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+            
+            // OBV图表
+            const ctx2 = document.getElementById('obvChart').getContext('2d');
+            new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'OBV (能量潮)',
+                        data: data.obv,
+                        borderColor: '#FF9800',
+                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true }
+                    }
+                }
+            });
+        }
+        
+        // 显示示例
+        function showAdvancedExample() {
+            alert(`示例说明：
+
+📅 开始日期：2024-08-20
+📅 结束日期：留空（表示到今天）
+🎯 最小涨幅倍数：3（表示筛选涨幅≥3倍的币种）
+
+勾选选项：
+✅ 包含项目详情 - 显示项目名称、描述、技术赛道、社交媒体、开发进度等
+✅ 包含资金流向 - 显示每日资金流入流出、累计资金流向、OBV指标等
+
+分析结果将包括：
+• 涨幅排行榜
+• 项目基本信息和分类
+• GitHub代码提交记录
+• Twitter/Reddit/Telegram社区数据
+• 资金流向可视化图表
+• 历史价格走势图
+
+⚠️ 注意：完整分析需要较长时间（约3-5分钟），请耐心等待`);
+        }
+        
+        // ==================== 高级历史分析功能结束 ====================
+        
     </script>
 </body>
 </html>
