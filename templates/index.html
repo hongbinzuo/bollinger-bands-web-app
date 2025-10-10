@@ -2458,24 +2458,24 @@
                     <strong>功能说明：</strong>分析指定时间段内的币种涨幅，筛选超级牛币，并提供项目详情、研发进展、资金流向等深度分析。
                 </div>
                 
-                <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="background: #2b2b2b; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #444;">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
                         <div>
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">📅 开始日期</label>
-                            <input type="date" id="advStartDate" class="form-control" value="2025-01-01" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #e0e0e0;">📅 开始日期</label>
+                            <input type="date" id="advStartDate" class="form-control" value="2025-08-20" style="padding: 8px; border: 1px solid #555; border-radius: 4px; width: 100%; background: #1a1a1a; color: #e0e0e0;">
                         </div>
                         <div>
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">📅 结束日期</label>
-                            <input type="date" id="advEndDate" class="form-control" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #e0e0e0;">📅 结束日期</label>
+                            <input type="date" id="advEndDate" class="form-control" style="padding: 8px; border: 1px solid #555; border-radius: 4px; width: 100%; background: #1a1a1a; color: #e0e0e0;">
                         </div>
                         <div>
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">🎯 最小涨幅倍数</label>
-                            <input type="number" id="minGainRatio" value="1.5" min="0.5" step="0.1" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
-                            <small style="color: #666;">如输入1.5表示筛选涨幅≥1.5倍（即50%以上）的币种</small>
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #e0e0e0;">🎯 最高点涨幅倍数</label>
+                            <input type="number" id="minGainRatio" value="3" min="0.5" step="0.1" style="padding: 8px; border: 1px solid #555; border-radius: 4px; width: 100%; background: #1a1a1a; color: #e0e0e0;">
+                            <small style="color: #999;">如输入3表示筛选期间最高点达到3倍（即200%涨幅）的币种</small>
                         </div>
                     </div>
                     
-                    <div style="margin-top: 15px;">
+                    <div style="margin-top: 15px; color: #e0e0e0;">
                         <label style="margin-right: 20px;">
                             <input type="checkbox" id="includeProjectInfo" checked>
                             <strong>📋 包含项目详情</strong>（名称、描述、赛道、链接、社区数据等）
@@ -6267,9 +6267,9 @@
                                     ${index + 1}. ${coin.symbol}
                                 </span>
                                 <span style="font-size: 32px; font-weight: bold; color: #28a745; margin-left: 20px;">
-                                    ${coin.gain_ratio.toFixed(2)}x
+                                    ${coin.gain_ratio.toFixed(2)}x 🚀
                                 </span>
-                                <span style="color: #666; margin-left: 10px;">(+${coin.gain_percent.toFixed(2)}%)</span>
+                                <span style="color: #666; margin-left: 10px;">(最高点+${coin.gain_percent.toFixed(2)}%)</span>
                             </div>
                             <div>
                                 <button class="btn btn-info" onclick="showCoinDetail('${coin.symbol}', ${index})">📊 查看详情</button>
@@ -6277,24 +6277,34 @@
                             </div>
                         </div>
                         
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 15px;">
-                            <div>
-                                <strong>起始价格:</strong> $${coin.start_price.toFixed(6)}
-                            </div>
-                            <div>
-                                <strong>当前价格:</strong> $${coin.end_price.toFixed(6)}
-                            </div>
-                            <div>
-                                <strong>最高价:</strong> $${coin.max_price.toFixed(6)}
-                            </div>
-                            <div>
-                                <strong>最低价:</strong> $${coin.min_price.toFixed(6)}
-                            </div>
-                            <div>
-                                <strong>时间跨度:</strong> ${coin.start_date} 至 ${coin.end_date}
-                            </div>
-                            <div>
-                                <strong>平均成交量:</strong> ${coin.avg_volume.toFixed(2)}
+                        <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                <div>
+                                    <strong>📅 时间跨度:</strong><br>
+                                    ${coin.start_date} 至 ${coin.end_date}
+                                </div>
+                                <div>
+                                    <strong>💰 起始价格:</strong><br>
+                                    $${coin.start_price.toFixed(6)}
+                                </div>
+                                <div>
+                                    <strong>📈 最高价:</strong><br>
+                                    <span style="color: #28a745; font-size: 18px;">$${coin.max_price.toFixed(6)}</span>
+                                </div>
+                                <div>
+                                    <strong>📉 最低价:</strong><br>
+                                    $${coin.min_price.toFixed(6)}
+                                </div>
+                                <div>
+                                    <strong>💵 当前价格:</strong><br>
+                                    $${coin.end_price.toFixed(6)}
+                                </div>
+                                <div>
+                                    <strong>📊 当前涨幅:</strong><br>
+                                    <span style="color: ${coin.current_gain_percent >= 0 ? '#28a745' : '#dc3545'};">
+                                        ${coin.current_gain_ratio ? coin.current_gain_ratio.toFixed(2) : 'N/A'}x (${coin.current_gain_percent >= 0 ? '+' : ''}${coin.current_gain_percent ? coin.current_gain_percent.toFixed(2) : 'N/A'}%)
+                                    </span>
+                                </div>
                             </div>
                         </div>
                         
@@ -6610,9 +6620,12 @@
         function showAdvancedExample() {
             alert(`示例说明：
 
-📅 开始日期：2025-01-01（今年年初）
+📅 开始日期：2025-08-20
 📅 结束日期：今天（默认自动填充）
-🎯 最小涨幅倍数：1.5（表示筛选涨幅≥1.5倍的币种，即50%以上）
+🎯 最高点涨幅倍数：3（表示筛选期间最高点达到3倍的币种）
+
+⚠️ 注意：涨幅计算使用期间最高价，不是当前价格！
+例如：某币从$1涨到$5后回落至$2，算5倍涨幅✅
 
 勾选选项：
 ✅ 包含项目详情 - 显示项目名称、描述、技术赛道、社交媒体、开发进度等

@@ -174,8 +174,16 @@ class AdvancedCryptoAnalyzer:
             
             start_price = df.iloc[0]['close']
             end_price = df.iloc[-1]['close']
-            gain_ratio = (end_price / start_price) if start_price > 0 else 0
-            gain_percent = (gain_ratio - 1) * 100
+            max_price = float(df['high'].max())
+            min_price = float(df['low'].min())
+            
+            # 计算最高点涨幅（期间任何价格达到的最高倍数）
+            max_gain_ratio = (max_price / start_price) if start_price > 0 else 0
+            max_gain_percent = (max_gain_ratio - 1) * 100
+            
+            # 也保留当前价格的涨幅
+            current_gain_ratio = (end_price / start_price) if start_price > 0 else 0
+            current_gain_percent = (current_gain_ratio - 1) * 100
             
             return {
                 'symbol': symbol,
@@ -183,10 +191,12 @@ class AdvancedCryptoAnalyzer:
                 'end_date': df.index[-1].strftime('%Y-%m-%d'),
                 'start_price': float(start_price),
                 'end_price': float(end_price),
-                'gain_ratio': float(gain_ratio),
-                'gain_percent': float(gain_percent),
-                'max_price': float(df['high'].max()),
-                'min_price': float(df['low'].min()),
+                'max_price': max_price,
+                'min_price': min_price,
+                'gain_ratio': float(max_gain_ratio),  # 使用最高点涨幅
+                'gain_percent': float(max_gain_percent),
+                'current_gain_ratio': float(current_gain_ratio),  # 当前涨幅
+                'current_gain_percent': float(current_gain_percent),
                 'total_volume': float(df['volume'].sum()),
                 'avg_volume': float(df['volume'].mean())
             }
