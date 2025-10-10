@@ -346,7 +346,7 @@ def analyze_period():
         logger.info(f"开始分析时间段: {start_date} 到 {end_date or '今天'}")
         
         results = []
-        symbols = advanced_analyzer.symbols[:50]  # 限制数量，避免请求过多
+        symbols = advanced_analyzer.symbols  # 分析所有350个币种
         
         for i, symbol in enumerate(symbols, 1):
             logger.info(f"[{i}/{len(symbols)}] 分析 {symbol}...")

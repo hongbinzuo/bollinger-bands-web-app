@@ -2465,13 +2465,13 @@
                             <input type="date" id="advStartDate" class="form-control" value="2024-08-20" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
                         </div>
                         <div>
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">📅 结束日期（可选）</label>
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">📅 结束日期</label>
                             <input type="date" id="advEndDate" class="form-control" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
                         </div>
                         <div>
                             <label style="display: block; margin-bottom: 5px; font-weight: bold;">🎯 最小涨幅倍数</label>
-                            <input type="number" id="minGainRatio" value="3" min="1" step="0.1" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
-                            <small style="color: #666;">如输入3表示筛选涨幅≥3倍的币种</small>
+                            <input type="number" id="minGainRatio" value="1.5" min="0.5" step="0.1" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
+                            <small style="color: #666;">如输入1.5表示筛选涨幅≥1.5倍（即50%以上）的币种</small>
                         </div>
                     </div>
                     
@@ -2501,7 +2501,7 @@
                         <span id="hotCoinsProgressText">0/0</span>
                     </div>
                     <div style="background: #fff; height: 20px; border-radius: 10px; overflow: hidden;">
-                        <div id="hotCoinsProgressBar" style="background: linear-gradient(90deg, #4CAF50, #8BC34A); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        <div id="hotCoinsProgressBar" style="background: linear-gradient(90deg, #28a745, #20c997); height: 100%; width: 0%; transition: width 0.3s;"></div>
                     </div>
                 </div>
             </div>
@@ -5825,6 +5825,16 @@
 
         // ==================== 热点币种分析功能 ====================
         
+        // 初始化默认日期
+        (function initDefaultDates() {
+            // 设置结束日期为今天
+            const today = new Date().toISOString().split('T')[0];
+            const endDateInput = document.getElementById('advEndDate');
+            if (endDateInput) {
+                endDateInput.value = today;
+            }
+        })();
+        
         let hotCoinsData = null;
         
         // 分析热点币种
@@ -5996,12 +6006,12 @@
             let html = '<div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">';
             
             const categories = [
-                { label: '涨幅 ≥10%', value: distribution.up_10_plus, color: '#00C853' },
-                { label: '涨幅 5%-10%', value: distribution.up_5_10, color: '#64DD17' },
-                { label: '涨幅 0%-5%', value: distribution.up_0_5, color: '#AEEA00' },
-                { label: '跌幅 0%-5%', value: distribution.down_0_5, color: '#FFD600' },
-                { label: '跌幅 5%-10%', value: distribution.down_5_10, color: '#FF6D00' },
-                { label: '跌幅 ≥10%', value: distribution.down_10_plus, color: '#DD2C00' }
+                { label: '涨幅 ≥10%', value: distribution.up_10_plus, color: '#28a745' },
+                { label: '涨幅 5%-10%', value: distribution.up_5_10, color: '#20c997' },
+                { label: '涨幅 0%-5%', value: distribution.up_0_5, color: '#17a2b8' },
+                { label: '跌幅 0%-5%', value: distribution.down_0_5, color: '#ffc107' },
+                { label: '跌幅 5%-10%', value: distribution.down_5_10, color: '#fd7e14' },
+                { label: '跌幅 ≥10%', value: distribution.down_10_plus, color: '#dc3545' }
             ];
             
             const total = categories.reduce((sum, cat) => sum + cat.value, 0);
@@ -6208,7 +6218,7 @@
                         <div class="stat-label">分析币种数</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" style="color: #4CAF50;">${data.qualified_count}</div>
+                        <div class="stat-value" style="color: #28a745;">${data.qualified_count}</div>
                         <div class="stat-label">符合条件</div>
                     </div>
                     <div class="stat-card">
@@ -6224,7 +6234,7 @@
                         <div class="stat-label">最小涨幅</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" style="color: #FF5722;">${data.results[0].gain_ratio.toFixed(2)}x</div>
+                        <div class="stat-value" style="color: #dc3545;">${data.results[0].gain_ratio.toFixed(2)}x</div>
                         <div class="stat-label">最高涨幅</div>
                     </div>
                 </div>
@@ -6235,13 +6245,13 @@
             
             data.results.forEach((coin, index) => {
                 html += `
-                    <div style="background: white; border: 2px solid #4CAF50; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="background: white; border: 2px solid #28a745; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                             <div>
                                 <span style="font-size: 24px; font-weight: bold; color: #333;">
                                     ${index + 1}. ${coin.symbol}
                                 </span>
-                                <span style="font-size: 32px; font-weight: bold; color: #4CAF50; margin-left: 20px;">
+                                <span style="font-size: 32px; font-weight: bold; color: #28a745; margin-left: 20px;">
                                     ${coin.gain_ratio.toFixed(2)}x
                                 </span>
                                 <span style="color: #666; margin-left: 10px;">(+${coin.gain_percent.toFixed(2)}%)</span>
@@ -6425,8 +6435,8 @@
                     datasets: [{
                         label: '价格 (USD)',
                         data: data.prices,
-                        borderColor: '#4CAF50',
-                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                        borderColor: '#28a745',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
                         tension: 0.4,
                         fill: true
                     }]
@@ -6525,8 +6535,8 @@
                     datasets: [{
                         label: '每日资金流向',
                         data: data.money_flow,
-                        backgroundColor: data.money_flow.map(v => v >= 0 ? 'rgba(76, 175, 80, 0.6)' : 'rgba(244, 67, 54, 0.6)'),
-                        borderColor: data.money_flow.map(v => v >= 0 ? '#4CAF50' : '#f44336'),
+                        backgroundColor: data.money_flow.map(v => v >= 0 ? 'rgba(40, 167, 69, 0.6)' : 'rgba(220, 53, 69, 0.6)'),
+                        borderColor: data.money_flow.map(v => v >= 0 ? '#28a745' : '#dc3545'),
                         borderWidth: 1
                     }, {
                         label: '累计资金流',
@@ -6586,8 +6596,8 @@
             alert(`示例说明：
 
 📅 开始日期：2024-08-20
-📅 结束日期：留空（表示到今天）
-🎯 最小涨幅倍数：3（表示筛选涨幅≥3倍的币种）
+📅 结束日期：今天（默认自动填充）
+🎯 最小涨幅倍数：1.5（表示筛选涨幅≥1.5倍的币种，即50%以上）
 
 勾选选项：
 ✅ 包含项目详情 - 显示项目名称、描述、技术赛道、社交媒体、开发进度等
