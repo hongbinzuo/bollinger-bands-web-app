@@ -97,8 +97,11 @@ class AdvancedCryptoAnalyzer:
                         current_ts = int(data[-1][0]) + interval_seconds
                     else:
                         break
+                elif response.status_code == 400:
+                    logger.debug(f"币种 {symbol} 可能不存在或交易对不可用")
+                    break
                 else:
-                    logger.error(f"获取 {symbol} 历史数据失败: {response.status_code}")
+                    logger.debug(f"获取 {symbol} 历史数据失败: HTTP {response.status_code}")
                     break
                 
                 time.sleep(0.2)  # 限速
@@ -205,13 +208,19 @@ class AdvancedCryptoAnalyzer:
             if response.status_code == 200:
                 data = response.json()
                 coins = data.get('coins', [])
-                if coins:
+                if coins and len(coins) > 0:
                     coin_id = coins[0]['id']
                     self.coingecko_id_cache[symbol] = coin_id
                     return coin_id
+                else:
+                    logger.debug(f"CoinGecko未收录 {symbol}")
+            else:
+                logger.debug(f"CoinGecko搜索 {symbol} 失败: {response.status_code}")
         except Exception as e:
             logger.debug(f"获取 {symbol} CoinGecko ID失败: {e}")
         
+        # 缓存失败结果，避免重复查询
+        self.coingecko_id_cache[symbol] = None
         return None
     
     def get_project_info(self, symbol):
@@ -359,36 +368,81 @@ def analyze_period():
         logger.info(f"开始分析时间段: {start_date} 到 {end_date or '今天'}")
         
         results = []
+        failed_records = []  # 记录失败的币种
         symbols = advanced_analyzer.symbols  # 分析所有350个币种
         
         for i, symbol in enumerate(symbols, 1):
-            logger.info(f"[{i}/{len(symbols)}] 分析 {symbol}...")
-            
-            # 计算涨幅
-            gain_info = advanced_analyzer.calculate_gain_since_date(symbol, start_date)
-            
-            if gain_info and gain_info['gain_ratio'] >= min_gain_ratio:
-                result = gain_info
+            try:
+                logger.info(f"[{i}/{len(symbols)}] 分析 {symbol}...")
                 
-                # 获取项目信息
-                if include_project_info:
-                    project_info = advanced_analyzer.get_project_info(symbol)
-                    if project_info:
-                        result['project_info'] = project_info
-                    time.sleep(1.5)  # CoinGecko限速
+                # 计算涨幅
+                gain_info = advanced_analyzer.calculate_gain_since_date(symbol, start_date)
                 
-                # 获取资金流向
-                if include_money_flow:
-                    flow_data = advanced_analyzer.analyze_money_flow(symbol, start_date, end_date)
-                    if flow_data is not None:
-                        result['money_flow'] = {
-                            'latest_flow': float(flow_data['money_flow'].iloc[-1]),
-                            'cumulative_flow': float(flow_data['cumulative_flow'].iloc[-1]),
-                            'avg_daily_volume': float(flow_data['volume'].mean()),
-                            'obv': float(flow_data['obv'].iloc[-1])
-                        }
+                if gain_info is None:
+                    # 记录无法获取历史数据的币种
+                    failed_records.append({
+                        'symbol': symbol,
+                        'reason': '无法获取历史数据',
+                        'detail': '可能币种不存在或交易对不可用'
+                    })
+                elif gain_info['gain_ratio'] >= min_gain_ratio:
+                    result = gain_info
+                    project_info_failed = False
+                    money_flow_failed = False
+                    
+                    # 获取项目信息
+                    if include_project_info:
+                        try:
+                            project_info = advanced_analyzer.get_project_info(symbol)
+                            if project_info:
+                                result['project_info'] = project_info
+                            else:
+                                project_info_failed = True
+                            time.sleep(1.5)  # CoinGecko限速
+                        except Exception as e:
+                            logger.debug(f"获取 {symbol} 项目信息失败: {e}")
+                            project_info_failed = True
+                    
+                    # 获取资金流向
+                    if include_money_flow:
+                        try:
+                            flow_data = advanced_analyzer.analyze_money_flow(symbol, start_date, end_date)
+                            if flow_data is not None and not flow_data.empty:
+                                result['money_flow'] = {
+                                    'latest_flow': float(flow_data['money_flow'].iloc[-1]),
+                                    'cumulative_flow': float(flow_data['cumulative_flow'].iloc[-1]),
+                                    'avg_daily_volume': float(flow_data['volume'].mean()),
+                                    'obv': float(flow_data['obv'].iloc[-1])
+                                }
+                            else:
+                                money_flow_failed = True
+                        except Exception as e:
+                            logger.debug(f"分析 {symbol} 资金流向失败: {e}")
+                            money_flow_failed = True
+                    
+                    results.append(result)
+                    
+                    # 记录部分失败的信息
+                    if project_info_failed or money_flow_failed:
+                        fail_parts = []
+                        if project_info_failed:
+                            fail_parts.append('项目信息')
+                        if money_flow_failed:
+                            fail_parts.append('资金流向')
+                        
+                        failed_records.append({
+                            'symbol': symbol,
+                            'reason': '部分数据获取失败',
+                            'detail': f"无法获取: {', '.join(fail_parts)}"
+                        })
                 
-                results.append(result)
+            except Exception as e:
+                logger.warning(f"分析 {symbol} 失败，跳过: {e}")
+                failed_records.append({
+                    'symbol': symbol,
+                    'reason': '分析异常',
+                    'detail': str(e)
+                })
             
             time.sleep(0.3)  # 限速
         
@@ -403,7 +457,9 @@ def analyze_period():
                 'min_gain_ratio': min_gain_ratio,
                 'total_analyzed': len(symbols),
                 'qualified_count': len(results),
-                'results': results
+                'failed_count': len(failed_records),
+                'results': results,
+                'failed_records': failed_records  # 添加失败记录
             }
         })
         

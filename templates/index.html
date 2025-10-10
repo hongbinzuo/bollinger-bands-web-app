@@ -2462,7 +2462,7 @@
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
                         <div>
                             <label style="display: block; margin-bottom: 5px; font-weight: bold;">📅 开始日期</label>
-                            <input type="date" id="advStartDate" class="form-control" value="2024-08-20" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
+                            <input type="date" id="advStartDate" class="form-control" value="2025-01-01" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%;">
                         </div>
                         <div>
                             <label style="display: block; margin-bottom: 5px; font-weight: bold;">📅 结束日期</label>
@@ -6237,8 +6237,23 @@
                         <div class="stat-value" style="color: #dc3545;">${data.results[0].gain_ratio.toFixed(2)}x</div>
                         <div class="stat-label">最高涨幅</div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: #ffc107;">${data.failed_count || 0}</div>
+                        <div class="stat-label">分析失败</div>
+                    </div>
                 </div>
             `;
+            
+            // 添加查看失败记录按钮
+            if (data.failed_count > 0) {
+                html += `
+                    <div style="text-align: center; margin: 20px 0;">
+                        <button class="btn btn-warning" onclick="showFailedRecords()">
+                            ⚠️ 查看失败记录 (${data.failed_count}个币种)
+                        </button>
+                    </div>
+                `;
+            }
             
             // 币种列表
             html += '<h3 style="margin-top: 30px;">🏆 超级牛币榜单</h3>';
@@ -6595,7 +6610,7 @@
         function showAdvancedExample() {
             alert(`示例说明：
 
-📅 开始日期：2024-08-20
+📅 开始日期：2025-01-01（今年年初）
 📅 结束日期：今天（默认自动填充）
 🎯 最小涨幅倍数：1.5（表示筛选涨幅≥1.5倍的币种，即50%以上）
 
@@ -6612,6 +6627,144 @@
 • 历史价格走势图
 
 ⚠️ 注意：完整分析需要较长时间（约3-5分钟），请耐心等待`);
+        }
+        
+        // 显示失败记录
+        function showFailedRecords() {
+            if (!historicalAnalysisData || !historicalAnalysisData.failed_records) {
+                showStatus('没有失败记录', 'info');
+                return;
+            }
+            
+            const failedRecords = historicalAnalysisData.failed_records;
+            
+            // 按失败原因分类
+            const byReason = {};
+            failedRecords.forEach(record => {
+                if (!byReason[record.reason]) {
+                    byReason[record.reason] = [];
+                }
+                byReason[record.reason].push(record);
+            });
+            
+            let html = `
+                <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; overflow-y: auto;" onclick="this.remove()">
+                    <div style="background: white; padding: 30px; border-radius: 15px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; margin: 20px;" onclick="event.stopPropagation()">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #ffc107; padding-bottom: 15px;">
+                            <h2 style="margin: 0;">⚠️ 失败记录</h2>
+                            <button onclick="this.closest('[style*=fixed]').remove()" class="btn btn-danger">关闭</button>
+                        </div>
+                        
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+                            <strong>📊 统计概览</strong>
+                            <div style="margin-top: 10px;">
+                                <p>• 总分析数: ${historicalAnalysisData.total_analyzed} 个币种</p>
+                                <p>• 成功数: ${historicalAnalysisData.qualified_count} 个</p>
+                                <p>• 失败数: ${historicalAnalysisData.failed_count} 个</p>
+                                <p>• 成功率: ${((historicalAnalysisData.total_analyzed - historicalAnalysisData.failed_count) / historicalAnalysisData.total_analyzed * 100).toFixed(1)}%</p>
+                            </div>
+                        </div>
+            `;
+            
+            // 按失败原因分组显示
+            Object.keys(byReason).forEach(reason => {
+                const records = byReason[reason];
+                const reasonColor = {
+                    '无法获取历史数据': '#dc3545',
+                    '部分数据获取失败': '#ffc107',
+                    '分析异常': '#fd7e14'
+                }[reason] || '#6c757d';
+                
+                html += `
+                    <div style="margin-bottom: 25px;">
+                        <h3 style="color: ${reasonColor}; border-bottom: 2px solid ${reasonColor}; padding-bottom: 10px;">
+                            ${reason} (${records.length}个)
+                        </h3>
+                        <div style="max-height: 200px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: #e9ecef;">
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6;">序号</th>
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6;">币种</th>
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6;">详细原因</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                records.forEach((record, index) => {
+                    html += `
+                        <tr style="border-bottom: 1px solid #dee2e6;">
+                            <td style="padding: 8px;">${index + 1}</td>
+                            <td style="padding: 8px;"><strong>${record.symbol}</strong></td>
+                            <td style="padding: 8px; color: #666;">${record.detail}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // 添加导出功能
+            html += `
+                <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 2px solid #dee2e6;">
+                    <button class="btn btn-info" onclick="exportFailedRecords()">
+                        📥 导出失败记录（CSV）
+                    </button>
+                    <button class="btn btn-secondary" onclick="this.closest('[style*=fixed]').remove()" style="margin-left: 10px;">
+                        关闭
+                    </button>
+                </div>
+            `;
+            
+            html += '</div></div>';
+            
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+        
+        // 导出失败记录为CSV
+        function exportFailedRecords() {
+            if (!historicalAnalysisData || !historicalAnalysisData.failed_records) {
+                showStatus('没有失败记录', 'error');
+                return;
+            }
+            
+            try {
+                const failedRecords = historicalAnalysisData.failed_records;
+                
+                // 创建CSV内容
+                let csv = '\uFEFF';  // UTF-8 BOM
+                csv += '币种,失败原因,详细信息\n';
+                
+                failedRecords.forEach(record => {
+                    csv += `${record.symbol},"${record.reason}","${record.detail}"\n`;
+                });
+                
+                // 下载CSV
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `失败记录_${timestamp}.csv`);
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showStatus(`成功导出 ${failedRecords.length} 条失败记录`, 'success');
+                
+            } catch (error) {
+                console.error('导出失败记录失败:', error);
+                showStatus(`导出失败: ${error.message}`, 'error');
+            }
         }
         
         // ==================== 高级历史分析功能结束 ====================
