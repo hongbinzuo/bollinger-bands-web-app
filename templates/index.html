@@ -7641,7 +7641,7 @@
             }
             
             // 如果已有数据，重新创建图表
-            if (Object.keys(cryptoPriceData).length > 0) {
+            if (cryptoPriceData && Object.keys(cryptoPriceData).length > 0) {
                 if (cryptoIsComparisonMode) {
                     createCryptoComparisonCharts();
                 } else {
@@ -7666,7 +7666,7 @@
             }
             
             // 如果已有数据，重新创建图表
-            if (Object.keys(cryptoPriceData).length > 0 && !cryptoIsComparisonMode) {
+            if (cryptoPriceData && Object.keys(cryptoPriceData).length > 0 && !cryptoIsComparisonMode) {
                 createCryptoIndividualCharts();
             }
         }
@@ -7728,7 +7728,7 @@
             technicalIndicators[indicator].enabled = checkbox.checked;
             
             // 如果已有数据，重新创建图表
-            if (Object.keys(cryptoPriceData).length > 0 && !cryptoIsComparisonMode) {
+            if (cryptoPriceData && Object.keys(cryptoPriceData).length > 0 && !cryptoIsComparisonMode) {
                 createCryptoIndividualCharts();
             }
         }
@@ -7740,7 +7740,7 @@
             
             if (cryptoTimeframeSelect) {
                 cryptoTimeframeSelect.addEventListener('change', function() {
-                    if (Object.keys(cryptoPriceData).length > 0) {
+                    if (cryptoPriceData && Object.keys(cryptoPriceData).length > 0) {
                         loadCryptoData();
                     }
                 });
@@ -7748,7 +7748,7 @@
             
             if (cryptoScaleModeSelect) {
                 cryptoScaleModeSelect.addEventListener('change', function() {
-                    if (cryptoIsComparisonMode && Object.keys(cryptoPriceData).length > 0) {
+                    if (cryptoPriceData && cryptoIsComparisonMode && Object.keys(cryptoPriceData).length > 0) {
                         createCryptoComparisonCharts();
                     }
                 });
