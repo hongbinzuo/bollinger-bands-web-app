@@ -7,6 +7,10 @@
     <!-- Chart.js 图表库 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <!-- TradingView风格的图表库 -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.3.0/dist/chartjs-chart-financial.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-crosshair@2.0.2/dist/chartjs-plugin-crosshair.min.js"></script>
     
     <script>
         // 显示Tab函数 - 需要在HTML之前定义
@@ -2741,6 +2745,15 @@
             
             <div class="crypto-controls">
                 <div class="crypto-control-group">
+                    <label>交易所:</label>
+                    <select id="cryptoExchange">
+                        <option value="binance" selected>Binance</option>
+                        <option value="gateio">Gate.io</option>
+                        <option value="bitget">Bitget</option>
+                    </select>
+                </div>
+                
+                <div class="crypto-control-group">
                     <label>时间级别:</label>
                     <select id="cryptoTimeframe">
                         <option value="15m">15分钟</option>
@@ -2748,6 +2761,15 @@
                         <option value="4h" selected>4小时</option>
                         <option value="12h">12小时</option>
                         <option value="1d">1天</option>
+                    </select>
+                </div>
+                
+                <div class="crypto-control-group">
+                    <label>图表类型:</label>
+                    <select id="cryptoChartType">
+                        <option value="candlestick" selected>K线图</option>
+                        <option value="line">线图</option>
+                        <option value="area">面积图</option>
                     </select>
                 </div>
                 
@@ -2762,6 +2784,7 @@
                 
                 <button class="btn btn-success" onclick="loadCryptoData()" id="cryptoLoadBtn">📊 加载数据</button>
                 <button class="btn btn-info" onclick="toggleCryptoChartMode()" id="cryptoModeBtn">🔄 对比模式</button>
+                <button class="btn btn-warning" onclick="toggleTechnicalIndicators()" id="cryptoIndicatorsBtn">📈 技术指标</button>
             </div>
             
             <div id="cryptoStatus" class="status loading" style="display: none;">
@@ -7093,11 +7116,20 @@
         
         // 币种配置
         const cryptoSymbols = {
-            coai: { name: 'COAI/USDT', color: '#FF6B6B' },
-            myx: { name: 'MYX/USDT', color: '#4ECDC4' },
-            bas: { name: 'BAS/USDT', color: '#45B7D1' },
-            bless: { name: 'BLESS/USDT', color: '#96CEB4' },
-            xpin: { name: 'XPIN/USDT', color: '#FFEAA7' }
+            coai: { name: 'COAI/USDT', color: '#FF6B6B', upColor: '#26a69a', downColor: '#ef5350' },
+            myx: { name: 'MYX/USDT', color: '#4ECDC4', upColor: '#26a69a', downColor: '#ef5350' },
+            bas: { name: 'BAS/USDT', color: '#45B7D1', upColor: '#26a69a', downColor: '#ef5350' },
+            bless: { name: 'BLESS/USDT', color: '#96CEB4', upColor: '#26a69a', downColor: '#ef5350' },
+            xpin: { name: 'XPIN/USDT', color: '#FFEAA7', upColor: '#26a69a', downColor: '#ef5350' }
+        };
+        
+        // 技术指标配置
+        let showTechnicalIndicators = false;
+        let technicalIndicators = {
+            ma5: { enabled: false, period: 5, color: '#FF6B6B' },
+            ma20: { enabled: false, period: 20, color: '#4ECDC4' },
+            ma50: { enabled: false, period: 50, color: '#45B7D1' },
+            rsi: { enabled: false, period: 14, color: '#FFA726' }
         };
         
         // 显示加密货币状态
@@ -7162,9 +7194,11 @@
                 // 获取每个币种的K线数据
                 cryptoPriceData = {};
                 
+                const exchange = document.getElementById('cryptoExchange').value;
+                
                 for (const symbol of Object.keys(cryptoSymbols)) {
                     try {
-                        const klinesResponse = await safeFetch(`/crypto/klines?symbol=${symbol}&timeframe=${timeframe}&exchange=gateio&limit=100`);
+                        const klinesResponse = await safeFetch(`/crypto/klines?symbol=${symbol}&timeframe=${timeframe}&exchange=${exchange}&limit=100`);
                         const klinesData = await klinesResponse.json();
                         
                         if (!klinesData.success) {
@@ -7217,6 +7251,8 @@
             const dataPoints = 100;
             const basePrice = Math.random() * 100 + 10;
             const data = [];
+            const candlestickData = [];
+            const prices = [];
             
             for (let i = 0; i < dataPoints; i++) {
                 const time = new Date(now.getTime() - (dataPoints - i) * getCryptoTimeframeMs(timeframe));
@@ -7224,17 +7260,100 @@
                 const change = (Math.random() - 0.5) * volatility;
                 const price = basePrice * (1 + change * i);
                 
+                // 生成OHLC数据
+                const open = i === 0 ? price : data[i-1].y;
+                const close = price;
+                const high = Math.max(open, close) * (1 + Math.random() * 0.01);
+                const low = Math.min(open, close) * (1 - Math.random() * 0.01);
+                
                 data.push({
                     x: time,
-                    y: price
+                    y: close
                 });
+                
+                candlestickData.push({
+                    x: time,
+                    o: open,
+                    h: high,
+                    l: low,
+                    c: close
+                });
+                
+                prices.push(close);
             }
+            
+            // 计算技术指标
+            const indicators = calculateTechnicalIndicators(prices);
             
             return {
                 data: data,
+                candlestickData: candlestickData,
                 currentPrice: data[data.length - 1].y,
-                change: ((data[data.length - 1].y - data[0].y) / data[0].y) * 100
+                change: ((data[data.length - 1].y - data[0].y) / data[0].y) * 100,
+                indicators: indicators
             };
+        }
+        
+        // 计算技术指标
+        function calculateTechnicalIndicators(prices) {
+            const indicators = {};
+            
+            // 计算移动平均线
+            indicators.ma5 = calculateMA(prices, 5);
+            indicators.ma20 = calculateMA(prices, 20);
+            indicators.ma50 = calculateMA(prices, 50);
+            
+            // 计算RSI
+            indicators.rsi = calculateRSI(prices, 14);
+            
+            return indicators;
+        }
+        
+        // 计算移动平均线
+        function calculateMA(prices, period) {
+            const ma = [];
+            for (let i = period - 1; i < prices.length; i++) {
+                const sum = prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+                ma.push({
+                    x: new Date(Date.now() - (prices.length - i - 1) * getCryptoTimeframeMs('4h')),
+                    y: sum / period
+                });
+            }
+            return ma;
+        }
+        
+        // 计算RSI
+        function calculateRSI(prices, period) {
+            const rsi = [];
+            const gains = [];
+            const losses = [];
+            
+            // 计算价格变化
+            for (let i = 1; i < prices.length; i++) {
+                const change = prices[i] - prices[i - 1];
+                gains.push(change > 0 ? change : 0);
+                losses.push(change < 0 ? -change : 0);
+            }
+            
+            // 计算初始平均收益和损失
+            let avgGain = gains.slice(0, period).reduce((a, b) => a + b, 0) / period;
+            let avgLoss = losses.slice(0, period).reduce((a, b) => a + b, 0) / period;
+            
+            // 计算RSI
+            for (let i = period; i < gains.length; i++) {
+                avgGain = (avgGain * (period - 1) + gains[i]) / period;
+                avgLoss = (avgLoss * (period - 1) + losses[i]) / period;
+                
+                const rs = avgGain / avgLoss;
+                const rsiValue = 100 - (100 / (1 + rs));
+                
+                rsi.push({
+                    x: new Date(Date.now() - (prices.length - i - 1) * getCryptoTimeframeMs('4h')),
+                    y: rsiValue
+                });
+            }
+            
+            return rsi;
         }
         
         // 获取时间级别对应的毫秒数
@@ -7262,55 +7381,135 @@
                 
                 const ctx = canvas.getContext('2d');
                 const data = cryptoPriceData[symbol];
+                const chartType = document.getElementById('cryptoChartType').value;
+                
+                // 准备数据集
+                const datasets = [];
+                
+                if (chartType === 'candlestick' && data.candlestickData) {
+                    // K线图
+                    datasets.push({
+                        label: cryptoSymbols[symbol].name,
+                        data: data.candlestickData,
+                        type: 'candlestick',
+                        borderColor: {
+                            up: cryptoSymbols[symbol].upColor,
+                            down: cryptoSymbols[symbol].downColor,
+                        },
+                        backgroundColor: {
+                            up: cryptoSymbols[symbol].upColor + '80',
+                            down: cryptoSymbols[symbol].downColor + '80',
+                        }
+                    });
+                } else {
+                    // 线图或面积图
+                    datasets.push({
+                        label: cryptoSymbols[symbol].name,
+                        data: data.data,
+                        borderColor: cryptoSymbols[symbol].color,
+                        backgroundColor: chartType === 'area' ? cryptoSymbols[symbol].color + '20' : 'transparent',
+                        borderWidth: 2,
+                        fill: chartType === 'area',
+                        tension: 0.1,
+                        pointRadius: 0,
+                        pointHoverRadius: 5
+                    });
+                }
+                
+                // 添加技术指标
+                if (showTechnicalIndicators && data.indicators) {
+                    Object.keys(technicalIndicators).forEach(indicator => {
+                        if (technicalIndicators[indicator].enabled && data.indicators[indicator]) {
+                            datasets.push({
+                                label: indicator.toUpperCase(),
+                                data: data.indicators[indicator],
+                                borderColor: technicalIndicators[indicator].color,
+                                backgroundColor: 'transparent',
+                                borderWidth: 1,
+                                fill: false,
+                                tension: 0.1,
+                                pointRadius: 0,
+                                pointHoverRadius: 3,
+                                yAxisID: indicator === 'rsi' ? 'rsi-axis' : 'y'
+                            });
+                        }
+                    });
+                }
+                
+                const scales = {
+                    x: {
+                        type: 'time',
+                        time: {
+                            displayFormats: {
+                                minute: 'HH:mm',
+                                hour: 'MM-dd HH:mm',
+                                day: 'MM-dd'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        position: 'right',
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toFixed(2);
+                            }
+                        }
+                    }
+                };
+                
+                // 如果显示RSI，添加RSI轴
+                if (showTechnicalIndicators && technicalIndicators.rsi.enabled) {
+                    scales['rsi-axis'] = {
+                        type: 'linear',
+                        position: 'left',
+                        min: 0,
+                        max: 100,
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    };
+                }
                 
                 cryptoCharts[symbol] = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        datasets: [{
-                            label: cryptoSymbols[symbol].name,
-                            data: data.data,
-                            borderColor: cryptoSymbols[symbol].color,
-                            backgroundColor: cryptoSymbols[symbol].color + '20',
-                            borderWidth: 2,
-                            fill: true,
-                            tension: 0.1,
-                            pointRadius: 0,
-                            pointHoverRadius: 5
-                        }]
-                    },
+                    type: chartType === 'candlestick' ? 'candlestick' : 'line',
+                    data: { datasets },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
                             legend: {
-                                display: false
-                            }
-                        },
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: {
-                                    displayFormats: {
-                                        minute: 'HH:mm',
-                                        hour: 'MM-dd HH:mm',
-                                        day: 'MM-dd'
-                                    }
-                                },
-                                grid: {
-                                    color: 'rgba(0,0,0,0.1)'
-                                }
+                                display: showTechnicalIndicators,
+                                position: 'top'
                             },
-                            y: {
-                                grid: {
-                                    color: 'rgba(0,0,0,0.1)'
+                            zoom: {
+                                zoom: {
+                                    wheel: {
+                                        enabled: true,
+                                    },
+                                    pinch: {
+                                        enabled: true
+                                    },
+                                    mode: 'x',
                                 },
-                                ticks: {
-                                    callback: function(value) {
-                                        return '$' + value.toFixed(2);
-                                    }
+                                pan: {
+                                    enabled: true,
+                                    mode: 'x',
                                 }
                             }
                         },
+                        scales: scales,
                         interaction: {
                             intersect: false,
                             mode: 'index'
@@ -7468,6 +7667,89 @@
                 } else {
                     createCryptoIndividualCharts();
                 }
+            }
+        }
+        
+        // 切换技术指标
+        function toggleTechnicalIndicators() {
+            showTechnicalIndicators = !showTechnicalIndicators;
+            const indicatorsBtn = document.getElementById('cryptoIndicatorsBtn');
+            
+            if (showTechnicalIndicators) {
+                indicatorsBtn.textContent = '📈 隐藏指标';
+                // 显示技术指标配置
+                showTechnicalIndicatorsConfig();
+            } else {
+                indicatorsBtn.textContent = '📈 技术指标';
+                // 隐藏技术指标配置
+                hideTechnicalIndicatorsConfig();
+            }
+            
+            // 如果已有数据，重新创建图表
+            if (Object.keys(cryptoPriceData).length > 0 && !cryptoIsComparisonMode) {
+                createCryptoIndividualCharts();
+            }
+        }
+        
+        // 显示技术指标配置
+        function showTechnicalIndicatorsConfig() {
+            // 创建技术指标配置面板
+            let configPanel = document.getElementById('technicalIndicatorsConfig');
+            if (!configPanel) {
+                configPanel = document.createElement('div');
+                configPanel.id = 'technicalIndicatorsConfig';
+                configPanel.style.cssText = `
+                    background: rgba(255, 255, 255, 0.05);
+                    border-radius: 10px;
+                    padding: 15px;
+                    margin: 20px 0;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                `;
+                
+                configPanel.innerHTML = `
+                    <h4 style="color: #fff; margin-bottom: 15px;">技术指标配置</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <label style="color: #fff; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="ma5Enabled" onchange="toggleIndicator('ma5')">
+                            <span>MA5 (5日均线)</span>
+                        </label>
+                        <label style="color: #fff; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="ma20Enabled" onchange="toggleIndicator('ma20')">
+                            <span>MA20 (20日均线)</span>
+                        </label>
+                        <label style="color: #fff; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="ma50Enabled" onchange="toggleIndicator('ma50')">
+                            <span>MA50 (50日均线)</span>
+                        </label>
+                        <label style="color: #fff; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="rsiEnabled" onchange="toggleIndicator('rsi')">
+                            <span>RSI (相对强弱指标)</span>
+                        </label>
+                    </div>
+                `;
+                
+                const controls = document.querySelector('.crypto-controls');
+                controls.parentNode.insertBefore(configPanel, controls.nextSibling);
+            }
+            configPanel.style.display = 'block';
+        }
+        
+        // 隐藏技术指标配置
+        function hideTechnicalIndicatorsConfig() {
+            const configPanel = document.getElementById('technicalIndicatorsConfig');
+            if (configPanel) {
+                configPanel.style.display = 'none';
+            }
+        }
+        
+        // 切换单个技术指标
+        function toggleIndicator(indicator) {
+            const checkbox = document.getElementById(indicator + 'Enabled');
+            technicalIndicators[indicator].enabled = checkbox.checked;
+            
+            // 如果已有数据，重新创建图表
+            if (Object.keys(cryptoPriceData).length > 0 && !cryptoIsComparisonMode) {
+                createCryptoIndividualCharts();
             }
         }
         
