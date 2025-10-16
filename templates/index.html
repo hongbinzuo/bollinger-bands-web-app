@@ -5,12 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>布林带策略系统</title>
     <!-- Chart.js 图表库 -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <!-- TradingView风格的图表库 -->
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.3.0/dist/chartjs-chart-financial.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <!-- 插件 -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-crosshair@2.0.2/dist/chartjs-plugin-crosshair.min.js"></script>
     
     <script>
         // 显示Tab函数 - 需要在HTML之前定义
@@ -1995,7 +1993,7 @@
          
          .crypto-chart-grid {
              display: grid;
-             grid-template-columns: 1fr 1fr;
+             grid-template-columns: 1fr;
              gap: 20px;
              margin-bottom: 20px;
          }
@@ -2046,7 +2044,7 @@
          
          .crypto-chart-wrapper {
              position: relative;
-             height: 350px;
+             height: 400px;
              margin-bottom: 10px;
          }
          
@@ -2767,8 +2765,7 @@
                 <div class="crypto-control-group">
                     <label>图表类型:</label>
                     <select id="cryptoChartType">
-                        <option value="candlestick" selected>K线图</option>
-                        <option value="line">线图</option>
+                        <option value="line" selected>线图</option>
                         <option value="area">面积图</option>
                     </select>
                 </div>
@@ -2851,7 +2848,7 @@
                 </div>
                 
                 <!-- 对比图表 -->
-                <div id="cryptoComparisonCharts" class="crypto-chart-grid single" style="display: none;">
+                <div id="cryptoComparisonCharts" class="crypto-chart-grid" style="display: none;">
                     <div class="crypto-chart-container">
                         <div class="crypto-chart-title">📊 COAI vs MYX 价格对比</div>
                         <div class="crypto-chart-wrapper">
@@ -7386,35 +7383,18 @@
                 // 准备数据集
                 const datasets = [];
                 
-                if (chartType === 'candlestick' && data.candlestickData) {
-                    // K线图
-                    datasets.push({
-                        label: cryptoSymbols[symbol].name,
-                        data: data.candlestickData,
-                        type: 'candlestick',
-                        borderColor: {
-                            up: cryptoSymbols[symbol].upColor,
-                            down: cryptoSymbols[symbol].downColor,
-                        },
-                        backgroundColor: {
-                            up: cryptoSymbols[symbol].upColor + '80',
-                            down: cryptoSymbols[symbol].downColor + '80',
-                        }
-                    });
-                } else {
-                    // 线图或面积图
-                    datasets.push({
-                        label: cryptoSymbols[symbol].name,
-                        data: data.data,
-                        borderColor: cryptoSymbols[symbol].color,
-                        backgroundColor: chartType === 'area' ? cryptoSymbols[symbol].color + '20' : 'transparent',
-                        borderWidth: 2,
-                        fill: chartType === 'area',
-                        tension: 0.1,
-                        pointRadius: 0,
-                        pointHoverRadius: 5
-                    });
-                }
+                // 线图或面积图
+                datasets.push({
+                    label: cryptoSymbols[symbol].name,
+                    data: data.data,
+                    borderColor: cryptoSymbols[symbol].color,
+                    backgroundColor: chartType === 'area' ? cryptoSymbols[symbol].color + '20' : 'transparent',
+                    borderWidth: 2,
+                    fill: chartType === 'area',
+                    tension: 0.1,
+                    pointRadius: 0,
+                    pointHoverRadius: 5
+                });
                 
                 // 添加技术指标
                 if (showTechnicalIndicators && data.indicators) {
@@ -7483,7 +7463,7 @@
                 }
                 
                 cryptoCharts[symbol] = new Chart(ctx, {
-                    type: chartType === 'candlestick' ? 'candlestick' : 'line',
+                    type: 'line',
                     data: { datasets },
                     options: {
                         responsive: true,
