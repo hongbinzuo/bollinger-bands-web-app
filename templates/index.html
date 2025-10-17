@@ -7106,13 +7106,14 @@
         
         // ==================== 加密货币图表功能 ====================
         
-        // 加密货币图表全局变量
-        let cryptoCharts = {};
-        let cryptoIsComparisonMode = false;
-        let cryptoPriceData = {};
+        // 加密货币图表全局变量 - 必须在所有函数之前声明
+        var cryptoCharts = {};
+        var cryptoIsComparisonMode = false;
+        var cryptoPriceData = {};
+        var showTechnicalIndicators = false;
         
         // 币种配置
-        const cryptoSymbols = {
+        var cryptoSymbols = {
             coai: { name: 'COAI/USDT', color: '#FF6B6B', upColor: '#26a69a', downColor: '#ef5350' },
             myx: { name: 'MYX/USDT', color: '#4ECDC4', upColor: '#26a69a', downColor: '#ef5350' },
             bas: { name: 'BAS/USDT', color: '#45B7D1', upColor: '#26a69a', downColor: '#ef5350' },
@@ -7121,8 +7122,7 @@
         };
         
         // 技术指标配置
-        let showTechnicalIndicators = false;
-        let technicalIndicators = {
+        var technicalIndicators = {
             ma5: { enabled: false, period: 5, color: '#FF6B6B' },
             ma20: { enabled: false, period: 20, color: '#4ECDC4' },
             ma50: { enabled: false, period: 50, color: '#45B7D1' },
@@ -7377,7 +7377,7 @@
                 }
                 
                 const ctx = canvas.getContext('2d');
-                const data = cryptoPriceData && cryptoPriceData[symbol] ? cryptoPriceData[symbol] : null;
+                const data = (typeof cryptoPriceData !== 'undefined' && cryptoPriceData && cryptoPriceData[symbol]) ? cryptoPriceData[symbol] : null;
                 if (!data) return; // 如果没有数据就跳过
                 const chartType = document.getElementById('cryptoChartType').value;
                 
@@ -7526,7 +7526,7 @@
             const scaleMode = document.getElementById('cryptoScaleMode').value;
             
             const datasets = symbolList.map(symbol => {
-                if (!cryptoPriceData || !cryptoPriceData[symbol]) return null;
+                if (typeof cryptoPriceData === 'undefined' || !cryptoPriceData || !cryptoPriceData[symbol]) return null;
                 let data = cryptoPriceData[symbol].data;
                 
                 // 根据缩放模式调整数据
@@ -7643,7 +7643,7 @@
             }
             
             // 如果已有数据，重新创建图表
-            if (cryptoPriceData && Object.keys(cryptoPriceData).length > 0) {
+            if (typeof cryptoPriceData !== 'undefined' && cryptoPriceData && Object.keys(cryptoPriceData).length > 0) {
                 if (cryptoIsComparisonMode) {
                     createCryptoComparisonCharts();
                 } else {
@@ -7668,7 +7668,7 @@
             }
             
             // 如果已有数据，重新创建图表
-            if (cryptoPriceData && Object.keys(cryptoPriceData).length > 0 && !cryptoIsComparisonMode) {
+            if (typeof cryptoPriceData !== 'undefined' && cryptoPriceData && Object.keys(cryptoPriceData).length > 0 && !cryptoIsComparisonMode) {
                 createCryptoIndividualCharts();
             }
         }
@@ -7730,19 +7730,19 @@
             technicalIndicators[indicator].enabled = checkbox.checked;
             
             // 如果已有数据，重新创建图表
-            if (cryptoPriceData && Object.keys(cryptoPriceData).length > 0 && !cryptoIsComparisonMode) {
+            if (typeof cryptoPriceData !== 'undefined' && cryptoPriceData && Object.keys(cryptoPriceData).length > 0 && !cryptoIsComparisonMode) {
                 createCryptoIndividualCharts();
             }
         }
         
-        // 时间级别变化时重新加载数据
-        document.addEventListener('DOMContentLoaded', function() {
+        // 初始化加密货币图表事件监听器
+        function initCryptoEventListeners() {
             const cryptoTimeframeSelect = document.getElementById('cryptoTimeframe');
             const cryptoScaleModeSelect = document.getElementById('cryptoScaleMode');
             
             if (cryptoTimeframeSelect) {
                 cryptoTimeframeSelect.addEventListener('change', function() {
-                    if (cryptoPriceData && Object.keys(cryptoPriceData).length > 0) {
+                    if (typeof cryptoPriceData !== 'undefined' && cryptoPriceData && Object.keys(cryptoPriceData).length > 0) {
                         loadCryptoData();
                     }
                 });
@@ -7750,11 +7750,17 @@
             
             if (cryptoScaleModeSelect) {
                 cryptoScaleModeSelect.addEventListener('change', function() {
-                    if (cryptoPriceData && cryptoIsComparisonMode && Object.keys(cryptoPriceData).length > 0) {
+                    if (typeof cryptoPriceData !== 'undefined' && cryptoPriceData && cryptoIsComparisonMode && Object.keys(cryptoPriceData).length > 0) {
                         createCryptoComparisonCharts();
                     }
                 });
             }
+        }
+        
+        // 页面加载完成后初始化事件监听器
+        document.addEventListener('DOMContentLoaded', function() {
+            // 延迟初始化，确保所有元素都已加载
+            setTimeout(initCryptoEventListeners, 100);
         });
         
         // ==================== 加密货币图表功能结束 ====================
