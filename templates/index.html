@@ -7,6 +7,8 @@
     <!-- Chart.js 图表库 - 使用稳定版本 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <!-- 金融图表库 -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.0/dist/chartjs-chart-financial.min.js"></script>
     <!-- 插件 -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.3.0/dist/chartjs-plugin-zoom.min.js"></script>
     
@@ -7238,10 +7240,14 @@
                             continue;
                         }
                         
-                        // 转换K线数据为图表格式
+                        // 转换K线数据为图表格式 - 支持K线图
                         const chartData = klinesData.data.map(item => ({
                             x: item.x,
-                            y: item.y
+                            o: item.o,    // 开盘价
+                            h: item.h,    // 最高价
+                            l: item.l,    // 最低价
+                            c: item.c,    // 收盘价
+                            v: item.v     // 成交量
                         }));
                         
                         // 获取价格信息
@@ -7419,17 +7425,19 @@
                 // 准备数据集
                 const datasets = [];
                 
-                // 线图或面积图
+                // K线图
                 datasets.push({
                     label: cryptoSymbols[symbol].name,
                     data: data.data,
-                    borderColor: cryptoSymbols[symbol].color,
-                    backgroundColor: chartType === 'area' ? cryptoSymbols[symbol].color + '20' : 'transparent',
-                    borderWidth: 2,
-                    fill: chartType === 'area',
-                    tension: 0.1,
-                    pointRadius: 0,
-                    pointHoverRadius: 5
+                    borderColor: function(context) {
+                        const point = context.parsed;
+                        return point.c >= point.o ? '#26a69a' : '#ef5350'; // 绿色上涨，红色下跌
+                    },
+                    backgroundColor: function(context) {
+                        const point = context.parsed;
+                        return point.c >= point.o ? '#26a69a40' : '#ef535040';
+                    },
+                    type: 'candlestick'
                 });
                 
                 // 添加技术指标
@@ -7499,7 +7507,7 @@
                 }
                 
                 cryptoCharts[symbol] = new Chart(ctx, {
-                    type: 'line',
+                    type: 'candlestick',
                     data: { datasets },
                     options: {
                         responsive: true,
@@ -7564,35 +7572,45 @@
                 if (typeof cryptoPriceData === 'undefined' || !cryptoPriceData || !cryptoPriceData[symbol]) return null;
                 let data = cryptoPriceData[symbol].data;
                 
-                // 根据缩放模式调整数据
+                // 根据缩放模式调整数据 - 对K线图的收盘价进行调整
                 if (scaleMode === 'percentage') {
-                    const basePrice = data[0].y;
+                    const basePrice = data[0].c;
                     data = data.map(point => ({
                         x: point.x,
-                        y: ((point.y - basePrice) / basePrice) * 100
+                        o: ((point.o - basePrice) / basePrice) * 100,
+                        h: ((point.h - basePrice) / basePrice) * 100,
+                        l: ((point.l - basePrice) / basePrice) * 100,
+                        c: ((point.c - basePrice) / basePrice) * 100,
+                        v: point.v
                     }));
                 } else if (scaleMode === 'log') {
                     data = data.map(point => ({
                         x: point.x,
-                        y: Math.log(point.y)
+                        o: Math.log(point.o),
+                        h: Math.log(point.h),
+                        l: Math.log(point.l),
+                        c: Math.log(point.c),
+                        v: point.v
                     }));
                 }
                 
                 return {
                     label: cryptoSymbols[symbol].name,
                     data: data,
-                    borderColor: cryptoSymbols[symbol].color,
-                    backgroundColor: cryptoSymbols[symbol].color + '20',
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.1,
-                    pointRadius: 0,
-                    pointHoverRadius: 5
+                    borderColor: function(context) {
+                        const point = context.parsed;
+                        return point.c >= point.o ? '#26a69a' : '#ef5350';
+                    },
+                    backgroundColor: function(context) {
+                        const point = context.parsed;
+                        return point.c >= point.o ? '#26a69a40' : '#ef535040';
+                    },
+                    type: 'candlestick'
                 };
             }).filter(dataset => dataset !== null);
             
             cryptoCharts[canvasId] = new Chart(ctx, {
-                type: 'line',
+                type: 'candlestick',
                 data: { datasets },
                 options: {
                     responsive: true,

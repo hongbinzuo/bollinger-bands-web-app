@@ -338,16 +338,16 @@ def get_klines():
                 'error': '无法获取数据'
             }), 500
         
-        # 转换数据格式供前端使用
+        # 转换数据格式供前端使用 - 支持K线图
         chart_data = []
         for kline in klines:
             chart_data.append({
                 'x': kline['timestamp'] * 1000,  # 转换为毫秒
-                'y': kline['close'],
-                'o': kline['open'],
-                'h': kline['high'],
-                'l': kline['low'],
-                'v': kline['volume']
+                'o': kline['open'],    # 开盘价
+                'h': kline['high'],    # 最高价
+                'l': kline['low'],     # 最低价
+                'c': kline['close'],   # 收盘价
+                'v': kline['volume']   # 成交量
             })
         
         return jsonify({
