@@ -2745,8 +2745,8 @@
                 <div class="crypto-control-group">
                     <label>交易所:</label>
                     <select id="cryptoExchange">
-                        <option value="binance" selected>Binance (推荐)</option>
-                        <option value="gateio">Gate.io</option>
+                        <option value="gateio" selected>Gate.io (推荐)</option>
+                        <option value="binance">Binance</option>
                         <option value="bybit">Bybit</option>
                         <option value="bitget">Bitget</option>
                     </select>
@@ -7240,7 +7240,7 @@
                         }));
                         
                         // 获取价格信息
-                        const priceInfo = priceData_result.prices[symbol];
+                        const priceInfo = (priceData_result && priceData_result.prices && priceData_result.prices[symbol]) ? priceData_result.prices[symbol] : null;
                         
                         cryptoPriceData[symbol] = {
                             data: chartData,

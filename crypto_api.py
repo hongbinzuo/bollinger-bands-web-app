@@ -361,8 +361,8 @@ def get_klines():
         klines = []
         exchanges_tried = []
         
-        # 按优先级尝试交易所 - 优化顺序：首选交易所 -> Binance -> Gate.io -> Bybit -> Bitget
-        exchange_priority = [exchange] + ['binance', 'gateio', 'bybit', 'bitget']
+        # 按优先级尝试交易所 - 优化顺序：首选交易所 -> Gate.io -> Binance -> Bybit -> Bitget
+        exchange_priority = [exchange] + ['gateio', 'binance', 'bybit', 'bitget']
         exchange_priority = list(dict.fromkeys(exchange_priority))  # 去重保持顺序
         
         for ex in exchange_priority:
@@ -432,10 +432,15 @@ def get_current_prices():
         prices = {}
         
         for symbol, symbol_config in SUPPORTED_SYMBOLS.items():
-            # 默认使用gateio，如果不存在则使用第一个可用的交易所
-            exchange = 'gateio' if 'gateio' in symbol_config else list(symbol_config.keys())[0]
-            symbol_pair = symbol_config[exchange]
-            price_info = data_provider.get_current_price(symbol_pair, exchange)
+            price_info = None
+            # 尝试所有可用的交易所
+            for exchange in ['gateio', 'binance', 'bybit', 'bitget']:
+                if exchange in symbol_config:
+                    symbol_pair = symbol_config[exchange]
+                    price_info = data_provider.get_current_price(symbol_pair, exchange)
+                    if price_info:
+                        break  # 成功获取价格就停止尝试
+            
             if price_info:
                 prices[symbol] = {
                     'symbol': symbol,
@@ -444,6 +449,16 @@ def get_current_prices():
                     'volume_24h': price_info['volume_24h'],
                     'high_24h': price_info['high_24h'],
                     'low_24h': price_info['low_24h']
+                }
+            else:
+                # 如果所有交易所都获取不到，提供默认值
+                prices[symbol] = {
+                    'symbol': symbol,
+                    'price': 1.0,  # 默认价格
+                    'change_24h': 0.0,
+                    'volume_24h': 0.0,
+                    'high_24h': 1.0,
+                    'low_24h': 1.0
                 }
         
         return jsonify({
