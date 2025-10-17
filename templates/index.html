@@ -7193,6 +7193,11 @@
                 
                 const exchange = document.getElementById('cryptoExchange').value;
                 
+                // 确保cryptoSymbols已定义
+                if (typeof cryptoSymbols === 'undefined' || !cryptoSymbols) {
+                    throw new Error('币种配置未初始化');
+                }
+                
                 for (const symbol of Object.keys(cryptoSymbols)) {
                     try {
                         const klinesResponse = await safeFetch(`/crypto/klines?symbol=${symbol}&timeframe=${timeframe}&exchange=${exchange}&limit=100`);
@@ -7236,9 +7241,11 @@
                 
                 // 使用模拟数据作为后备
                 cryptoPriceData = {};
-                Object.keys(cryptoSymbols).forEach(symbol => {
-                    cryptoPriceData[symbol] = generateCryptoMockData(symbol, timeframe);
-                });
+                if (typeof cryptoSymbols !== 'undefined' && cryptoSymbols) {
+                    Object.keys(cryptoSymbols).forEach(symbol => {
+                        cryptoPriceData[symbol] = generateCryptoMockData(symbol, timeframe);
+                    });
+                }
             }
         }
         
@@ -7367,6 +7374,10 @@
         
         // 创建单个币种图表
         function createCryptoIndividualCharts() {
+            if (typeof cryptoSymbols === 'undefined' || !cryptoSymbols) {
+                console.error('币种配置未初始化');
+                return;
+            }
             Object.keys(cryptoSymbols).forEach(symbol => {
                 const canvas = document.getElementById(`crypto${symbol.charAt(0).toUpperCase() + symbol.slice(1)}Chart`);
                 if (!canvas) return;
@@ -7398,7 +7409,7 @@
                 });
                 
                 // 添加技术指标
-                if (showTechnicalIndicators && data.indicators) {
+                if (showTechnicalIndicators && data.indicators && typeof technicalIndicators !== 'undefined' && technicalIndicators) {
                     Object.keys(technicalIndicators).forEach(indicator => {
                         if (technicalIndicators[indicator].enabled && data.indicators[indicator]) {
                             datasets.push({
