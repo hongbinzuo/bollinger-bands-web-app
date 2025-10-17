@@ -7377,7 +7377,8 @@
                 }
                 
                 const ctx = canvas.getContext('2d');
-                const data = cryptoPriceData[symbol];
+                const data = cryptoPriceData && cryptoPriceData[symbol] ? cryptoPriceData[symbol] : null;
+                if (!data) return; // 如果没有数据就跳过
                 const chartType = document.getElementById('cryptoChartType').value;
                 
                 // 准备数据集
@@ -7525,6 +7526,7 @@
             const scaleMode = document.getElementById('cryptoScaleMode').value;
             
             const datasets = symbolList.map(symbol => {
+                if (!cryptoPriceData || !cryptoPriceData[symbol]) return null;
                 let data = cryptoPriceData[symbol].data;
                 
                 // 根据缩放模式调整数据
@@ -7552,7 +7554,7 @@
                     pointRadius: 0,
                     pointHoverRadius: 5
                 };
-            });
+            }).filter(dataset => dataset !== null);
             
             cryptoCharts[canvasId] = new Chart(ctx, {
                 type: 'line',
