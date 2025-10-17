@@ -2745,8 +2745,9 @@
                 <div class="crypto-control-group">
                     <label>交易所:</label>
                     <select id="cryptoExchange">
-                        <option value="binance" selected>Binance</option>
+                        <option value="binance" selected>Binance (推荐)</option>
                         <option value="gateio">Gate.io</option>
+                        <option value="bybit">Bybit</option>
                         <option value="bitget">Bitget</option>
                     </select>
                 </div>
@@ -7129,6 +7130,30 @@
             rsi: { enabled: false, period: 14, color: '#FFA726' }
         };
         
+        // 初始化检查函数
+        function ensureCryptoConfigInitialized() {
+            if (typeof cryptoSymbols === 'undefined' || !cryptoSymbols) {
+                console.error('币种配置未初始化，重新初始化...');
+                // 重新初始化币种配置
+                cryptoSymbols = {
+                    coai: { name: 'COAI/USDT', color: '#FF6B6B', upColor: '#26a69a', downColor: '#ef5350' },
+                    myx: { name: 'MYX/USDT', color: '#4ECDC4', upColor: '#26a69a', downColor: '#ef5350' },
+                    bas: { name: 'BAS/USDT', color: '#45B7D1', upColor: '#26a69a', downColor: '#ef5350' },
+                    bless: { name: 'BLESS/USDT', color: '#96CEB4', upColor: '#26a69a', downColor: '#ef5350' },
+                    xpin: { name: 'XPIN/USDT', color: '#FFEAA7', upColor: '#26a69a', downColor: '#ef5350' }
+                };
+            }
+            if (typeof technicalIndicators === 'undefined' || !technicalIndicators) {
+                console.error('技术指标配置未初始化，重新初始化...');
+                technicalIndicators = {
+                    ma5: { enabled: false, period: 5, color: '#FF6B6B' },
+                    ma20: { enabled: false, period: 20, color: '#4ECDC4' },
+                    ma50: { enabled: false, period: 50, color: '#45B7D1' },
+                    rsi: { enabled: false, period: 14, color: '#FFA726' }
+                };
+            }
+        }
+        
         // 显示加密货币状态
         function showCryptoStatus(message, type) {
             const status = document.getElementById('cryptoStatus');
@@ -7194,9 +7219,7 @@
                 const exchange = document.getElementById('cryptoExchange').value;
                 
                 // 确保cryptoSymbols已定义
-                if (typeof cryptoSymbols === 'undefined' || !cryptoSymbols) {
-                    throw new Error('币种配置未初始化');
-                }
+                ensureCryptoConfigInitialized();
                 
                 for (const symbol of Object.keys(cryptoSymbols)) {
                     try {
@@ -7241,11 +7264,10 @@
                 
                 // 使用模拟数据作为后备
                 cryptoPriceData = {};
-                if (typeof cryptoSymbols !== 'undefined' && cryptoSymbols) {
-                    Object.keys(cryptoSymbols).forEach(symbol => {
-                        cryptoPriceData[symbol] = generateCryptoMockData(symbol, timeframe);
-                    });
-                }
+                ensureCryptoConfigInitialized();
+                Object.keys(cryptoSymbols).forEach(symbol => {
+                    cryptoPriceData[symbol] = generateCryptoMockData(symbol, timeframe);
+                });
             }
         }
         
@@ -7374,10 +7396,7 @@
         
         // 创建单个币种图表
         function createCryptoIndividualCharts() {
-            if (typeof cryptoSymbols === 'undefined' || !cryptoSymbols) {
-                console.error('币种配置未初始化');
-                return;
-            }
+            ensureCryptoConfigInitialized();
             Object.keys(cryptoSymbols).forEach(symbol => {
                 const canvas = document.getElementById(`crypto${symbol.charAt(0).toUpperCase() + symbol.slice(1)}Chart`);
                 if (!canvas) return;

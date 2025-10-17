@@ -22,6 +22,7 @@ crypto_api_bp = Blueprint('crypto_api', __name__)
 GATE_IO_BASE_URL = "https://api.gateio.ws/api/v4"
 BITGET_BASE_URL = "https://api.bitget.com/api/v2"
 BINANCE_BASE_URL = "https://api.binance.com/api/v3"
+BYBIT_BASE_URL = "https://api.bybit.com/v5"
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
 
 # 支持的币种 - 扩展到更多交易所
@@ -29,27 +30,32 @@ SUPPORTED_SYMBOLS = {
     'COAI': {
         'gateio': 'coai_usdt',
         'binance': 'COAIUSDT',
-        'bitget': 'COAIUSDT'
+        'bitget': 'COAIUSDT',
+        'bybit': 'COAIUSDT'
     },
     'MYX': {
         'gateio': 'myx_usdt',
         'binance': 'MYXUSDT', 
-        'bitget': 'MYXUSDT'
+        'bitget': 'MYXUSDT',
+        'bybit': 'MYXUSDT'
     },
     'BAS': {
         'gateio': 'bas_usdt',
         'binance': 'BASUSDT',
-        'bitget': 'BASUSDT'
+        'bitget': 'BASUSDT',
+        'bybit': 'BASUSDT'
     },
     'BLESS': {
         'gateio': 'bless_usdt',
         'binance': 'BLESSUSDT',
-        'bitget': 'BLESSUSDT'
+        'bitget': 'BLESSUSDT',
+        'bybit': 'BLESSUSDT'
     },
     'XPIN': {
         'gateio': 'xpin_usdt',
         'binance': 'XPINUSDT',
-        'bitget': 'XPINUSDT'
+        'bitget': 'XPINUSDT',
+        'bybit': 'XPINUSDT'
     }
 }
 
@@ -170,6 +176,47 @@ class CryptoDataProvider:
             logger.error(f"Binance API错误 {symbol}: {e}")
             return []
     
+    def get_bybit_klines(self, symbol, interval, limit=100):
+        """从Bybit获取K线数据"""
+        try:
+            url = f"{BYBIT_BASE_URL}/market/kline"
+            params = {
+                'category': 'spot',
+                'symbol': symbol,
+                'interval': interval,
+                'limit': limit
+            }
+            
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            if data.get('retCode') != 0:
+                logger.error(f"Bybit API错误: {data.get('retMsg')}")
+                return []
+            
+            klines_data = data.get('result', {}).get('list', [])
+            if not klines_data:
+                return []
+            
+            # 转换数据格式
+            klines = []
+            for item in reversed(klines_data):  # Bybit返回的数据是倒序的
+                klines.append({
+                    'timestamp': int(item[0]),
+                    'open': float(item[1]),
+                    'high': float(item[2]),
+                    'low': float(item[3]),
+                    'close': float(item[4]),
+                    'volume': float(item[5])
+                })
+            
+            return klines
+            
+        except Exception as e:
+            logger.error(f"Bybit API错误 {symbol}: {e}")
+            return []
+    
     def get_current_price(self, symbol, exchange='gateio'):
         """获取当前价格 - 支持多个交易所"""
         try:
@@ -177,6 +224,8 @@ class CryptoDataProvider:
                 return self._get_binance_price(symbol)
             elif exchange == 'bitget':
                 return self._get_bitget_price(symbol)
+            elif exchange == 'bybit':
+                return self._get_bybit_price(symbol)
             else:  # 默认使用Gate.io
                 return self._get_gateio_price(symbol)
                 
@@ -243,6 +292,29 @@ class CryptoDataProvider:
                 'low_24h': float(ticker['low24h'])
             }
         return None
+    
+    def _get_bybit_price(self, symbol):
+        """从Bybit获取价格"""
+        url = f"{BYBIT_BASE_URL}/market/tickers"
+        params = {
+            'category': 'spot',
+            'symbol': symbol
+        }
+        
+        response = self.session.get(url, params=params, timeout=5)
+        response.raise_for_status()
+        
+        data = response.json()
+        if data.get('retCode') == 0 and data.get('result', {}).get('list'):
+            ticker = data['result']['list'][0]
+            return {
+                'price': float(ticker['lastPrice']),
+                'change_24h': float(ticker['price24hPcnt']) * 100,
+                'volume_24h': float(ticker['volume24h']),
+                'high_24h': float(ticker['highPrice']),
+                'low_24h': float(ticker['lowPrice'])
+            }
+        return None
 
 # 全局数据提供者实例
 data_provider = CryptoDataProvider()
@@ -289,8 +361,8 @@ def get_klines():
         klines = []
         exchanges_tried = []
         
-        # 按优先级尝试交易所
-        exchange_priority = [exchange] + ['binance', 'gateio', 'bitget']
+        # 按优先级尝试交易所 - 优化顺序：首选交易所 -> Binance -> Gate.io -> Bybit -> Bitget
+        exchange_priority = [exchange] + ['binance', 'gateio', 'bybit', 'bitget']
         exchange_priority = list(dict.fromkeys(exchange_priority))  # 去重保持顺序
         
         for ex in exchange_priority:
@@ -306,6 +378,8 @@ def get_klines():
                 klines = data_provider.get_gateio_klines(symbol_pair, timeframe, limit)
             elif ex == 'bitget':
                 klines = data_provider.get_bitget_klines(symbol_pair, timeframe, limit)
+            elif ex == 'bybit':
+                klines = data_provider.get_bybit_klines(symbol_pair, timeframe, limit)
             
             if klines:  # 如果获取到数据就停止尝试
                 exchange = ex
