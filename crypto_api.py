@@ -218,11 +218,9 @@ class CryptoDataProvider:
             return []
     
     def get_current_price(self, symbol, exchange='gateio'):
-        """获取当前价格 - 支持多个交易所"""
+        """获取当前价格 - 支持多个交易所（移除Binance）"""
         try:
-            if exchange == 'binance':
-                return self._get_binance_price(symbol)
-            elif exchange == 'bitget':
+            if exchange == 'bitget':
                 return self._get_bitget_price(symbol)
             elif exchange == 'bybit':
                 return self._get_bybit_price(symbol)
@@ -361,8 +359,8 @@ def get_klines():
         klines = []
         exchanges_tried = []
         
-        # 按优先级尝试交易所 - 优化顺序：首选交易所 -> Gate.io -> Binance -> Bybit -> Bitget
-        exchange_priority = [exchange] + ['gateio', 'binance', 'bybit', 'bitget']
+        # 按优先级尝试交易所 - 优化顺序：首选交易所 -> Gate.io -> Bybit -> Bitget（移除Binance）
+        exchange_priority = [exchange] + ['gateio', 'bybit', 'bitget']
         exchange_priority = list(dict.fromkeys(exchange_priority))  # 去重保持顺序
         
         for ex in exchange_priority:
@@ -372,9 +370,7 @@ def get_klines():
             symbol_pair = symbol_config[ex]
             exchanges_tried.append(ex)
             
-            if ex == 'binance':
-                klines = data_provider.get_binance_klines(symbol_pair, timeframe, limit)
-            elif ex == 'gateio':
+            if ex == 'gateio':
                 klines = data_provider.get_gateio_klines(symbol_pair, timeframe, limit)
             elif ex == 'bitget':
                 klines = data_provider.get_bitget_klines(symbol_pair, timeframe, limit)
@@ -433,8 +429,8 @@ def get_current_prices():
         
         for symbol, symbol_config in SUPPORTED_SYMBOLS.items():
             price_info = None
-            # 尝试所有可用的交易所
-            for exchange in ['gateio', 'binance', 'bybit', 'bitget']:
+            # 尝试所有可用的交易所（移除Binance）
+            for exchange in ['gateio', 'bybit', 'bitget']:
                 if exchange in symbol_config:
                     symbol_pair = symbol_config[exchange]
                     price_info = data_provider.get_current_price(symbol_pair, exchange)
