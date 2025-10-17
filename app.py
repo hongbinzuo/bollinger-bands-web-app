@@ -475,6 +475,11 @@ def index():
     """主页"""
     return render_template('index.html')
 
+@app.route('/crypto-charts')
+def crypto_charts():
+    """加密货币K线图页面"""
+    return render_template('crypto_charts_tradingview.html')
+
 @app.route('/export_symbols', methods=['GET'])
 def export_symbols():
     """导出币种列表为CSV文件"""

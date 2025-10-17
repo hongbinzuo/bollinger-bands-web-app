@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>加密货币K线图 - TradingView</title>
+    <!-- TradingView Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1e1e1e;
+            color: #d1d4dc;
+        }
+        .chart-container {
+            width: 100%;
+            height: 400px;
+            margin-bottom: 20px;
+            border: 1px solid #2B2B2B;
+            border-radius: 8px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .control-group label {
+            font-size: 12px;
+            color: #888;
+        }
+        .control-group select, .control-group button {
+            padding: 8px 12px;
+            border: 1px solid #2B2B2B;
+            border-radius: 4px;
+            background-color: #2B2B2B;
+            color: #d1d4dc;
+            font-size: 14px;
+        }
+        .control-group button {
+            background-color: #26a69a;
+            border-color: #26a69a;
+            cursor: pointer;
+        }
+        .control-group button:hover {
+            background-color: #1e8a7a;
+        }
+        .control-group button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .status.loading {
+            background-color: #2B2B2B;
+            color: #26a69a;
+        }
+        .status.success {
+            background-color: #1a4d3a;
+            color: #26a69a;
+        }
+        .status.error {
+            background-color: #4d1a1a;
+            color: #ef5350;
+        }
+        .price-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .price-card {
+            background-color: #2B2B2B;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #26a69a;
+        }
+        .price-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }
+        .price-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .price-change {
+            font-size: 14px;
+        }
+        .price-change.positive {
+            color: #26a69a;
+        }
+        .price-change.negative {
+            color: #ef5350;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 加密货币K线图 - TradingView专业版</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>交易所:</label>
+            <select id="exchange">
+                <option value="gateio" selected>Gate.io</option>
+                <option value="bybit">Bybit</option>
+                <option value="bitget">Bitget</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label>时间级别:</label>
+            <select id="timeframe">
+                <option value="15m">15分钟</option>
+                <option value="1h">1小时</option>
+                <option value="4h" selected>4小时</option>
+                <option value="12h">12小时</option>
+                <option value="1d">1天</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label>币种:</label>
+            <select id="symbol">
+                <option value="coai" selected>COAI/USDT</option>
+                <option value="myx">MYX/USDT</option>
+                <option value="bas">BAS/USDT</option>
+                <option value="bless">BLESS/USDT</option>
+                <option value="xpin">XPIN/USDT</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <button id="loadBtn" onclick="loadChart()">📊 加载K线图</button>
+        </div>
+    </div>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <div class="price-display" id="priceDisplay"></div>
+    
+    <div class="chart-container" id="chartContainer"></div>
+    
+    <script>
+        let chart = null;
+        let candlestickSeries = null;
+        
+        const symbols = {
+            coai: { name: 'COAI/USDT', color: '#FF6B6B' },
+            myx: { name: 'MYX/USDT', color: '#4ECDC4' },
+            bas: { name: 'BAS/USDT', color: '#45B7D1' },
+            bless: { name: 'BLESS/USDT', color: '#96CEB4' },
+            xpin: { name: 'XPIN/USDT', color: '#FFEAA7' }
+        };
+        
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+        
+        function hideStatus() {
+            document.getElementById('status').style.display = 'none';
+        }
+        
+        function updatePriceDisplay(symbol, price, change) {
+            const priceDisplay = document.getElementById('priceDisplay');
+            const symbolInfo = symbols[symbol];
+            
+            priceDisplay.innerHTML = `
+                <div class="price-card">
+                    <h3>${symbolInfo.name}</h3>
+                    <div class="price-value">$${price.toFixed(4)}</div>
+                    <div class="price-change ${change >= 0 ? 'positive' : 'negative'}">
+                        ${change >= 0 ? '+' : ''}${change.toFixed(2)}%
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function loadChart() {
+            const loadBtn = document.getElementById('loadBtn');
+            const exchange = document.getElementById('exchange').value;
+            const timeframe = document.getElementById('timeframe').value;
+            const symbol = document.getElementById('symbol').value;
+            
+            loadBtn.disabled = true;
+            loadBtn.textContent = '⏳ 加载中...';
+            showStatus('正在获取K线数据...', 'loading');
+            
+            try {
+                // 获取K线数据
+                const klinesResponse = await fetch(`/crypto/klines?symbol=${symbol}&timeframe=${timeframe}&exchange=${exchange}&limit=100`);
+                const klinesData = await klinesResponse.json();
+                
+                if (!klinesData.success) {
+                    throw new Error(klinesData.error || '获取K线数据失败');
+                }
+                
+                // 获取价格数据
+                const priceResponse = await fetch('/crypto/price');
+                const priceData = await priceResponse.json();
+                
+                if (!priceData.success) {
+                    throw new Error('获取价格数据失败');
+                }
+                
+                // 转换数据格式
+                const candlestickData = klinesData.data.map(item => ({
+                    time: item.x / 1000, // 转换为秒
+                    open: parseFloat(item.o),
+                    high: parseFloat(item.h),
+                    low: parseFloat(item.l),
+                    close: parseFloat(item.c)
+                }));
+                
+                // 创建或更新图表
+                if (chart) {
+                    chart.remove();
+                }
+                
+                chart = LightweightCharts.createChart(document.getElementById('chartContainer'), {
+                    width: document.getElementById('chartContainer').clientWidth,
+                    height: 400,
+                    layout: {
+                        backgroundColor: '#1e1e1e',
+                        textColor: '#d1d4dc',
+                    },
+                    grid: {
+                        vertLines: {
+                            color: '#2B2B2B',
+                        },
+                        horzLines: {
+                            color: '#2B2B2B',
+                        },
+                    },
+                    crosshair: {
+                        mode: LightweightCharts.CrosshairMode.Normal,
+                    },
+                    rightPriceScale: {
+                        borderColor: '#2B2B2B',
+                    },
+                    timeScale: {
+                        borderColor: '#2B2B2B',
+                        timeVisible: true,
+                        secondsVisible: false,
+                    },
+                });
+                
+                // 添加K线图
+                candlestickSeries = chart.addCandlestickSeries({
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    borderDownColor: '#ef5350',
+                    borderUpColor: '#26a69a',
+                    wickDownColor: '#ef5350',
+                    wickUpColor: '#26a69a',
+                });
+                
+                candlestickSeries.setData(candlestickData);
+                
+                // 更新价格显示
+                const priceInfo = priceData.prices[symbol.toUpperCase()];
+                if (priceInfo) {
+                    updatePriceDisplay(symbol, priceInfo.price, priceInfo.change_24h);
+                }
+                
+                showStatus('K线图加载完成！', 'success');
+                setTimeout(hideStatus, 3000);
+                
+            } catch (error) {
+                console.error('加载图表失败:', error);
+                showStatus(`加载失败: ${error.message}`, 'error');
+            } finally {
+                loadBtn.disabled = false;
+                loadBtn.textContent = '📊 加载K线图';
+            }
+        }
+        
+        // 页面加载完成后自动加载图表
+        document.addEventListener('DOMContentLoaded', function() {
+            loadChart();
+        });
+        
+        // 窗口大小改变时重新调整图表
+        window.addEventListener('resize', function() {
+            if (chart) {
+                chart.applyOptions({
+                    width: document.getElementById('chartContainer').clientWidth,
+                });
+            }
+        });
+    </script>
+</body>
+</html>
