@@ -256,7 +256,7 @@ TIMEFRAME_MAP = {
     '1d': '1d'
 }
 
-@crypto_api_bp.route('/crypto/klines', methods=['GET'])
+@crypto_api_bp.route('/klines', methods=['GET'])
 def get_klines():
     """获取K线数据"""
     try:
@@ -351,14 +351,17 @@ def get_klines():
             'error': str(e)
         }), 500
 
-@crypto_api_bp.route('/crypto/price', methods=['GET'])
+@crypto_api_bp.route('/price', methods=['GET'])
 def get_current_prices():
     """获取所有币种的当前价格"""
     try:
         prices = {}
         
-        for symbol, symbol_pair in SUPPORTED_SYMBOLS.items():
-            price_info = data_provider.get_current_price(symbol_pair)
+        for symbol, symbol_config in SUPPORTED_SYMBOLS.items():
+            # 默认使用gateio，如果不存在则使用第一个可用的交易所
+            exchange = 'gateio' if 'gateio' in symbol_config else list(symbol_config.keys())[0]
+            symbol_pair = symbol_config[exchange]
+            price_info = data_provider.get_current_price(symbol_pair, exchange)
             if price_info:
                 prices[symbol] = {
                     'symbol': symbol,
@@ -382,7 +385,7 @@ def get_current_prices():
             'error': str(e)
         }), 500
 
-@crypto_api_bp.route('/crypto/symbols', methods=['GET'])
+@crypto_api_bp.route('/symbols', methods=['GET'])
 def get_supported_symbols():
     """获取支持的币种列表"""
     return jsonify({
@@ -391,7 +394,7 @@ def get_supported_symbols():
         'exchanges': ['gateio', 'bitget']
     })
 
-@crypto_api_bp.route('/crypto/chart', methods=['GET'])
+@crypto_api_bp.route('/chart', methods=['GET'])
 def crypto_chart():
     """加密货币图表页面"""
     from flask import render_template
