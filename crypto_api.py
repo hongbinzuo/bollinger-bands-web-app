@@ -21,7 +21,7 @@ crypto_api_bp = Blueprint('crypto_api', __name__)
 # API配置
 GATE_IO_BASE_URL = "https://api.gateio.ws/api/v4"
 BITGET_BASE_URL = "https://api.bitget.com/api/v2"
-BINANCE_BASE_URL = "https://api.binance.com/api/v3"
+# BINANCE_BASE_URL = "https://api.binance.com/api/v3"  # 已移除Binance支持
 BYBIT_BASE_URL = "https://api.bybit.com/v5"
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
 
@@ -29,31 +29,26 @@ COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
 SUPPORTED_SYMBOLS = {
     'COAI': {
         'gateio': 'coai_usdt',
-        'binance': 'COAIUSDT',
         'bitget': 'COAIUSDT',
         'bybit': 'COAIUSDT'
     },
     'MYX': {
         'gateio': 'myx_usdt',
-        'binance': 'MYXUSDT', 
         'bitget': 'MYXUSDT',
         'bybit': 'MYXUSDT'
     },
     'BAS': {
         'gateio': 'bas_usdt',
-        'binance': 'BASUSDT',
         'bitget': 'BASUSDT',
         'bybit': 'BASUSDT'
     },
     'BLESS': {
         'gateio': 'bless_usdt',
-        'binance': 'BLESSUSDT',
         'bitget': 'BLESSUSDT',
         'bybit': 'BLESSUSDT'
     },
     'XPIN': {
         'gateio': 'xpin_usdt',
-        'binance': 'XPINUSDT',
         'bitget': 'XPINUSDT',
         'bybit': 'XPINUSDT'
     }
@@ -141,40 +136,7 @@ class CryptoDataProvider:
             logger.error(f"Bitget API错误 {symbol}: {e}")
             return []
     
-    def get_binance_klines(self, symbol, interval, limit=100):
-        """从Binance获取K线数据"""
-        try:
-            url = f"{BINANCE_BASE_URL}/klines"
-            params = {
-                'symbol': symbol,
-                'interval': interval,
-                'limit': limit
-            }
-            
-            response = self.session.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            if not data:
-                return []
-            
-            # 转换数据格式
-            klines = []
-            for item in data:
-                klines.append({
-                    'timestamp': int(item[0]),
-                    'open': float(item[1]),
-                    'high': float(item[2]),
-                    'low': float(item[3]),
-                    'close': float(item[4]),
-                    'volume': float(item[5])
-                })
-            
-            return klines
-            
-        except Exception as e:
-            logger.error(f"Binance API错误 {symbol}: {e}")
-            return []
+    # get_binance_klines 方法已移除 - 不再支持Binance
     
     def get_bybit_klines(self, symbol, interval, limit=100):
         """从Bybit获取K线数据"""
@@ -252,24 +214,7 @@ class CryptoDataProvider:
             }
         return None
     
-    def _get_binance_price(self, symbol):
-        """从Binance获取价格"""
-        url = f"{BINANCE_BASE_URL}/ticker/24hr"
-        params = {'symbol': symbol}
-        
-        response = self.session.get(url, params=params, timeout=5)
-        response.raise_for_status()
-        
-        data = response.json()
-        if data:
-            return {
-                'price': float(data['lastPrice']),
-                'change_24h': float(data['priceChangePercent']),
-                'volume_24h': float(data['volume']),
-                'high_24h': float(data['highPrice']),
-                'low_24h': float(data['lowPrice'])
-            }
-        return None
+    # _get_binance_price 方法已移除 - 不再支持Binance
     
     def _get_bitget_price(self, symbol):
         """从Bitget获取价格"""

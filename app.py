@@ -232,17 +232,17 @@ class BollingerBandsAnalyzer:
                     logger.info(f"使用缓存数据: {symbol}")
                     return cached_result
             
-            # 首先尝试Binance
-            df = self.get_binance_klines(symbol, '12h', 100)
+            # 首先尝试Gate.io（更稳定）
+            gate_symbol = symbol.replace('USDT', '_USDT')
+            df = self.get_gate_klines(gate_symbol, '12h', 100)
             
             if df.empty:
-                # 如果Binance失败，尝试Gate.io
-                logger.info(f"Binance获取失败，尝试Gate.io...")
-                gate_symbol = symbol.replace('USDT', '_USDT')
-                df = self.get_gate_klines(gate_symbol, '12h', 100)
-                data_source = "Gate.io"
-            else:
+                # 如果Gate.io失败，尝试Binance
+                logger.info(f"Gate.io获取失败，尝试Binance...")
+                df = self.get_binance_klines(symbol, '12h', 100)
                 data_source = "Binance"
+            else:
+                data_source = "Gate.io"
             
             if df.empty:
                 result = {
