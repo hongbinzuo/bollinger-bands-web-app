@@ -7243,11 +7243,11 @@
                         // 转换K线数据为图表格式 - 支持K线图
                         const chartData = klinesData.data.map(item => ({
                             x: item.x,
-                            o: item.o,    // 开盘价
-                            h: item.h,    // 最高价
-                            l: item.l,    // 最低价
-                            c: item.c,    // 收盘价
-                            v: item.v     // 成交量
+                            o: parseFloat(item.o),    // 开盘价
+                            h: parseFloat(item.h),    // 最高价
+                            l: parseFloat(item.l),    // 最低价
+                            c: parseFloat(item.c),    // 收盘价
+                            v: parseFloat(item.v)     // 成交量
                         }));
                         
                         // 获取价格信息
@@ -7323,10 +7323,9 @@
             const indicators = calculateTechnicalIndicators(prices);
             
             return {
-                data: data,
-                candlestickData: candlestickData,
-                currentPrice: data[data.length - 1].y,
-                change: ((data[data.length - 1].y - data[0].y) / data[0].y) * 100,
+                data: candlestickData,  // 使用K线数据
+                currentPrice: candlestickData[candlestickData.length - 1].c,
+                change: ((candlestickData[candlestickData.length - 1].c - candlestickData[0].c) / candlestickData[0].c) * 100,
                 indicators: indicators
             };
         }
@@ -7425,19 +7424,22 @@
                 // 准备数据集
                 const datasets = [];
                 
-                // K线图
+                // 线图（使用收盘价）
+                const lineData = data.data.map(item => ({
+                    x: item.x,
+                    y: item.c  // 使用收盘价
+                }));
+                
                 datasets.push({
                     label: cryptoSymbols[symbol].name,
-                    data: data.data,
-                    borderColor: function(context) {
-                        const point = context.parsed;
-                        return point.c >= point.o ? '#26a69a' : '#ef5350'; // 绿色上涨，红色下跌
-                    },
-                    backgroundColor: function(context) {
-                        const point = context.parsed;
-                        return point.c >= point.o ? '#26a69a40' : '#ef535040';
-                    },
-                    type: 'candlestick'
+                    data: lineData,
+                    borderColor: cryptoSymbols[symbol].color,
+                    backgroundColor: cryptoSymbols[symbol].color + '20',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1,
+                    pointRadius: 0,
+                    pointHoverRadius: 5
                 });
                 
                 // 添加技术指标
@@ -7507,7 +7509,7 @@
                 }
                 
                 cryptoCharts[symbol] = new Chart(ctx, {
-                    type: 'candlestick',
+                    type: 'line',
                     data: { datasets },
                     options: {
                         responsive: true,
@@ -7572,45 +7574,40 @@
                 if (typeof cryptoPriceData === 'undefined' || !cryptoPriceData || !cryptoPriceData[symbol]) return null;
                 let data = cryptoPriceData[symbol].data;
                 
-                // 根据缩放模式调整数据 - 对K线图的收盘价进行调整
+                // 根据缩放模式调整数据 - 对收盘价进行调整
+                let lineData = data.map(item => ({
+                    x: item.x,
+                    y: item.c  // 使用收盘价
+                }));
+                
                 if (scaleMode === 'percentage') {
-                    const basePrice = data[0].c;
-                    data = data.map(point => ({
+                    const basePrice = lineData[0].y;
+                    lineData = lineData.map(point => ({
                         x: point.x,
-                        o: ((point.o - basePrice) / basePrice) * 100,
-                        h: ((point.h - basePrice) / basePrice) * 100,
-                        l: ((point.l - basePrice) / basePrice) * 100,
-                        c: ((point.c - basePrice) / basePrice) * 100,
-                        v: point.v
+                        y: ((point.y - basePrice) / basePrice) * 100
                     }));
                 } else if (scaleMode === 'log') {
-                    data = data.map(point => ({
+                    lineData = lineData.map(point => ({
                         x: point.x,
-                        o: Math.log(point.o),
-                        h: Math.log(point.h),
-                        l: Math.log(point.l),
-                        c: Math.log(point.c),
-                        v: point.v
+                        y: Math.log(point.y)
                     }));
                 }
                 
                 return {
                     label: cryptoSymbols[symbol].name,
-                    data: data,
-                    borderColor: function(context) {
-                        const point = context.parsed;
-                        return point.c >= point.o ? '#26a69a' : '#ef5350';
-                    },
-                    backgroundColor: function(context) {
-                        const point = context.parsed;
-                        return point.c >= point.o ? '#26a69a40' : '#ef535040';
-                    },
-                    type: 'candlestick'
+                    data: lineData,
+                    borderColor: cryptoSymbols[symbol].color,
+                    backgroundColor: cryptoSymbols[symbol].color + '20',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1,
+                    pointRadius: 0,
+                    pointHoverRadius: 5
                 };
             }).filter(dataset => dataset !== null);
             
             cryptoCharts[canvasId] = new Chart(ctx, {
-                type: 'candlestick',
+                type: 'line',
                 data: { datasets },
                 options: {
                     responsive: true,
