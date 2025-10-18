@@ -2698,10 +2698,19 @@
 
         // showTab函数已移到HTML前面定义
 
-                 // 分析默认币种
+                 // 分析默认币种 - 分批处理版本
          async function analyzeDefault() {
-             showStatus(`正在分析全部${totalSymbols}个币种...`, 'success');
-            try {
+             const batchSize = 50; // 每批处理50个币种
+             let allResults = [];
+             let currentBatch = 0;
+             
+             showStatus(`正在分析全部${totalSymbols}个币种（分批处理）...`, 'success');
+             
+             try {
+                 while (true) {
+                     const controller = new AbortController();
+                     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+                     
                 const response = await fetch('/analyze', {
                     method: 'POST',
                     headers: {
@@ -2709,25 +2718,59 @@
                     },
                     body: JSON.stringify({
                         symbols: [],
-                        force_refresh: document.getElementById('forceRefresh').checked
-                    })
-                });
+                             force_refresh: document.getElementById('forceRefresh').checked,
+                             batch_size: batchSize,
+                             batch_index: currentBatch
+                         }),
+                         signal: controller.signal
+                     });
+                     
+                     clearTimeout(timeoutId);
 
                 const data = await response.json();
                 if (data.success) {
-                    currentResults = data.results;
-                    showAnalysisResults(data.results);
-                    showStatus(`分析完成，共处理 ${data.total} 个币种`, 'success');
-                    updateStats();
+                         // 合并结果
+                         allResults = allResults.concat(data.results);
+                         
+                         // 更新进度显示
+                         const progress = data.batch_info;
+                         showStatus(`正在分析... 第${progress.current_batch}/${progress.total_batches}批 (${progress.processed}/${progress.total_symbols})`, 'success');
+                         
+                         // 实时更新显示
+                         if (data.results.length > 0) {
+                             showAnalysisResults(allResults);
+                         }
+                         
+                         // 如果是最后一批，结束循环
+                         if (progress.is_last_batch) {
+                             break;
+                         }
+                         
+                         currentBatch++;
+                         
+                         // 添加延迟，避免请求过快
+                         await new Promise(resolve => setTimeout(resolve, 1000));
                 } else {
                     showStatus('分析失败: ' + data.error, 'error');
-                }
-            } catch (error) {
-                showStatus('请求失败: ' + error.message, 'error');
-            }
+                         return;
+                     }
+                 }
+                 
+                 showStatus(`分析完成，共处理 ${allResults.length} 个币种`, 'success');
+                 currentResults = allResults;
+                 updateStats();
+                 
+             } catch (error) {
+                 if (error.name === 'AbortError') {
+                     showStatus('请求超时，请重试', 'error');
+                 } else {
+                     showStatus('请求失败: ' + error.message, 'error');
+                 }
+                 console.error('分析错误:', error);
+             }
         }
 
-        // 分析自定义币种
+        // 分析自定义币种 - 分批处理版本
         async function analyzeCustom() {
             const symbols = document.getElementById('symbolsInput').value.trim();
             if (!symbols) {
@@ -2736,9 +2779,17 @@
             }
 
             const symbolList = symbols.split(',').map(s => s.trim()).filter(s => s);
-            showStatus(`正在分析 ${symbolList.length} 个自定义币种...`, 'success');
+            const batchSize = 50;
+            let allResults = [];
+            let currentBatch = 0;
+            
+            showStatus(`正在分析 ${symbolList.length} 个自定义币种（分批处理）...`, 'success');
             
             try {
+                while (true) {
+                     const controller = new AbortController();
+                     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+                     
                 const response = await fetch('/analyze', {
                     method: 'POST',
                     headers: {
@@ -2746,22 +2797,56 @@
                     },
                     body: JSON.stringify({
                         symbols: symbolList,
-                        force_refresh: document.getElementById('forceRefresh').checked
-                    })
-                });
+                             force_refresh: document.getElementById('forceRefresh').checked,
+                             batch_size: batchSize,
+                             batch_index: currentBatch
+                         }),
+                         signal: controller.signal
+                     });
+                     
+                     clearTimeout(timeoutId);
 
                 const data = await response.json();
                 if (data.success) {
-                    currentResults = data.results;
-                    showAnalysisResults(data.results);
-                    showStatus(`分析完成，共处理 ${data.total} 个币种`, 'success');
-                    updateStats();
+                        // 合并结果
+                        allResults = allResults.concat(data.results);
+                        
+                        // 更新进度显示
+                        const progress = data.batch_info;
+                        showStatus(`正在分析... 第${progress.current_batch}/${progress.total_batches}批 (${progress.processed}/${progress.total_symbols})`, 'success');
+                        
+                        // 实时更新显示
+                        if (data.results.length > 0) {
+                            showAnalysisResults(allResults);
+                        }
+                        
+                        // 如果是最后一批，结束循环
+                        if (progress.is_last_batch) {
+                            break;
+                        }
+                        
+                        currentBatch++;
+                        
+                        // 添加延迟，避免请求过快
+                        await new Promise(resolve => setTimeout(resolve, 1000));
                 } else {
                     showStatus('分析失败: ' + data.error, 'error');
+                        return;
+                    }
                 }
-            } catch (error) {
-                showStatus('请求失败: ' + error.message, 'error');
-            }
+                
+                showStatus(`分析完成，共处理 ${allResults.length} 个币种`, 'success');
+                currentResults = allResults;
+                updateStats();
+                
+             } catch (error) {
+                 if (error.name === 'AbortError') {
+                     showStatus('请求超时，请重试', 'error');
+                 } else {
+                     showStatus('请求失败: ' + error.message, 'error');
+                 }
+                 console.error('分析错误:', error);
+             }
         }
 
                  // 显示分析结果
@@ -4425,8 +4510,8 @@
             if (typeof Chart !== 'undefined') {
                 console.log('Chart.js已加载，开始初始化图表');
                 try {
-                    // 注册插件
-                    Chart.register(priceLabelsPlugin);
+        // 注册插件
+        Chart.register(priceLabelsPlugin);
                     console.log('价格标签插件注册成功');
                     
                     // 初始化图表
@@ -6882,7 +6967,7 @@
         }
         
         // ==================== 高级历史分析功能结束 ====================
-
+        
     </script>
 </body>
 </html>

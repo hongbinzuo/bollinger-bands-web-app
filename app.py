@@ -22,6 +22,10 @@ from crypto_advanced_analysis_api import crypto_advanced_bp
 
 app = Flask(__name__)
 
+# 配置Flask超时设置
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
+
 # 注册日内交易蓝图
 app.register_blueprint(intraday_bp)
 app.register_blueprint(ultra_short_bp)
@@ -119,6 +123,117 @@ class BollingerBandsAnalyzer:
             logger.error(f"Gate.io获取 {symbol} K线数据失败: {e}")
             return pd.DataFrame()
     
+    def get_bybit_klines(self, symbol: str, interval: str = '12h', limit: int = 100) -> pd.DataFrame:
+        """从Bybit获取K线数据"""
+        try:
+            # 转换时间间隔格式
+            interval_map = {
+                '12h': '720',  # 12小时 = 720分钟
+                '4h': '240',   # 4小时 = 240分钟
+                '1d': 'D'      # 1天
+            }
+            bybit_interval = interval_map.get(interval, 'D')
+            
+            url = "https://api.bybit.com/v5/market/kline"
+            params = {
+                'category': 'spot',
+                'symbol': symbol,
+                'interval': bybit_interval,
+                'limit': limit
+            }
+            
+            response = self.session.get(url, params=params)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            if data.get('retCode') != 0:
+                logger.error(f"Bybit API错误 {symbol}: {data.get('retMsg')}")
+                return pd.DataFrame()
+            
+            klines = data.get('result', {}).get('list', [])
+            
+            if not klines:
+                return pd.DataFrame()
+            
+            # Bybit返回格式: [timestamp, open, high, low, close, volume, turnover]
+            df = pd.DataFrame(klines, columns=[
+                'timestamp', 'open', 'high', 'low', 'close', 'volume', 'turnover'
+            ])
+            
+            # 转换数据类型
+            numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+            for col in numeric_columns:
+                df[col] = pd.to_numeric(df[col])
+            
+            # 转换时间戳
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+            
+            # 只保留需要的列
+            df = df[['open', 'high', 'low', 'close', 'volume']]
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"Bybit获取 {symbol} K线数据失败: {e}")
+            return pd.DataFrame()
+    
+    def get_bitget_klines(self, symbol: str, interval: str = '12h', limit: int = 100) -> pd.DataFrame:
+        """从Bitget获取K线数据"""
+        try:
+            # 转换时间间隔格式
+            interval_map = {
+                '12h': '12H',
+                '4h': '4H',
+                '1d': '1D'
+            }
+            bitget_interval = interval_map.get(interval, '1D')
+            
+            url = "https://api.bitget.com/api/spot/v1/market/candles"
+            params = {
+                'symbol': symbol,
+                'granularity': bitget_interval,
+                'limit': limit
+            }
+            
+            response = self.session.get(url, params=params)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            if data.get('code') != '00000':
+                logger.error(f"Bitget API错误 {symbol}: {data.get('msg')}")
+                return pd.DataFrame()
+            
+            klines = data.get('data', [])
+            
+            if not klines:
+                return pd.DataFrame()
+            
+            # Bitget返回格式: [timestamp, open, high, low, close, volume, quote_volume]
+            df = pd.DataFrame(klines, columns=[
+                'timestamp', 'open', 'high', 'low', 'close', 'volume', 'quote_volume'
+            ])
+            
+            # 转换数据类型
+            numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+            for col in numeric_columns:
+                df[col] = pd.to_numeric(df[col])
+            
+            # 转换时间戳
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+            
+            # 只保留需要的列
+            df = df[['open', 'high', 'low', 'close', 'volume']]
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"Bitget获取 {symbol} K线数据失败: {e}")
+            return pd.DataFrame()
+    
     def calculate_bollinger_bands(self, df: pd.DataFrame, period: int = 20, std_dev: float = 2) -> Dict:
         """计算布林带"""
         try:
@@ -201,9 +316,21 @@ class BollingerBandsAnalyzer:
             df = self.get_gate_klines(gate_symbol, '12h', 100)
             
             if df.empty:
-                # Gate.io获取失败，返回空数据
-                logger.warning(f"Gate.io获取 {symbol} 数据失败，跳过该币种")
-                return None
+                # Gate.io获取失败，尝试Bybit
+                logger.warning(f"Gate.io获取 {symbol} 数据失败，尝试Bybit")
+                df = self.get_bybit_klines(symbol, '12h', 100)
+                if not df.empty:
+                    data_source = "Bybit"
+                else:
+                    # Bybit也失败，尝试Bitget
+                    logger.warning(f"Bybit获取 {symbol} 数据失败，尝试Bitget")
+                    df = self.get_bitget_klines(symbol, '12h', 100)
+                    if not df.empty:
+                        data_source = "Bitget"
+                    else:
+                        # 所有交易所都失败
+                        logger.warning(f"所有交易所获取 {symbol} 数据失败，跳过该币种")
+                        return None
             else:
                 data_source = "Gate.io"
             
@@ -674,11 +801,13 @@ def debug_symbols():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    """分析币种"""
+    """分析币种 - 分批处理版本"""
     try:
         data = request.get_json()
         symbols = data.get('symbols', [])  # 获取前端传来的币种列表
         force_refresh = data.get('force_refresh', False)
+        batch_size = data.get('batch_size', 50)  # 每批处理50个
+        batch_index = data.get('batch_index', 0)  # 当前批次索引
         
         # 如果没有提供币种列表，使用所有币种列表
         if not symbols:
@@ -693,25 +822,44 @@ def analyze():
             else:
                 symbols_with_usdt.append(symbol)
         
+        # 计算当前批次
+        start_idx = batch_index * batch_size
+        end_idx = min(start_idx + batch_size, len(symbols_with_usdt))
+        current_batch = symbols_with_usdt[start_idx:end_idx]
+        
         results = []
-        for i, symbol in enumerate(symbols_with_usdt):
+        for i, symbol in enumerate(current_batch):
             try:
-                logger.info(f"处理 {symbol} ({i+1}/{len(symbols_with_usdt)})")
+                global_idx = start_idx + i
+                logger.info(f"处理 {symbol} ({global_idx+1}/{len(symbols_with_usdt)})")
                 
                 result = analyzer.analyze_symbol(symbol, force_refresh)
-                results.append(result)
+                if result:  # 只添加有效结果
+                    results.append(result)
                 
-                # 延迟控制
-                time.sleep(0.2)
+                # 减少延迟，提高处理速度
+                time.sleep(0.05)
                 
             except Exception as e:
                 logger.error(f"处理 {symbol} 时出错: {e}")
                 continue
         
+        # 计算进度信息
+        total_batches = (len(symbols_with_usdt) + batch_size - 1) // batch_size
+        is_last_batch = batch_index >= total_batches - 1
+        
         return jsonify({
             'success': True,
             'results': results,
-            'total': len(results)
+            'total': len(results),
+            'batch_info': {
+                'current_batch': batch_index + 1,
+                'total_batches': total_batches,
+                'batch_size': batch_size,
+                'is_last_batch': is_last_batch,
+                'processed': end_idx,
+                'total_symbols': len(symbols_with_usdt)
+            }
         })
         
     except Exception as e:
