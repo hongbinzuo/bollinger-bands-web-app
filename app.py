@@ -389,13 +389,6 @@ def get_all_symbols():
     all_symbols = list(set(DEFAULT_SYMBOLS + custom_symbols))  # 去重
     return all_symbols
 
-# 导入加密货币API
-try:
-    from crypto_api import crypto_api_bp
-    app.register_blueprint(crypto_api_bp, url_prefix='/crypto')
-    logger.info("加密货币API已注册")
-except ImportError as e:
-    logger.warning(f"加密货币API导入失败: {e}")
 
 # 记录应用启动信息
 logger.info("=== 布林带策略系统启动 ===")
@@ -434,10 +427,6 @@ def index():
     """主页"""
     return render_template('index.html')
 
-@app.route('/crypto-charts')
-def crypto_charts():
-    """加密货币K线图页面"""
-    return render_template('crypto_charts_tradingview.html')
 
 
 @app.route('/export_symbols', methods=['GET'])
