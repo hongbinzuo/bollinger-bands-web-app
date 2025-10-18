@@ -193,7 +193,11 @@ class BollingerBandsAnalyzer:
                     return cached_result
             
             # 首先尝试Gate.io（更稳定）
-            gate_symbol = symbol.replace('USDT', '_USDT')
+            # 将BTCUSDT格式转换为BTC_USDT格式
+            if symbol.endswith('USDT'):
+                gate_symbol = symbol[:-4] + '_USDT'
+            else:
+                gate_symbol = symbol
             df = self.get_gate_klines(gate_symbol, '12h', 100)
             
             if df.empty:
