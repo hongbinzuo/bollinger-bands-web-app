@@ -2834,7 +2834,7 @@
              
              let html = '';
              pageData.forEach(result => {
-                 const symbol = result.symbol.replace('USDT', '');
+                 const symbol = (result.symbol || '').replace('USDT', '');
                  const price = result.current_price ? result.current_price.toFixed(6) : 'N/A';
                  const orderPrice = result.order_price || 'N/A';
                  const timeframe = result.timeframe || '1d';
@@ -3556,7 +3556,7 @@
             } else {
                 let html = '';
                 signals.forEach(signal => {
-                    const symbol = signal.symbol.replace('USDT', '');
+                    const symbol = (signal.symbol || '').replace('USDT', '');
                     const overallSignal = signal.overall_signal;
                     const consistency = signal.signal_consistency;
                     
@@ -3654,7 +3654,7 @@
             } else {
                 let html = '';
                 Object.entries(result.timeframes).forEach(([timeframe, data]) => {
-                    const symbol = data.symbol.replace('USDT', '');
+                    const symbol = (data.symbol || '').replace('USDT', '');
                     const price = data.current_price ? data.current_price.toFixed(6) : 'N/A';
                     const ema365 = data.ema365 ? data.ema365.toFixed(6) : 'N/A';
                     const ma365 = data.ma365 ? data.ma365.toFixed(6) : 'N/A';
@@ -3730,7 +3730,7 @@
             } else {
                 let html = '';
                 filteredIntradayResults.forEach(data => {
-                    const symbol = data.symbol.replace('USDT', '');
+                    const symbol = (data.symbol || '').replace('USDT', '');
                     const price = data.current_price ? data.current_price.toFixed(6) : 'N/A';
                     const ema365 = data.ema365 ? data.ema365.toFixed(6) : 'N/A';
                     const ma365 = data.ma365 ? data.ma365.toFixed(6) : 'N/A';
