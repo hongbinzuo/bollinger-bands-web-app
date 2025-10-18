@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>布林带策略系统</title>
+    <!-- Chart.js 图表库 - 主页面使用 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js" onerror="console.error('Chart.js加载失败')"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" onerror="console.error('Chart.js适配器加载失败')"></script>
     <!-- TradingView Lightweight Charts - 专业K线图库 -->
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     
@@ -3665,7 +3668,7 @@
             initVideoBackground();
             
             // 初始化图表
-            initChart();
+            waitForChartAndInit();
             initChartSymbolSelect();
             
             // 初始化动画背景（默认隐藏）
@@ -4660,8 +4663,36 @@
             }
         };
         
-        // 注册插件
-        Chart.register(priceLabelsPlugin);
+        // 等待Chart.js加载完成后初始化
+        let chartInitRetries = 0;
+        const maxChartInitRetries = 50; // 最多重试50次，总共5秒
+        
+        function waitForChartAndInit() {
+            chartInitRetries++;
+            console.log(`尝试初始化Chart.js (第${chartInitRetries}次)`);
+            
+            if (typeof Chart !== 'undefined') {
+                console.log('Chart.js已加载，开始初始化图表');
+                try {
+                    // 注册插件
+                    Chart.register(priceLabelsPlugin);
+                    console.log('价格标签插件注册成功');
+                    
+                    // 初始化图表
+                    initChart();
+                    console.log('图表初始化成功');
+                } catch (error) {
+                    console.error('图表初始化失败:', error);
+                }
+            } else {
+                if (chartInitRetries < maxChartInitRetries) {
+                    console.log(`Chart.js未加载，${100}ms后重试...`);
+                    setTimeout(waitForChartAndInit, 100);
+                } else {
+                    console.error('Chart.js加载超时，图表功能将不可用');
+                }
+            }
+        }
         
         // 初始化图表
         function initChart() {

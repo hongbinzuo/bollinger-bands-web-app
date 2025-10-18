@@ -16,10 +16,11 @@
         }
         .chart-container {
             width: 100%;
-            height: 400px;
+            height: 500px;
             margin-bottom: 20px;
             border: 1px solid #2B2B2B;
             border-radius: 8px;
+            position: relative;
         }
         .controls {
             display: flex;
@@ -107,6 +108,9 @@
 </head>
 <body>
     <h1>🚀 加密货币K线图 - TradingView专业版</h1>
+    <p style="color: #888; margin-bottom: 20px;">
+        基于TradingView Lightweight Charts的专业K线图，支持多交易所数据源和技术指标分析
+    </p>
     
     <div class="controls">
         <div class="control-group">
@@ -141,6 +145,17 @@
         </div>
         
         <div class="control-group">
+            <label>技术指标:</label>
+            <select id="indicator">
+                <option value="none">无</option>
+                <option value="ma5">MA5</option>
+                <option value="ma20">MA20</option>
+                <option value="ma50">MA50</option>
+                <option value="rsi">RSI</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
             <button id="loadBtn" onclick="loadChart()">📊 加载K线图</button>
         </div>
     </div>
@@ -154,6 +169,7 @@
     <script>
         let chart = null;
         let candlestickSeries = null;
+        let indicatorSeries = null;
         
         const symbols = {
             coai: { name: 'COAI/USDT', color: '#FF6B6B' },
@@ -187,6 +203,39 @@
                     </div>
                 </div>
             `;
+        }
+        
+        // 计算移动平均线
+        function calculateMA(prices, period) {
+            const ma = [];
+            for (let i = period - 1; i < prices.length; i++) {
+                const sum = prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+                ma.push(sum / period);
+            }
+            return ma;
+        }
+        
+        // 计算RSI
+        function calculateRSI(prices, period = 14) {
+            const rsi = [];
+            const gains = [];
+            const losses = [];
+            
+            for (let i = 1; i < prices.length; i++) {
+                const change = prices[i] - prices[i - 1];
+                gains.push(change > 0 ? change : 0);
+                losses.push(change < 0 ? -change : 0);
+            }
+            
+            for (let i = period - 1; i < gains.length; i++) {
+                const avgGain = gains.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0) / period;
+                const avgLoss = losses.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0) / period;
+                const rs = avgGain / (avgLoss || 0.001);
+                const rsiValue = 100 - (100 / (1 + rs));
+                rsi.push(rsiValue);
+            }
+            
+            return rsi;
         }
         
         async function loadChart() {
@@ -232,29 +281,56 @@
                 
                 chart = LightweightCharts.createChart(document.getElementById('chartContainer'), {
                     width: document.getElementById('chartContainer').clientWidth,
-                    height: 400,
+                    height: 500,
                     layout: {
                         backgroundColor: '#1e1e1e',
                         textColor: '#d1d4dc',
+                        fontSize: 12,
+                        fontFamily: 'Arial, sans-serif',
                     },
                     grid: {
                         vertLines: {
                             color: '#2B2B2B',
+                            style: LightweightCharts.LineStyle.Solid,
                         },
                         horzLines: {
                             color: '#2B2B2B',
+                            style: LightweightCharts.LineStyle.Solid,
                         },
                     },
                     crosshair: {
                         mode: LightweightCharts.CrosshairMode.Normal,
+                        vertLine: {
+                            color: '#758696',
+                            width: 1,
+                            style: LightweightCharts.LineStyle.Solid,
+                            labelBackgroundColor: '#26a69a',
+                        },
+                        horzLine: {
+                            color: '#758696',
+                            width: 1,
+                            style: LightweightCharts.LineStyle.Solid,
+                            labelBackgroundColor: '#26a69a',
+                        },
                     },
                     rightPriceScale: {
                         borderColor: '#2B2B2B',
+                        scaleMargins: {
+                            top: 0.1,
+                            bottom: 0.1,
+                        },
                     },
                     timeScale: {
                         borderColor: '#2B2B2B',
                         timeVisible: true,
                         secondsVisible: false,
+                        rightOffset: 12,
+                        barSpacing: 3,
+                        fixLeftEdge: false,
+                        fixRightEdge: false,
+                        lockVisibleTimeRangeOnResize: true,
+                        rightBarStaysOnScroll: true,
+                        shiftVisibleRangeOnNewBar: true,
                     },
                 });
                 
@@ -269,6 +345,53 @@
                 });
                 
                 candlestickSeries.setData(candlestickData);
+                
+                // 添加技术指标
+                const indicator = document.getElementById('indicator').value;
+                if (indicator !== 'none') {
+                    const prices = candlestickData.map(d => d.close);
+                    let indicatorData = [];
+                    
+                    if (indicator.startsWith('ma')) {
+                        const period = parseInt(indicator.replace('ma', ''));
+                        const ma = calculateMA(prices, period);
+                        indicatorData = candlestickData.slice(period - 1).map((d, i) => ({
+                            time: d.time,
+                            value: ma[i]
+                        }));
+                        
+                        indicatorSeries = chart.addLineSeries({
+                            color: indicator === 'ma5' ? '#FF6B6B' : indicator === 'ma20' ? '#4ECDC4' : '#45B7D1',
+                            lineWidth: 2,
+                            title: indicator.toUpperCase()
+                        });
+                    } else if (indicator === 'rsi') {
+                        const rsi = calculateRSI(prices);
+                        indicatorData = candlestickData.slice(14).map((d, i) => ({
+                            time: d.time,
+                            value: rsi[i]
+                        }));
+                        
+                        indicatorSeries = chart.addLineSeries({
+                            color: '#FFA726',
+                            lineWidth: 2,
+                            title: 'RSI',
+                            priceScaleId: 'rsi'
+                        });
+                        
+                        // 设置RSI价格轴
+                        chart.priceScale('rsi').applyOptions({
+                            scaleMargins: {
+                                top: 0.8,
+                                bottom: 0.0,
+                            },
+                        });
+                    }
+                    
+                    if (indicatorData.length > 0) {
+                        indicatorSeries.setData(indicatorData);
+                    }
+                }
                 
                 // 更新价格显示
                 const priceInfo = priceData.prices[symbol.toUpperCase()];

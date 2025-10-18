@@ -57,8 +57,7 @@ CACHE_FILE = os.path.join(CACHE_DIR, "bollinger_cache.pkl")
 class BollingerBandsAnalyzer:
     def __init__(self):
         """初始化布林带分析器"""
-        # Binance API
-        self.binance_url = "https://api.binance.com/api/v3"
+        # 移除Binance API支持
         # Gate.io API
         self.gate_url = "https://api.gateio.ws/api/v4"
         
@@ -70,45 +69,6 @@ class BollingerBandsAnalyzer:
         # 确保缓存目录存在
         os.makedirs(CACHE_DIR, exist_ok=True)
         
-    def get_binance_klines(self, symbol: str, interval: str = '12h', limit: int = 100) -> pd.DataFrame:
-        """从Binance获取K线数据"""
-        try:
-            url = f"{self.binance_url}/klines"
-            params = {
-                'symbol': symbol,
-                'interval': interval,
-                'limit': limit
-            }
-            
-            response = self.session.get(url, params=params)
-            response.raise_for_status()
-            
-            data = response.json()
-            
-            # 创建DataFrame
-            df = pd.DataFrame(data, columns=[
-                'open_time', 'open', 'high', 'low', 'close', 'volume',
-                'close_time', 'quote_asset_volume', 'number_of_trades',
-                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
-            ])
-            
-            # 转换数据类型
-            numeric_columns = ['open', 'high', 'low', 'close', 'volume']
-            for col in numeric_columns:
-                df[col] = pd.to_numeric(df[col])
-            
-            # 转换时间戳
-            df['timestamp'] = pd.to_datetime(df['open_time'], unit='ms')
-            df.set_index('timestamp', inplace=True)
-            
-            # 只保留需要的列
-            df = df[['open', 'high', 'low', 'close', 'volume']]
-            
-            return df
-            
-        except Exception as e:
-            logger.error(f"Binance获取 {symbol} K线数据失败: {e}")
-            return pd.DataFrame()
     
     def get_gate_klines(self, symbol: str, interval: str = '12h', limit: int = 100) -> pd.DataFrame:
         """从Gate.io获取K线数据"""
@@ -237,10 +197,9 @@ class BollingerBandsAnalyzer:
             df = self.get_gate_klines(gate_symbol, '12h', 100)
             
             if df.empty:
-                # 如果Gate.io失败，尝试Binance
-                logger.info(f"Gate.io获取失败，尝试Binance...")
-                df = self.get_binance_klines(symbol, '12h', 100)
-                data_source = "Binance"
+                # Gate.io获取失败，返回空数据
+                logger.warning(f"Gate.io获取 {symbol} 数据失败，跳过该币种")
+                return None
             else:
                 data_source = "Gate.io"
             
@@ -479,6 +438,7 @@ def index():
 def crypto_charts():
     """加密货币K线图页面"""
     return render_template('crypto_charts_tradingview.html')
+
 
 @app.route('/export_symbols', methods=['GET'])
 def export_symbols():
