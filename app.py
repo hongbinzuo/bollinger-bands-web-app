@@ -741,6 +741,35 @@ def save_all_symbols():
             'error': f'保存失败: {str(e)}'
         }), 500
 
+
+@app.route('/symbols/status', methods=['GET'])
+def symbols_status():
+    """返回当前符号来源与统计，便于前端/用户排查保存与加载是否生效。"""
+    try:
+        file_exists = os.path.exists(SYMBOLS_FILE)
+        file_size = os.path.getsize(SYMBOLS_FILE) if file_exists else 0
+        file_mtime = datetime.fromtimestamp(os.path.getmtime(SYMBOLS_FILE)).isoformat() if file_exists else None
+
+        custom = load_custom_symbols()
+        using = get_all_symbols()
+        source = 'custom_file' if (isinstance(custom, list) and len(custom) > 0) else 'default_list'
+        return jsonify({
+            'success': True,
+            'source': source,
+            'using_count': len(using),
+            'default_count': len(DEFAULT_SYMBOLS),
+            'custom_count': len(custom) if isinstance(custom, list) else 0,
+            'file': {
+                'path': SYMBOLS_FILE,
+                'exists': file_exists,
+                'size': file_size,
+                'modified_at': file_mtime
+            }
+        })
+    except Exception as e:
+        logger.error(f"symbols_status 失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/add_symbols', methods=['POST'])
 def add_symbols():
     """新增币种"""
