@@ -2961,6 +2961,71 @@
             }
         }
 
+        // 币种分析 - 查看详情
+        function viewDetails(rawSymbol) {
+            try {
+                const norm = (s) => (s || '').toString().trim().toUpperCase();
+                const symbolNoUsdt = norm(rawSymbol).replace(/USDT$/, '');
+                const matchResult = (arr) => {
+                    if (!Array.isArray(arr)) return null;
+                    for (const r of arr) {
+                        const rs = norm(r && r.symbol);
+                        if (!rs) continue;
+                        if (rs === symbolNoUsdt || rs === symbolNoUsdt + 'USDT' || rs.replace(/USDT$/, '') === symbolNoUsdt) {
+                            return r;
+                        }
+                    }
+                    return null;
+                };
+
+                // 优先在当前结果集中查找
+                const result = matchResult(typeof currentResults !== 'undefined' ? currentResults : [])
+                              || matchResult(typeof filteredResults !== 'undefined' ? filteredResults : [])
+                              || null;
+
+                // 构建详情内容
+                const sDisp = symbolNoUsdt || 'N/A';
+                const price = result && typeof result.current_price === 'number' ? result.current_price.toFixed(6) : 'N/A';
+                const orderPrice = result && (typeof result.order_price === 'number' || typeof result.order_price === 'string') ? result.order_price : 'N/A';
+                const timeframe = result && result.timeframe ? result.timeframe : (result && result.timeframes ? Object.keys(result.timeframes).join(', ') : 'N/A');
+                const dataSource = result && result.data_source ? result.data_source : 'N/A';
+                const status = result && result.status ? result.status : 'N/A';
+                const upperBand = result && typeof result.upper_band === 'number' ? result.upper_band.toFixed(6) : (result && result.upper_band ? result.upper_band : 'N/A');
+                const middleBand = result && typeof result.middle_band === 'number' ? result.middle_band.toFixed(6) : (result && result.middle_band ? result.middle_band : 'N/A');
+                const lowerBand = result && typeof result.lower_band === 'number' ? result.lower_band.toFixed(6) : (result && result.lower_band ? result.lower_band : 'N/A');
+
+                // 创建并显示弹窗
+                const modal = document.createElement('div');
+                modal.className = 'modal';
+                modal.style.display = 'block';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 720px;">
+                        <span class="close" onclick="this.parentElement.parentElement.remove()">&times;</span>
+                        <h3>币种详情 - ${sDisp}</h3>
+                        <div class="signal-details">
+                            <div class="details-grid">
+                                <div class="detail-item"><label>币种</label><span>${sDisp}</span></div>
+                                <div class="detail-item"><label>时间框架</label><span>${timeframe}</span></div>
+                                <div class="detail-item"><label>当前价格</label><span>${price}</span></div>
+                                <div class="detail-item"><label>挂单价格</label><span>${orderPrice}</span></div>
+                                <div class="detail-item"><label>上轨(Upper)</label><span>${upperBand}</span></div>
+                                <div class="detail-item"><label>中轨(Middle)</label><span>${middleBand}</span></div>
+                                <div class="detail-item"><label>下轨(Lower)</label><span>${lowerBand}</span></div>
+                                <div class="detail-item"><label>数据源</label><span>${dataSource}</span></div>
+                                <div class="detail-item"><label>状态</label><span>${status}</span></div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">关闭</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(modal);
+            } catch (e) {
+                console.error('查看详情失败:', e);
+                showStatus('查看详情失败: ' + e.message, 'error');
+            }
+        }
+
                  // 分页功能
          function updatePagination() {
              const totalPages = Math.ceil(filteredResults.length / pageSize);
