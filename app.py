@@ -515,10 +515,13 @@ def save_custom_symbols(symbols):
         logger.error(f"保存自定义币种失败: {e}")
 
 def get_all_symbols():
-    """获取所有币种（默认 + 自定义）"""
+    """获取所有币种。
+    优先从保存文件（custom_symbols.json）读取；若文件不存在或为空，则回退到内置默认列表。
+    """
     custom_symbols = load_custom_symbols()
-    all_symbols = list(set(DEFAULT_SYMBOLS + custom_symbols))  # 去重
-    return all_symbols
+    if isinstance(custom_symbols, list) and len(custom_symbols) > 0:
+        return custom_symbols
+    return DEFAULT_SYMBOLS
 
 
 # 记录应用启动信息
@@ -527,7 +530,7 @@ all_symbols = get_all_symbols()
 custom_symbols = load_custom_symbols()
 logger.info(f"默认币种数量: {len(DEFAULT_SYMBOLS)}")
 logger.info(f"自定义币种数量: {len(custom_symbols)}")
-logger.info(f"总币种数量: {len(all_symbols)}")
+logger.info(f"当前使用币种数量: {len(all_symbols)}")
 logger.info("日志文件位置: logs/app.log")
 logger.info(f"前10个币种: {all_symbols[:10]}")
 
@@ -705,6 +708,37 @@ def get_symbol_count():
         return jsonify({
             'count': 0,
             'error': str(e)
+        }), 500
+
+
+@app.route('/save_all_symbols', methods=['POST'])
+def save_all_symbols():
+    """保存当前全部币种到文件（cache/custom_symbols.json）。
+    前端点击“保存全部”后调用，下次启动将优先使用该文件中的列表。
+    """
+    try:
+        symbols = get_all_symbols()
+        # 规范化为大写、去空格
+        clean_symbols = []
+        seen = set()
+        for s in symbols:
+            if not s:
+                continue
+            sym = str(s).strip().upper().replace(' ', '')
+            if sym and sym not in seen:
+                seen.add(sym)
+                clean_symbols.append(sym)
+        save_custom_symbols(clean_symbols)
+        return jsonify({
+            'success': True,
+            'saved': len(clean_symbols),
+            'message': f'已保存 {len(clean_symbols)} 个币种到文件'
+        })
+    except Exception as e:
+        logger.error(f"保存全部币种失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'保存失败: {str(e)}'
         }), 500
 
 @app.route('/add_symbols', methods=['POST'])

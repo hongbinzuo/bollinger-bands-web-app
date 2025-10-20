@@ -2006,6 +2006,7 @@
                 <button class="btn btn-info" onclick="showAddSymbolModal()">➕ 新增币种</button>
                 <button class="btn btn-warning" onclick="analyzeCustom()">分析自定义币种</button>
                 <button class="btn btn-success" onclick="exportSymbols()">📤 导出币种列表</button>
+                <button class="btn btn-outline-primary" onclick="saveAllSymbols()">💾 保存全部</button>
                 <button class="btn btn-primary" onclick="showImportModal()">📥 导入币种列表</button>
             </div>
             <div class="form-group">
@@ -2940,6 +2941,25 @@
              
              tbody.innerHTML = html;
          }
+
+        // 保存全部币种到后端文件
+        async function saveAllSymbols() {
+            try {
+                const res = await fetch('/save_all_symbols', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showStatus(`保存成功：共 ${data.saved} 个币种`, 'success');
+                } else {
+                    showStatus('保存失败: ' + (data.error || '未知错误'), 'error');
+                }
+            } catch (e) {
+                showStatus('请求失败: ' + e.message, 'error');
+                console.error(e);
+            }
+        }
 
                  // 分页功能
          function updatePagination() {
