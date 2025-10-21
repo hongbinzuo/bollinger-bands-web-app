@@ -318,76 +318,10 @@
                 ]);
             });
             
-            // 准备斐波那契线数据
-            const fibLines = [];
-            Object.keys(fibonacciLevels).forEach((level, index) => {
-                fibLines.push({
-                    name: `${(level * 100).toFixed(1)}%`,
-                    type: 'line',
-                    data: klineData.map(item => [item[0], fibonacciLevels[level]]),
-                    lineStyle: {
-                        color: fibColors[index],
-                        width: 2,
-                        type: 'dashed'
-                    },
-                    symbol: 'none',
-                    markLine: {
-                        silent: true,
-                        lineStyle: {
-                            color: fibColors[index],
-                            width: 2,
-                            type: 'dashed'
-                        },
-                        label: {
-                            show: true,
-                            position: 'end',
-                            formatter: `${(level * 100).toFixed(1)}% - ${fibonacciLevels[level].toFixed(4)}`
-                        }
-                    }
-                });
-            });
-            
-            // 添加交易点位
-            const tradingLevels = [
-                { value: 1.857, color: '#dc3545', label: '做空1' },
-                { value: 1.969, color: '#dc3545', label: '做空2' },
-                { value: 2.09, color: '#dc3545', label: '做空3' },
-                { value: 1.6625, color: '#28a745', label: '止盈1' },
-                { value: 1.5843, color: '#28a745', label: '止盈2' },
-                { value: 1.317, color: '#28a745', label: '止盈3' }
-            ];
-            
-            tradingLevels.forEach(level => {
-                fibLines.push({
-                    name: level.label,
-                    type: 'line',
-                    data: klineData.map(item => [item[0], level.value]),
-                    lineStyle: {
-                        color: level.color,
-                        width: 3,
-                        type: 'dashed'
-                    },
-                    symbol: 'none',
-                    markLine: {
-                        silent: true,
-                        lineStyle: {
-                            color: level.color,
-                            width: 3,
-                            type: 'dashed'
-                        },
-                        label: {
-                            show: true,
-                            position: 'start',
-                            formatter: `${level.label} - ${level.value}`
-                        }
-                    }
-                });
-            });
-            
-            // ECharts配置
+            // 简化的ECharts配置 - 只显示K线图
             const option = {
                 title: {
-                    text: 'LIGHT 价格走势与斐波那契分析',
+                    text: 'LIGHT 价格走势图',
                     left: 'center',
                     textStyle: {
                         fontSize: 18,
@@ -401,36 +335,27 @@
                         type: 'cross'
                     },
                     formatter: function(params) {
-                        let result = `<div style="font-size: 14px; font-weight: bold;">${new Date(params[0].axisValue).toLocaleString()}</div>`;
-                        params.forEach(param => {
-                            if (param.seriesName === 'LIGHT K线') {
-                                const data = param.data;
-                                result += `
-                                    <div style="margin: 5px 0;">
-                                        <span style="color: ${param.color};">●</span> 
-                                        <strong>${param.seriesName}</strong><br/>
-                                        开盘: ${data[1]}<br/>
-                                        收盘: ${data[2]}<br/>
-                                        最低: ${data[3]}<br/>
-                                        最高: ${data[4]}
-                                    </div>
-                                `;
-                            } else {
-                                result += `
-                                    <div style="margin: 2px 0;">
-                                        <span style="color: ${param.color};">●</span> 
-                                        ${param.seriesName}: ${param.data[1]}
-                                    </div>
-                                `;
-                            }
-                        });
-                        return result;
+                        if (params && params[0] && params[0].data) {
+                            const data = params[0].data;
+                            const time = new Date(data[0]).toLocaleString();
+                            return `
+                                <div style="font-size: 14px; font-weight: bold;">${time}</div>
+                                <div style="margin: 5px 0;">
+                                    <span style="color: #007bff;">●</span> 
+                                    <strong>LIGHT K线</strong><br/>
+                                    开盘: ${data[1]}<br/>
+                                    收盘: ${data[2]}<br/>
+                                    最低: ${data[3]}<br/>
+                                    最高: ${data[4]}
+                                </div>
+                            `;
+                        }
+                        return '';
                     }
                 },
                 legend: {
-                    data: ['LIGHT K线', ...Object.keys(fibonacciLevels).map(level => `${(level * 100).toFixed(1)}%`), ...tradingLevels.map(t => t.label)],
-                    top: 40,
-                    type: 'scroll'
+                    data: ['LIGHT K线'],
+                    top: 40
                 },
                 grid: {
                     left: '3%',
@@ -444,9 +369,7 @@
                     scale: true,
                     boundaryGap: false,
                     axisLine: { onZero: false },
-                    splitLine: { show: false },
-                    min: 'dataMin',
-                    max: 'dataMax'
+                    splitLine: { show: false }
                 },
                 yAxis: {
                     scale: true,
@@ -479,8 +402,7 @@
                             borderColor: '#ef232a', // 上涨边框
                             borderColor0: '#14b143' // 下跌边框
                         }
-                    },
-                    ...fibLines
+                    }
                 ]
             };
             
@@ -495,6 +417,8 @@
             window.addEventListener('resize', function() {
                 fibonacciChart.resize();
             });
+            
+            console.log('K线图渲染完成，数据点数量:', klineData.length);
         }
         
         // 页面加载完成后开始加载数据
