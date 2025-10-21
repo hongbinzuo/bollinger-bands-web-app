@@ -8,7 +8,7 @@
 import requests
 import json
 from datetime import datetime, timedelta
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 import logging
 
 # 配置日志
