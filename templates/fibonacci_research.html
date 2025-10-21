@@ -309,14 +309,25 @@
             // 准备K线数据
             const klineData = [];
             lightData.forEach(d => {
+                // 确保时间戳是数字格式
+                let timestamp;
+                if (typeof d.timestamp === 'string') {
+                    timestamp = new Date(d.timestamp).getTime();
+                } else {
+                    timestamp = parseInt(d.timestamp);
+                }
+                
                 klineData.push([
-                    new Date(d.timestamp).getTime(), // 时间
-                    d.open,   // 开盘价
-                    d.close,  // 收盘价
-                    d.low,    // 最低价
-                    d.high    // 最高价
+                    timestamp, // 时间
+                    parseFloat(d.open),   // 开盘价
+                    parseFloat(d.close),  // 收盘价
+                    parseFloat(d.low),    // 最低价
+                    parseFloat(d.high)    // 最高价
                 ]);
             });
+            
+            // 按时间排序
+            klineData.sort((a, b) => a[0] - b[0]);
             
             // 简化的ECharts配置 - 只显示K线图
             const option = {
@@ -367,9 +378,11 @@
                 xAxis: {
                     type: 'time',
                     scale: true,
-                    boundaryGap: false,
+                    boundaryGap: [0.1, 0.1],
                     axisLine: { onZero: false },
-                    splitLine: { show: false }
+                    splitLine: { show: false },
+                    min: 'dataMin',
+                    max: 'dataMax'
                 },
                 yAxis: {
                     scale: true,
@@ -388,7 +401,13 @@
                         type: 'slider',
                         top: '90%',
                         start: 0,
-                        end: 100
+                        end: 100,
+                        handleStyle: {
+                            color: '#007bff'
+                        },
+                        textStyle: {
+                            color: '#333'
+                        }
                     }
                 ],
                 series: [
@@ -419,6 +438,14 @@
             });
             
             console.log('K线图渲染完成，数据点数量:', klineData.length);
+            console.log('数据时间范围:', {
+                start: new Date(klineData[0][0]).toLocaleString(),
+                end: new Date(klineData[klineData.length-1][0]).toLocaleString()
+            });
+            console.log('价格范围:', {
+                min: Math.min(...klineData.map(k => k[3])),
+                max: Math.max(...klineData.map(k => k[4]))
+            });
         }
         
         // 页面加载完成后开始加载数据
