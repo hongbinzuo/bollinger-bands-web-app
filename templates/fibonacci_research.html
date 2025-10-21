@@ -136,6 +136,46 @@
             border-radius: 5px;
             margin: 20px 0;
         }
+        
+        .timeframe-selector, .symbol-selector {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 5px solid #007bff;
+        }
+        
+        .timeframe-selector h3, .symbol-selector h3 {
+            color: #007bff;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .timeframe-buttons, .symbol-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .timeframe-btn, .symbol-btn {
+            padding: 8px 16px;
+            border: 2px solid #007bff;
+            background: white;
+            color: #007bff;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .timeframe-btn:hover, .symbol-btn:hover {
+            background: #007bff;
+            color: white;
+        }
+        
+        .timeframe-btn.active, .symbol-btn.active {
+            background: #007bff;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -145,24 +185,59 @@
         </div>
         
         <div class="symbol-info">
-            <h2>LIGHT 币种信息</h2>
+            <h2 id="currentSymbol">LIGHT 币种信息</h2>
             <div class="info-grid">
                 <div class="info-item">
-                    <div class="info-label">交易日期</div>
-                    <div class="info-value">2024年10月21日</div>
+                    <div class="info-label">当前币种</div>
+                    <div class="info-value" id="currentSymbolName">LIGHT</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">做空点位</div>
-                    <div class="info-value">1.857 / 1.969 / 2.09</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">止盈点位</div>
-                    <div class="info-value">1.6625 / 1.5843 / 1.317</div>
+                    <div class="info-label">时间周期</div>
+                    <div class="info-value" id="currentTimeframe">1小时</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">数据源</div>
-                    <div class="info-value">Bitget API</div>
+                    <div class="info-value">Bitget / Bybit API</div>
                 </div>
+                <div class="info-item">
+                    <div class="info-label">历史前高</div>
+                    <div class="info-value" id="historicalHigh">计算中...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">历史前低</div>
+                    <div class="info-value" id="historicalLow">计算中...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="timeframe-selector">
+            <h3>时间周期选择</h3>
+            <div class="timeframe-buttons">
+                <button class="timeframe-btn active" data-interval="15m">15分钟</button>
+                <button class="timeframe-btn" data-interval="1h">1小时</button>
+                <button class="timeframe-btn" data-interval="4h">4小时</button>
+                <button class="timeframe-btn" data-interval="1d">1天</button>
+            </div>
+        </div>
+        
+        <div class="symbol-selector">
+            <h3>币种选择</h3>
+            <div class="symbol-buttons">
+                <button class="symbol-btn active" data-symbol="LIGHT">LIGHT</button>
+                <button class="symbol-btn" data-symbol="KGEN">KGEN</button>
+                <button class="symbol-btn" data-symbol="XPIN">XPIN</button>
+                <button class="symbol-btn" data-symbol="BLESS">BLESS</button>
+                <button class="symbol-btn" data-symbol="BAS">BAS</button>
+                <button class="symbol-btn" data-symbol="RIVER">RIVER</button>
+                <button class="symbol-btn" data-symbol="BANK">BANK</button>
+                <button class="symbol-btn" data-symbol="ALCH">ALCH</button>
+                <button class="symbol-btn" data-symbol="STO">STO</button>
+                <button class="symbol-btn" data-symbol="USELESS">USELESS</button>
+                <button class="symbol-btn" data-symbol="AIA">AIA</button>
+                <button class="symbol-btn" data-symbol="RATS">RATS</button>
+                <button class="symbol-btn" data-symbol="SKYAI">SKYAI</button>
+                <button class="symbol-btn" data-symbol="H">H</button>
+                <button class="symbol-btn" data-symbol="VFY">VFY</button>
             </div>
         </div>
         
@@ -225,33 +300,31 @@
     <script>
         let fibonacciChart;
         let lightData = [];
+        let currentTimeframe = '1h';
+        let currentSymbol = 'LIGHT';
         let fibonacciLevels = {};
         
-        // 斐波那契关键点位
-        const fibLevels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618, 2.618, 3.618, 4.236];
-        const fibColors = [
-            '#dc3545', '#fd7e14', '#ffc107', '#28a745', '#20c997', 
-            '#17a2b8', '#6f42c1', '#e83e8c', '#6c757d', '#343a40', '#000'
-        ];
+        // 斐波那契关键点位（只显示指定的）
+        const fibLevels = [1, 1.618, 2.618, 3.618, 4.236];
+        const fibColors = ['#6f42c1', '#e83e8c', '#6c757d', '#343a40', '#000'];
         
-        async function loadLightData() {
+        async function loadLightData(symbol = 'LIGHT', timeframe = '1h') {
             try {
-                console.log('开始加载LIGHT数据...');
+                console.log(`开始加载${symbol}数据 (${timeframe})...`);
                 
-                // 尝试从Bitget获取数据
-                const response = await fetch('/api/light-data');
+                const response = await fetch(`/api/light-data?symbol=${symbol}&timeframe=${timeframe}`);
                 const data = await response.json();
                 
                 if (data.success) {
                     lightData = data.data;
-                    console.log('LIGHT数据加载成功:', lightData.length, '条记录');
+                    console.log(`${symbol}数据加载成功:`, lightData.length, '条记录');
                     calculateFibonacciLevels();
                     createFibonacciChart();
                 } else {
                     throw new Error(data.error || '数据加载失败');
                 }
             } catch (error) {
-                console.error('加载LIGHT数据失败:', error);
+                console.error(`加载${symbol}数据失败:`, error);
                 document.getElementById('loading').innerHTML = 
                     '<div class="error">数据加载失败: ' + error.message + '</div>';
             }
@@ -260,28 +333,73 @@
         function calculateFibonacciLevels() {
             if (lightData.length < 2) return;
             
-            // 找到前高和前低
-            const prices = lightData.map(d => d.close);
-            const highPrice = Math.max(...prices);
-            const lowPrice = Math.min(...prices);
+            // 找到历史前高（突破前的历史最高点）
+            let historicalHigh = 0;
+            let historicalHighIndex = 0;
             
-            // 找到前高和前低的时间点
-            const highIndex = prices.indexOf(highPrice);
-            const lowIndex = prices.indexOf(lowPrice);
-            
-            // 确定斐波那契的0和1点
-            let fib0, fib1;
-            if (highIndex < lowIndex) {
-                // 前高在前，前低在后
-                fib0 = lowPrice;  // 0点 = 前低
-                fib1 = highPrice; // 1点 = 前高
-            } else {
-                // 前低在前，前高在后
-                fib0 = lowPrice;  // 0点 = 前低
-                fib1 = highPrice; // 1点 = 前高
+            // 按时间顺序遍历，找到历史前高
+            for (let i = 0; i < lightData.length; i++) {
+                const currentHigh = lightData[i].high;
+                
+                if (currentHigh > historicalHigh) {
+                    // 检查是否产生了突破
+                    const isBreakout = currentHigh > historicalHigh;
+                    
+                    if (isBreakout) {
+                        // 如果产生了突破，保持之前的历史前高
+                        break;
+                    } else {
+                        // 更新历史前高
+                        historicalHigh = currentHigh;
+                        historicalHighIndex = i;
+                    }
+                }
             }
             
+            console.log('历史前高:', {
+                price: historicalHigh,
+                index: historicalHighIndex,
+                time: new Date(lightData[historicalHighIndex].timestamp).toLocaleString()
+            });
+            
+            // 找到历史前高之后至少4小时级别的最低点
+            let historicalLow = historicalHigh;
+            let historicalLowIndex = historicalHighIndex;
+            
+            // 从历史前高之后开始查找
+            for (let i = historicalHighIndex + 1; i < lightData.length; i++) {
+                // 检查是否已经过了至少4小时
+                const timeDiff = new Date(lightData[i].timestamp) - new Date(lightData[historicalHighIndex].timestamp);
+                const minTimeDiff = getMinTimeDiff(currentTimeframe);
+                
+                if (timeDiff >= minTimeDiff) {
+                    // 从当前位置到序列末尾找到最低点
+                    const remainingData = lightData.slice(i);
+                    const remainingLows = remainingData.map(d => d.low);
+                    const minLow = Math.min(...remainingLows);
+                    const minLowIndex = remainingLows.indexOf(minLow) + i;
+                    
+                    historicalLow = minLow;
+                    historicalLowIndex = minLowIndex;
+                    break;
+                }
+            }
+            
+            console.log('历史前低:', {
+                price: historicalLow,
+                index: historicalLowIndex,
+                time: new Date(lightData[historicalLowIndex].timestamp).toLocaleString()
+            });
+            
+            // 确定斐波那契的0和1点
+            const fib0 = historicalLow;   // 0点 = 历史前低
+            const fib1 = historicalHigh;  // 1点 = 历史前高
+            
             console.log('斐波那契基准:', { fib0, fib1 });
+            
+            // 更新显示
+            document.getElementById('historicalHigh').textContent = historicalHigh.toFixed(4);
+            document.getElementById('historicalLow').textContent = historicalLow.toFixed(4);
             
             // 计算斐波那契点位
             const range = fib1 - fib0;
@@ -292,14 +410,23 @@
                 fibonacciLevels[level] = price;
                 
                 // 更新显示
-                const elementId = level === 0 ? 'fib-0' : 
-                                 level === 1 ? 'fib-100' : 
-                                 `fib-${(level * 100).toFixed(0)}`;
+                const elementId = `fib-${level.toString().replace('.', '')}`;
                 const element = document.getElementById(elementId);
                 if (element) {
                     element.textContent = price.toFixed(4);
                 }
             });
+        }
+        
+        // 根据时间周期获取最小时间差（毫秒）
+        function getMinTimeDiff(timeframe) {
+            const timeMap = {
+                '15m': 4 * 60 * 60 * 1000,      // 4小时
+                '1h': 4 * 60 * 60 * 1000,       // 4小时
+                '4h': 16 * 60 * 60 * 1000,      // 16小时（4个4小时周期）
+                '1d': 4 * 24 * 60 * 60 * 1000   // 4天
+            };
+            return timeMap[timeframe] || 4 * 60 * 60 * 1000; // 默认4小时
         }
         
         function createFibonacciChart() {
@@ -332,7 +459,7 @@
             // 简化的ECharts配置 - 只显示K线图
             const option = {
                 title: {
-                    text: 'LIGHT 价格走势图',
+                    text: `${currentSymbol} 价格走势图 (${currentTimeframe})`,
                     left: 'center',
                     textStyle: {
                         fontSize: 18,
@@ -349,23 +476,23 @@
                         if (params && params[0] && params[0].data) {
                             const data = params[0].data;
                             const time = new Date(data[0]).toLocaleString();
-                            return `
-                                <div style="font-size: 14px; font-weight: bold;">${time}</div>
-                                <div style="margin: 5px 0;">
-                                    <span style="color: #007bff;">●</span> 
-                                    <strong>LIGHT K线</strong><br/>
-                                    开盘: ${data[1]}<br/>
-                                    收盘: ${data[2]}<br/>
-                                    最低: ${data[3]}<br/>
-                                    最高: ${data[4]}
-                                </div>
-                            `;
+                        return `
+                            <div style="font-size: 14px; font-weight: bold;">${time}</div>
+                            <div style="margin: 5px 0;">
+                                <span style="color: #007bff;">●</span> 
+                                <strong>${currentSymbol} K线</strong><br/>
+                                开盘: ${data[1]}<br/>
+                                收盘: ${data[2]}<br/>
+                                最低: ${data[3]}<br/>
+                                最高: ${data[4]}
+                            </div>
+                        `;
                         }
                         return '';
                     }
                 },
                 legend: {
-                    data: ['LIGHT K线'],
+                    data: [`${currentSymbol} K线`, ...Object.keys(fibonacciLevels).map(level => `${level}x`)],
                     top: 40
                 },
                 grid: {
@@ -412,7 +539,7 @@
                 ],
                 series: [
                     {
-                        name: 'LIGHT K线',
+                        name: `${currentSymbol} K线`,
                         type: 'candlestick',
                         data: klineData,
                         itemStyle: {
@@ -421,7 +548,32 @@
                             borderColor: '#ef232a', // 上涨边框
                             borderColor0: '#14b143' // 下跌边框
                         }
-                    }
+                    },
+                    // 添加斐波那契线
+                    ...Object.keys(fibonacciLevels).map((level, index) => ({
+                        name: `${level}x`,
+                        type: 'line',
+                        data: klineData.map(item => [item[0], fibonacciLevels[level]]),
+                        lineStyle: {
+                            color: fibColors[index],
+                            width: 2,
+                            type: 'solid'
+                        },
+                        symbol: 'none',
+                        markLine: {
+                            silent: true,
+                            lineStyle: {
+                                color: fibColors[index],
+                                width: 2,
+                                type: 'solid'
+                            },
+                            label: {
+                                show: true,
+                                position: 'end',
+                                formatter: `${level}x - ${fibonacciLevels[level].toFixed(4)}`
+                            }
+                        }
+                    }))
                 ]
             };
             
@@ -448,9 +600,50 @@
             });
         }
         
+        // 时间周期切换事件
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('timeframe-btn')) {
+                // 更新按钮状态
+                document.querySelectorAll('.timeframe-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                e.target.classList.add('active');
+                
+                // 更新当前时间周期
+                currentTimeframe = e.target.dataset.interval;
+                document.getElementById('currentTimeframe').textContent = 
+                    currentTimeframe === '15m' ? '15分钟' :
+                    currentTimeframe === '1h' ? '1小时' :
+                    currentTimeframe === '4h' ? '4小时' : '1天';
+                
+                // 重新加载数据
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('fibonacciChart').style.display = 'none';
+                loadLightData(currentSymbol, currentTimeframe);
+            }
+            
+            if (e.target.classList.contains('symbol-btn')) {
+                // 更新按钮状态
+                document.querySelectorAll('.symbol-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                e.target.classList.add('active');
+                
+                // 更新当前币种
+                currentSymbol = e.target.dataset.symbol;
+                document.getElementById('currentSymbolName').textContent = currentSymbol;
+                document.getElementById('currentSymbol').textContent = `${currentSymbol} 币种信息`;
+                
+                // 重新加载数据
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('fibonacciChart').style.display = 'none';
+                loadLightData(currentSymbol, currentTimeframe);
+            }
+        });
+        
         // 页面加载完成后开始加载数据
         document.addEventListener('DOMContentLoaded', function() {
-            loadLightData();
+            loadLightData(currentSymbol, currentTimeframe);
         });
     </script>
 </body>
