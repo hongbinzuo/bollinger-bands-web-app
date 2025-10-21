@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 创建蓝图
-fibonacci_bp = Blueprint('fibonacci', __name__)
+fibonacci_bp = Blueprint('fibonacci', __name__, url_prefix='/fibonacci')
 
 def get_bitget_klines(symbol, interval, limit):
     """从Bitget获取K线数据"""

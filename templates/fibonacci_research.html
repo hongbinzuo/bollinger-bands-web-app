@@ -312,7 +312,7 @@
             try {
                 console.log(`开始加载${symbol}数据 (${timeframe})...`);
                 
-                const response = await fetch(`/api/light-data?symbol=${symbol}&timeframe=${timeframe}`);
+                const response = await fetch(`/fibonacci/api/light-data?symbol=${symbol}&timeframe=${timeframe}`);
                 const data = await response.json();
                 
                 if (data.success) {
