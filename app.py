@@ -563,6 +563,17 @@ def index():
     """主页"""
     return render_template('index.html')
 
+@app.route('/fibonacci-research')
+def fibonacci_research():
+    """斐波规律研究页面"""
+    return render_template('fibonacci_research.html')
+
+@app.route('/fibonacci/api/light-data', methods=['GET'])
+def fibonacci_api_light_data():
+    """斐波规律研究API - 重定向到fibonacci蓝图"""
+    from fibonacci_api import get_light_data
+    return get_light_data()
+
 
 
 @app.route('/export_symbols', methods=['GET'])

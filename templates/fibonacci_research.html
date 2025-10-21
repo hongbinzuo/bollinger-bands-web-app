@@ -15,24 +15,30 @@
         }
         
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             background: rgba(255, 255, 255, 0.95);
             border-radius: 15px;
-            padding: 20px;
+            padding: 10px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
         
         .header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         
         .header h1 {
             color: #333;
             margin: 0;
-            font-size: 2.5em;
+            font-size: 2.2em;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+            margin: 5px 0 0 0;
         }
         
         .symbol-info {
@@ -87,8 +93,8 @@
         .fibonacci-levels {
             background: #f8f9fa;
             border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 20px;
+            padding: 15px;
+            margin-bottom: 15px;
         }
         
         .fibonacci-levels h3 {
@@ -140,8 +146,8 @@
         .timeframe-selector, .symbol-selector {
             background: #f8f9fa;
             border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 20px;
+            padding: 15px;
+            margin-bottom: 15px;
             border-left: 5px solid #007bff;
         }
         
@@ -182,10 +188,11 @@
     <div class="container">
         <div class="header">
             <h1>📊 斐波规律研究</h1>
+            <p>专业K线图与斐波那契分析</p>
         </div>
         
         <div class="symbol-info">
-            <h2 id="currentSymbol">LIGHT 币种信息</h2>
+            <h2 id="currentSymbol">斐波规律研究</h2>
             <div class="info-grid">
                 <div class="info-item">
                     <div class="info-label">当前币种</div>
@@ -194,10 +201,6 @@
                 <div class="info-item">
                     <div class="info-label">时间周期</div>
                     <div class="info-value" id="currentTimeframe">1小时</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">数据源</div>
-                    <div class="info-value">Bitget / Bybit API</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">历史前高</div>
@@ -292,8 +295,8 @@
         </div>
         
         <div class="chart-container">
-            <div class="loading" id="loading">正在加载LIGHT价格数据...</div>
-            <div id="fibonacciChart" style="width: 100%; height: 600px; display: none;"></div>
+            <div class="loading" id="loading">正在加载价格数据...</div>
+            <div id="fibonacciChart" style="width: 100%; height: 800px; display: none;"></div>
         </div>
     </div>
 
@@ -311,6 +314,7 @@
         async function loadLightData(symbol = 'LIGHT', timeframe = '1h') {
             try {
                 console.log(`开始加载${symbol}数据 (${timeframe})...`);
+                document.getElementById('loading').innerHTML = `正在加载${symbol}价格数据 (${timeframe})...`;
                 
                 const response = await fetch(`/fibonacci/api/light-data?symbol=${symbol}&timeframe=${timeframe}`);
                 const data = await response.json();

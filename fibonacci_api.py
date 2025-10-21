@@ -254,7 +254,7 @@ def generate_mock_data(symbol, timeframe):
     
     return mock_data
 
-@fibonacci_bp.route('/fibonacci-research', methods=['GET'])
+@fibonacci_bp.route('/research', methods=['GET'])
 def fibonacci_research_page():
     """斐波规律研究页面"""
     from flask import render_template
