@@ -727,6 +727,11 @@
             showStatus('导入数据', 'info');
         }
         
+        // 斐波规律研究相关函数
+        function openFibonacciPage() {
+            window.open('/fibonacci-research', '_blank');
+        }
+        
         function toggleVideoBackground() {
             showStatus('切换背景模式', 'info');
         }
@@ -1994,6 +1999,7 @@
             <button class="tab" onclick="showTab('ultraShort', event)">🚀 日内超短</button>
             <button class="tab" onclick="showTab('multiTimeframe', event)">📈 多时间框架</button>
             <button class="tab" onclick="showTab('hotCoins', event)">🔥 热点币种分析</button>
+            <button class="tab" onclick="showTab('fibonacci', event)">📐 斐波规律研究</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
         </div>
@@ -2584,6 +2590,26 @@
             
             <!-- 结果显示区域 -->
             <div id="hotCoinsResults"></div>
+        </div>
+
+        <!-- 斐波规律研究Tab -->
+        <div id="fibonacci" class="tab-content">
+            <h3>📐 斐波规律研究</h3>
+            <div class="form-group">
+                <p>专业的斐波那契回撤分析工具，基于LIGHT币种的历史数据</p>
+                <div class="info-box">
+                    <h4>LIGHT 币种信息</h4>
+                    <ul>
+                        <li><strong>交易日期:</strong> 2024年10月21日</li>
+                        <li><strong>做空点位:</strong> 1.857 / 1.969 / 2.09</li>
+                        <li><strong>止盈点位:</strong> 1.6625 / 1.5843 / 1.317</li>
+                        <li><strong>数据源:</strong> Bitget / Bybit API</li>
+                    </ul>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="openFibonacciPage()">🔍 打开斐波规律研究页面</button>
+                </div>
+            </div>
         </div>
 
         <!-- 系统管理Tab -->

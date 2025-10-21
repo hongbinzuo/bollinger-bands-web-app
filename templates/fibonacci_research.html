@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>斐波规律研究 - 布林带策略系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #333;
+            margin: 0;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .symbol-info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 5px solid #007bff;
+        }
+        
+        .symbol-info h2 {
+            color: #007bff;
+            margin-top: 0;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .info-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: #495057;
+            font-size: 0.9em;
+        }
+        
+        .info-value {
+            color: #007bff;
+            font-size: 1.1em;
+            margin-top: 5px;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 600px;
+            margin-bottom: 30px;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .fibonacci-levels {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .fibonacci-levels h3 {
+            color: #007bff;
+            margin-top: 0;
+        }
+        
+        .levels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .level-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            border: 2px solid transparent;
+        }
+        
+        .level-item.fib-0 { border-color: #dc3545; }
+        .level-item.fib-0.236 { border-color: #fd7e14; }
+        .level-item.fib-0.382 { border-color: #ffc107; }
+        .level-item.fib-0.5 { border-color: #28a745; }
+        .level-item.fib-0.618 { border-color: #20c997; }
+        .level-item.fib-0.786 { border-color: #17a2b8; }
+        .level-item.fib-1 { border-color: #6f42c1; }
+        .level-item.fib-1.618 { border-color: #e83e8c; }
+        .level-item.fib-2.618 { border-color: #6c757d; }
+        .level-item.fib-3.618 { border-color: #343a40; }
+        .level-item.fib-4.236 { border-color: #000; }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 斐波规律研究</h1>
+        </div>
+        
+        <div class="symbol-info">
+            <h2>LIGHT 币种信息</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">交易日期</div>
+                    <div class="info-value">2024年10月21日</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">做空点位</div>
+                    <div class="info-value">1.857 / 1.969 / 2.09</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">止盈点位</div>
+                    <div class="info-value">1.6625 / 1.5843 / 1.317</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">数据源</div>
+                    <div class="info-value">Bitget API</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="fibonacci-levels">
+            <h3>斐波那契关键点位</h3>
+            <div class="levels-grid">
+                <div class="level-item fib-0">
+                    <div class="info-label">0% (前低)</div>
+                    <div class="info-value" id="fib-0">计算中...</div>
+                </div>
+                <div class="level-item fib-0.236">
+                    <div class="info-label">23.6%</div>
+                    <div class="info-value" id="fib-236">计算中...</div>
+                </div>
+                <div class="level-item fib-0.382">
+                    <div class="info-label">38.2%</div>
+                    <div class="info-value" id="fib-382">计算中...</div>
+                </div>
+                <div class="level-item fib-0.5">
+                    <div class="info-label">50%</div>
+                    <div class="info-value" id="fib-50">计算中...</div>
+                </div>
+                <div class="level-item fib-0.618">
+                    <div class="info-label">61.8%</div>
+                    <div class="info-value" id="fib-618">计算中...</div>
+                </div>
+                <div class="level-item fib-0.786">
+                    <div class="info-label">78.6%</div>
+                    <div class="info-value" id="fib-786">计算中...</div>
+                </div>
+                <div class="level-item fib-1">
+                    <div class="info-label">100% (前高)</div>
+                    <div class="info-value" id="fib-100">计算中...</div>
+                </div>
+                <div class="level-item fib-1.618">
+                    <div class="info-label">161.8%</div>
+                    <div class="info-value" id="fib-1618">计算中...</div>
+                </div>
+                <div class="level-item fib-2.618">
+                    <div class="info-label">261.8%</div>
+                    <div class="info-value" id="fib-2618">计算中...</div>
+                </div>
+                <div class="level-item fib-3.618">
+                    <div class="info-label">361.8%</div>
+                    <div class="info-value" id="fib-3618">计算中...</div>
+                </div>
+                <div class="level-item fib-4.236">
+                    <div class="info-label">423.6%</div>
+                    <div class="info-value" id="fib-4236">计算中...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="loading" id="loading">正在加载LIGHT价格数据...</div>
+            <div id="fibonacciChart" style="width: 100%; height: 600px; display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        let fibonacciChart;
+        let lightData = [];
+        let fibonacciLevels = {};
+        
+        // 斐波那契关键点位
+        const fibLevels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618, 2.618, 3.618, 4.236];
+        const fibColors = [
+            '#dc3545', '#fd7e14', '#ffc107', '#28a745', '#20c997', 
+            '#17a2b8', '#6f42c1', '#e83e8c', '#6c757d', '#343a40', '#000'
+        ];
+        
+        async function loadLightData() {
+            try {
+                console.log('开始加载LIGHT数据...');
+                
+                // 尝试从Bitget获取数据
+                const response = await fetch('/api/light-data');
+                const data = await response.json();
+                
+                if (data.success) {
+                    lightData = data.data;
+                    console.log('LIGHT数据加载成功:', lightData.length, '条记录');
+                    calculateFibonacciLevels();
+                    createFibonacciChart();
+                } else {
+                    throw new Error(data.error || '数据加载失败');
+                }
+            } catch (error) {
+                console.error('加载LIGHT数据失败:', error);
+                document.getElementById('loading').innerHTML = 
+                    '<div class="error">数据加载失败: ' + error.message + '</div>';
+            }
+        }
+        
+        function calculateFibonacciLevels() {
+            if (lightData.length < 2) return;
+            
+            // 找到前高和前低
+            const prices = lightData.map(d => d.close);
+            const highPrice = Math.max(...prices);
+            const lowPrice = Math.min(...prices);
+            
+            // 找到前高和前低的时间点
+            const highIndex = prices.indexOf(highPrice);
+            const lowIndex = prices.indexOf(lowPrice);
+            
+            // 确定斐波那契的0和1点
+            let fib0, fib1;
+            if (highIndex < lowIndex) {
+                // 前高在前，前低在后
+                fib0 = lowPrice;  // 0点 = 前低
+                fib1 = highPrice; // 1点 = 前高
+            } else {
+                // 前低在前，前高在后
+                fib0 = lowPrice;  // 0点 = 前低
+                fib1 = highPrice; // 1点 = 前高
+            }
+            
+            console.log('斐波那契基准:', { fib0, fib1 });
+            
+            // 计算斐波那契点位
+            const range = fib1 - fib0;
+            fibonacciLevels = {};
+            
+            fibLevels.forEach((level, index) => {
+                const price = fib0 + (range * level);
+                fibonacciLevels[level] = price;
+                
+                // 更新显示
+                const elementId = level === 0 ? 'fib-0' : 
+                                 level === 1 ? 'fib-100' : 
+                                 `fib-${(level * 100).toFixed(0)}`;
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.textContent = price.toFixed(4);
+                }
+            });
+        }
+        
+        function createFibonacciChart() {
+            // 初始化ECharts
+            fibonacciChart = echarts.init(document.getElementById('fibonacciChart'));
+            
+            // 准备K线数据
+            const klineData = lightData.map(d => [
+                new Date(d.timestamp).getTime(), // 时间
+                d.open,   // 开盘价
+                d.close,  // 收盘价
+                d.low,    // 最低价
+                d.high    // 最高价
+            ]);
+            
+            // 准备斐波那契线数据
+            const fibLines = [];
+            Object.keys(fibonacciLevels).forEach((level, index) => {
+                fibLines.push({
+                    name: `${(level * 100).toFixed(1)}%`,
+                    type: 'line',
+                    data: klineData.map(item => [item[0], fibonacciLevels[level]]),
+                    lineStyle: {
+                        color: fibColors[index],
+                        width: 2,
+                        type: 'dashed'
+                    },
+                    symbol: 'none',
+                    markLine: {
+                        silent: true,
+                        lineStyle: {
+                            color: fibColors[index],
+                            width: 2,
+                            type: 'dashed'
+                        },
+                        label: {
+                            show: true,
+                            position: 'end',
+                            formatter: `${(level * 100).toFixed(1)}% - ${fibonacciLevels[level].toFixed(4)}`
+                        }
+                    }
+                });
+            });
+            
+            // 添加交易点位
+            const tradingLevels = [
+                { value: 1.857, color: '#dc3545', label: '做空1' },
+                { value: 1.969, color: '#dc3545', label: '做空2' },
+                { value: 2.09, color: '#dc3545', label: '做空3' },
+                { value: 1.6625, color: '#28a745', label: '止盈1' },
+                { value: 1.5843, color: '#28a745', label: '止盈2' },
+                { value: 1.317, color: '#28a745', label: '止盈3' }
+            ];
+            
+            tradingLevels.forEach(level => {
+                fibLines.push({
+                    name: level.label,
+                    type: 'line',
+                    data: klineData.map(item => [item[0], level.value]),
+                    lineStyle: {
+                        color: level.color,
+                        width: 3,
+                        type: 'dashed'
+                    },
+                    symbol: 'none',
+                    markLine: {
+                        silent: true,
+                        lineStyle: {
+                            color: level.color,
+                            width: 3,
+                            type: 'dashed'
+                        },
+                        label: {
+                            show: true,
+                            position: 'start',
+                            formatter: `${level.label} - ${level.value}`
+                        }
+                    }
+                });
+            });
+            
+            // ECharts配置
+            const option = {
+                title: {
+                    text: 'LIGHT 价格走势与斐波那契分析',
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 18,
+                        fontWeight: 'bold',
+                        color: '#333'
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'cross'
+                    },
+                    formatter: function(params) {
+                        let result = `<div style="font-size: 14px; font-weight: bold;">${new Date(params[0].axisValue).toLocaleString()}</div>`;
+                        params.forEach(param => {
+                            if (param.seriesName === 'LIGHT K线') {
+                                const data = param.data;
+                                result += `
+                                    <div style="margin: 5px 0;">
+                                        <span style="color: ${param.color};">●</span> 
+                                        <strong>${param.seriesName}</strong><br/>
+                                        开盘: ${data[1]}<br/>
+                                        收盘: ${data[2]}<br/>
+                                        最低: ${data[3]}<br/>
+                                        最高: ${data[4]}
+                                    </div>
+                                `;
+                            } else {
+                                result += `
+                                    <div style="margin: 2px 0;">
+                                        <span style="color: ${param.color};">●</span> 
+                                        ${param.seriesName}: ${param.data[1]}
+                                    </div>
+                                `;
+                            }
+                        });
+                        return result;
+                    }
+                },
+                legend: {
+                    data: ['LIGHT K线', ...Object.keys(fibonacciLevels).map(level => `${(level * 100).toFixed(1)}%`), ...tradingLevels.map(t => t.label)],
+                    top: 40,
+                    type: 'scroll'
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    top: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'time',
+                    scale: true,
+                    boundaryGap: false,
+                    axisLine: { onZero: false },
+                    splitLine: { show: false },
+                    min: 'dataMin',
+                    max: 'dataMax'
+                },
+                yAxis: {
+                    scale: true,
+                    splitArea: {
+                        show: true
+                    }
+                },
+                dataZoom: [
+                    {
+                        type: 'inside',
+                        start: 0,
+                        end: 100
+                    },
+                    {
+                        show: true,
+                        type: 'slider',
+                        top: '90%',
+                        start: 0,
+                        end: 100
+                    }
+                ],
+                series: [
+                    {
+                        name: 'LIGHT K线',
+                        type: 'candlestick',
+                        data: klineData,
+                        itemStyle: {
+                            color: '#ef232a',      // 上涨颜色（红色）
+                            color0: '#14b143',     // 下跌颜色（绿色）
+                            borderColor: '#ef232a', // 上涨边框
+                            borderColor0: '#14b143' // 下跌边框
+                        },
+                        markPoint: {
+                            data: [
+                                {
+                                    name: '最高点',
+                                    coord: [klineData[klineData.findIndex(d => d[4] === Math.max(...klineData.map(k => k[4])))][0], 
+                                    value: Math.max(...klineData.map(k => k[4])),
+                                    itemStyle: { color: '#ff6b6b' }
+                                },
+                                {
+                                    name: '最低点',
+                                    coord: [klineData[klineData.findIndex(d => d[3] === Math.min(...klineData.map(k => k[3])))][0], 
+                                    value: Math.min(...klineData.map(k => k[3])),
+                                    itemStyle: { color: '#4ecdc4' }
+                                }
+                            ]
+                        }
+                    },
+                    ...fibLines
+                ]
+            };
+            
+            // 设置配置并渲染图表
+            fibonacciChart.setOption(option);
+            
+            // 隐藏加载提示，显示图表
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('fibonacciChart').style.display = 'block';
+            
+            // 响应式调整
+            window.addEventListener('resize', function() {
+                fibonacciChart.resize();
+            });
+        }
+        
+        // 页面加载完成后开始加载数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLightData();
+        });
+    </script>
+</body>
+</html>

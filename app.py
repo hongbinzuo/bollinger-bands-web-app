@@ -19,6 +19,7 @@ from logs_api import logs_bp
 from multi_timeframe_api import multi_timeframe_bp
 from crypto_analysis_api import crypto_analysis_bp
 from crypto_advanced_analysis_api import crypto_advanced_bp
+from fibonacci_api import fibonacci_bp
 
 app = Flask(__name__)
 
@@ -33,6 +34,7 @@ app.register_blueprint(logs_bp)
 app.register_blueprint(multi_timeframe_bp)
 app.register_blueprint(crypto_analysis_bp)
 app.register_blueprint(crypto_advanced_bp)
+app.register_blueprint(fibonacci_bp)
 
 # 设置日志
 import logging
