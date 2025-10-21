@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>斐波规律研究测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #chart { width: 100%; height: 600px; }
+    </style>
+</head>
+<body>
+    <h1>斐波规律研究测试</h1>
+    <div id="chart"></div>
+    
+    <script>
+        // 初始化图表
+        const chart = echarts.init(document.getElementById('chart'));
+        
+        // 模拟K线数据
+        const klineData = [];
+        const basePrice = 1.8;
+        let currentPrice = basePrice;
+        
+        for (let i = 0; i < 100; i++) {
+            const time = Date.now() - (100 - i) * 3600000; // 每小时
+            const change = (Math.random() - 0.5) * 0.1;
+            currentPrice *= (1 + change);
+            
+            const open = currentPrice;
+            const close = open * (1 + (Math.random() - 0.5) * 0.05);
+            const high = Math.max(open, close) * (1 + Math.random() * 0.02);
+            const low = Math.min(open, close) * (1 - Math.random() * 0.02);
+            
+            klineData.push([time, open, close, low, high]);
+        }
+        
+        // 计算斐波那契点位
+        const prices = klineData.map(d => d[4]); // 最高价
+        const maxPrice = Math.max(...prices);
+        const minPrice = Math.min(...prices);
+        const range = maxPrice - minPrice;
+        
+        const fibLevels = {
+            0: minPrice,
+            0.236: minPrice + range * 0.236,
+            0.382: minPrice + range * 0.382,
+            0.5: minPrice + range * 0.5,
+            0.618: minPrice + range * 0.618,
+            0.786: minPrice + range * 0.786,
+            1: maxPrice,
+            1.618: maxPrice + range * 0.618,
+            2.618: maxPrice + range * 1.618,
+            3.618: maxPrice + range * 2.618,
+            4.236: maxPrice + range * 3.236
+        };
+        
+        // 准备斐波那契线数据
+        const fibLines = [];
+        const colors = ['#dc3545', '#fd7e14', '#ffc107', '#28a745', '#20c997', 
+                       '#17a2b8', '#6f42c1', '#e83e8c', '#6c757d', '#343a40', '#000'];
+        
+        Object.keys(fibLevels).forEach((level, index) => {
+            fibLines.push({
+                name: `${(level * 100).toFixed(1)}%`,
+                type: 'line',
+                data: klineData.map(item => [item[0], fibLevels[level]]),
+                lineStyle: {
+                    color: colors[index],
+                    width: 2,
+                    type: 'dashed'
+                },
+                symbol: 'none'
+            });
+        });
+        
+        // 添加交易点位
+        const tradingLevels = [
+            { value: 1.857, color: '#dc3545', label: '做空1' },
+            { value: 1.969, color: '#dc3545', label: '做空2' },
+            { value: 2.09, color: '#dc3545', label: '做空3' },
+            { value: 1.6625, color: '#28a745', label: '止盈1' },
+            { value: 1.5843, color: '#28a745', label: '止盈2' },
+            { value: 1.317, color: '#28a745', label: '止盈3' }
+        ];
+        
+        tradingLevels.forEach(level => {
+            fibLines.push({
+                name: level.label,
+                type: 'line',
+                data: klineData.map(item => [item[0], level.value]),
+                lineStyle: {
+                    color: level.color,
+                    width: 3,
+                    type: 'dashed'
+                },
+                symbol: 'none'
+            });
+        });
+        
+        // ECharts配置
+        const option = {
+            title: {
+                text: 'LIGHT 价格走势与斐波那契分析',
+                left: 'center'
+            },
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'cross'
+                }
+            },
+            legend: {
+                data: ['LIGHT K线', ...Object.keys(fibLevels).map(level => `${(level * 100).toFixed(1)}%`), ...tradingLevels.map(t => t.label)],
+                top: 40,
+                type: 'scroll'
+            },
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                top: '15%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'time',
+                scale: true,
+                boundaryGap: false
+            },
+            yAxis: {
+                scale: true,
+                splitArea: {
+                    show: true
+                }
+            },
+            dataZoom: [
+                {
+                    type: 'inside',
+                    start: 0,
+                    end: 100
+                },
+                {
+                    show: true,
+                    type: 'slider',
+                    top: '90%',
+                    start: 0,
+                    end: 100
+                }
+            ],
+            series: [
+                {
+                    name: 'LIGHT K线',
+                    type: 'candlestick',
+                    data: klineData,
+                    itemStyle: {
+                        color: '#ef232a',
+                        color0: '#14b143',
+                        borderColor: '#ef232a',
+                        borderColor0: '#14b143'
+                    }
+                },
+                ...fibLines
+            ]
+        };
+        
+        // 设置配置并渲染图表
+        chart.setOption(option);
+        
+        // 响应式调整
+        window.addEventListener('resize', function() {
+            chart.resize();
+        });
+        
+        console.log('斐波规律研究测试页面加载完成');
+    </script>
+</body>
+</html>

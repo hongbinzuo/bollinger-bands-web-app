@@ -307,13 +307,16 @@
             fibonacciChart = echarts.init(document.getElementById('fibonacciChart'));
             
             // 准备K线数据
-            const klineData = lightData.map(d => [
-                new Date(d.timestamp).getTime(), // 时间
-                d.open,   // 开盘价
-                d.close,  // 收盘价
-                d.low,    // 最低价
-                d.high    // 最高价
-            ]);
+            const klineData = [];
+            lightData.forEach(d => {
+                klineData.push([
+                    new Date(d.timestamp).getTime(), // 时间
+                    d.open,   // 开盘价
+                    d.close,  // 收盘价
+                    d.low,    // 最低价
+                    d.high    // 最高价
+                ]);
+            });
             
             // 准备斐波那契线数据
             const fibLines = [];
@@ -475,22 +478,6 @@
                             color0: '#14b143',     // 下跌颜色（绿色）
                             borderColor: '#ef232a', // 上涨边框
                             borderColor0: '#14b143' // 下跌边框
-                        },
-                        markPoint: {
-                            data: [
-                                {
-                                    name: '最高点',
-                                    coord: [klineData[klineData.findIndex(d => d[4] === Math.max(...klineData.map(k => k[4])))][0], 
-                                    value: Math.max(...klineData.map(k => k[4])),
-                                    itemStyle: { color: '#ff6b6b' }
-                                },
-                                {
-                                    name: '最低点',
-                                    coord: [klineData[klineData.findIndex(d => d[3] === Math.min(...klineData.map(k => k[3])))][0], 
-                                    value: Math.min(...klineData.map(k => k[3])),
-                                    itemStyle: { color: '#4ecdc4' }
-                                }
-                            ]
                         }
                     },
                     ...fibLines
