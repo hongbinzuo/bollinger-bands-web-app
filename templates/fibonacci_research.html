@@ -182,6 +182,19 @@
             background: #007bff;
             color: white;
         }
+        
+        #fibonacciChart {
+            width: 100% !important;
+            height: 800px !important;
+            min-height: 800px;
+        }
+        
+        .chart-container {
+            width: 100%;
+            height: 800px;
+            min-height: 800px;
+            position: relative;
+        }
     </style>
 </head>
 <body>
@@ -502,14 +515,14 @@
                 grid: {
                     left: '3%',
                     right: '4%',
-                    bottom: '3%',
+                    bottom: '8%',
                     top: '15%',
                     containLabel: true
                 },
                 xAxis: {
                     type: 'time',
                     scale: true,
-                    boundaryGap: [0.1, 0.1],
+                    boundaryGap: [0.01, 0.01],
                     axisLine: { onZero: false },
                     splitLine: { show: false },
                     min: 'dataMin',
@@ -519,6 +532,12 @@
                     scale: true,
                     splitArea: {
                         show: true
+                    },
+                    min: function(value) {
+                        return Math.max(0, value.min * 0.98);
+                    },
+                    max: function(value) {
+                        return value.max * 1.02;
                     }
                 },
                 dataZoom: [
@@ -553,7 +572,7 @@
                             borderColor0: '#14b143' // 下跌边框
                         }
                     },
-                    // 添加斐波那契线
+                    // 添加斐波那契线 - 修复版本
                     ...Object.keys(fibonacciLevels).map((level, index) => ({
                         name: `${level}x`,
                         type: 'line',
@@ -564,19 +583,7 @@
                             type: 'solid'
                         },
                         symbol: 'none',
-                        markLine: {
-                            silent: true,
-                            lineStyle: {
-                                color: fibColors[index],
-                                width: 2,
-                                type: 'solid'
-                            },
-                            label: {
-                                show: true,
-                                position: 'end',
-                                formatter: `${level}x - ${fibonacciLevels[level].toFixed(4)}`
-                            }
-                        }
+                        silent: true
                     }))
                 ]
             };
@@ -587,6 +594,12 @@
             // 隐藏加载提示，显示图表
             document.getElementById('loading').style.display = 'none';
             document.getElementById('fibonacciChart').style.display = 'block';
+            
+            // 强制重新计算尺寸和渲染
+            setTimeout(() => {
+                fibonacciChart.resize();
+                fibonacciChart.setOption(option, true);
+            }, 100);
             
             // 响应式调整
             window.addEventListener('resize', function() {
