@@ -350,55 +350,68 @@
         function calculateFibonacciLevels() {
             if (lightData.length < 2) return;
             
+            console.log('开始计算斐波那契点位，数据长度:', lightData.length);
+            
             // 找到历史前高（突破前的历史最高点）
             let historicalHigh = 0;
             let historicalHighIndex = 0;
             
-            // 按时间顺序遍历，找到历史前高
+            // 正确的算法：找到突破前的历史最高点
+            // 1. 先找到整个序列的最高点
+            let maxHigh = 0;
+            let maxHighIndex = 0;
             for (let i = 0; i < lightData.length; i++) {
-                const currentHigh = lightData[i].high;
-                
-                if (currentHigh > historicalHigh) {
-                    // 检查是否产生了突破
-                    const isBreakout = currentHigh > historicalHigh;
-                    
-                    if (isBreakout) {
-                        // 如果产生了突破，保持之前的历史前高
-                        break;
-                    } else {
-                        // 更新历史前高
+                const currentHigh = parseFloat(lightData[i].high);
+                if (currentHigh > maxHigh) {
+                    maxHigh = currentHigh;
+                    maxHighIndex = i;
+                }
+            }
+            
+            // 2. 从最高点往前找，找到第一个明显低于最高点的位置
+            // 这就是"突破前的历史最高点"
+            historicalHigh = maxHigh;
+            historicalHighIndex = maxHighIndex;
+            
+            // 从最高点往前遍历，找到突破前的稳定高点
+            for (let i = maxHighIndex - 1; i >= 0; i--) {
+                const currentHigh = parseFloat(lightData[i].high);
+                // 如果当前高点明显低于历史最高点（下跌超过3%），说明这里可能是突破前的稳定点
+                if (currentHigh < historicalHigh * 0.97) {
+                    // 往前再找几个点，确认这是一个稳定的高点
+                    let isStableHigh = true;
+                    for (let j = Math.max(0, i - 3); j < i; j++) {
+                        if (parseFloat(lightData[j].high) > currentHigh * 1.02) {
+                            isStableHigh = false;
+                            break;
+                        }
+                    }
+                    if (isStableHigh) {
                         historicalHigh = currentHigh;
                         historicalHighIndex = i;
+                        break;
                     }
                 }
             }
             
-            console.log('历史前高:', {
-                price: historicalHigh,
-                index: historicalHighIndex,
+            console.log('历史前高计算完成:', {
+                maxHigh: maxHigh,
+                maxHighIndex: maxHighIndex,
+                historicalHigh: historicalHigh,
+                historicalHighIndex: historicalHighIndex,
                 time: new Date(lightData[historicalHighIndex].timestamp).toLocaleString()
             });
             
-            // 找到历史前高之后至少4小时级别的最低点
+            // 找到历史前高之后的最低点
             let historicalLow = historicalHigh;
             let historicalLowIndex = historicalHighIndex;
             
-            // 从历史前高之后开始查找
+            // 从历史前高之后开始查找最低点
             for (let i = historicalHighIndex + 1; i < lightData.length; i++) {
-                // 检查是否已经过了至少4小时
-                const timeDiff = new Date(lightData[i].timestamp) - new Date(lightData[historicalHighIndex].timestamp);
-                const minTimeDiff = getMinTimeDiff(currentTimeframe);
-                
-                if (timeDiff >= minTimeDiff) {
-                    // 从当前位置到序列末尾找到最低点
-                    const remainingData = lightData.slice(i);
-                    const remainingLows = remainingData.map(d => d.low);
-                    const minLow = Math.min(...remainingLows);
-                    const minLowIndex = remainingLows.indexOf(minLow) + i;
-                    
-                    historicalLow = minLow;
-                    historicalLowIndex = minLowIndex;
-                    break;
+                const currentLow = parseFloat(lightData[i].low);
+                if (currentLow < historicalLow) {
+                    historicalLow = currentLow;
+                    historicalLowIndex = i;
                 }
             }
             
@@ -415,24 +428,50 @@
             console.log('斐波那契基准:', { fib0, fib1 });
             
             // 更新显示
-            document.getElementById('historicalHigh').textContent = historicalHigh.toFixed(4);
-            document.getElementById('historicalLow').textContent = historicalLow.toFixed(4);
+            console.log('更新历史前高显示:', historicalHigh.toFixed(4));
+            console.log('更新历史前低显示:', historicalLow.toFixed(4));
+            
+            const highElement = document.getElementById('historicalHigh');
+            const lowElement = document.getElementById('historicalLow');
+            
+            if (highElement) {
+                highElement.textContent = historicalHigh.toFixed(4);
+                console.log('历史前高元素已更新');
+            } else {
+                console.error('找不到historicalHigh元素');
+            }
+            
+            if (lowElement) {
+                lowElement.textContent = historicalLow.toFixed(4);
+                console.log('历史前低元素已更新');
+            } else {
+                console.error('找不到historicalLow元素');
+            }
             
             // 计算斐波那契点位
             const range = fib1 - fib0;
             fibonacciLevels = {};
             
+            console.log('计算斐波那契点位，范围:', range);
+            
             fibLevels.forEach((level, index) => {
                 const price = fib0 + (range * level);
                 fibonacciLevels[level] = price;
+                
+                console.log(`斐波那契${level}x:`, price.toFixed(4));
                 
                 // 更新显示
                 const elementId = `fib-${level.toString().replace('.', '')}`;
                 const element = document.getElementById(elementId);
                 if (element) {
                     element.textContent = price.toFixed(4);
+                    console.log(`更新${elementId}元素:`, price.toFixed(4));
+                } else {
+                    console.error(`找不到${elementId}元素`);
                 }
             });
+            
+            console.log('斐波那契计算完成，levels:', fibonacciLevels);
         }
         
         // 根据时间周期获取最小时间差（毫秒）
