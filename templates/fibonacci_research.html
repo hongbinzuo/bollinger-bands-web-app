@@ -320,6 +320,7 @@
         let currentTimeframe = '1h';
         let currentSymbol = 'LIGHT';
         let fibonacciLevels = {};
+        let historicalHighIndex = 0; // 添加全局变量
         
         // 斐波那契关键点位（只显示指定的）
         const fibLevels = [1, 1.618, 2.618, 3.618, 4.236];
@@ -355,7 +356,7 @@
             
             // 找到历史前高（冲高后调整的起点）
             let historicalHigh = 0;
-            let historicalHighIndex = 0;
+            historicalHighIndex = 0; // 使用全局变量
             
             // 算法：找到冲高后调整的起点（类似BANK的5月23日）
             // 1. 找到所有的高点
