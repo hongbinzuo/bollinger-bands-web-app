@@ -81,6 +81,42 @@ def get_bybit_klines(symbol, interval, limit):
         logger.error(f"从Bybit获取{symbol}数据失败: {e}")
         return None
 
+def get_gate_klines(symbol, interval, limit):
+    """从Gate.io获取K线数据"""
+    try:
+        # Gate.io时间周期映射
+        gate_interval_map = {
+            '15': '15m',
+            '60': '1h',
+            '240': '4h', 
+            '1440': '1d',
+            '10080': '1w'
+        }
+        
+        gate_interval = gate_interval_map.get(interval, '1h')
+        
+        url = "https://api.gateio.ws/api/v4/spot/candlesticks"
+        params = {
+            'currency_pair': symbol,
+            'interval': gate_interval,
+            'limit': limit
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        if isinstance(data, list) and len(data) > 0:
+            logger.info(f"从Gate.io获取到 {len(data)} 条{symbol}数据")
+            return data
+        else:
+            logger.error(f"Gate.io API错误: {data}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"从Gate.io获取{symbol}数据失败: {e}")
+        return None
+
 def convert_bitget_data(klines):
     """转换Bitget数据格式"""
     converted_data = []
@@ -121,6 +157,26 @@ def convert_bybit_data(klines):
     
     return converted_data
 
+def convert_gate_data(klines):
+    """转换Gate.io数据格式"""
+    converted_data = []
+    for kline in klines:
+        try:
+            # Gate.io格式: [timestamp, volume, close, high, low, open]
+            converted_data.append({
+                'timestamp': int(kline[0]) * 1000,  # Gate.io返回秒，需要转毫秒
+                'open': float(kline[5]),
+                'high': float(kline[3]),
+                'low': float(kline[4]),
+                'close': float(kline[2]),
+                'volume': float(kline[1])
+            })
+        except (ValueError, IndexError) as e:
+            logger.warning(f"跳过无效数据: {kline}, 错误: {e}")
+            continue
+    
+    return converted_data
+
 @fibonacci_bp.route('/api/light-data', methods=['GET'])
 def get_light_data():
     """获取币种数据API"""
@@ -135,14 +191,16 @@ def get_light_data():
             '15m': '15',
             '1h': '60', 
             '4h': '240',
-            '1d': '1440'
+            '1d': '1440',
+            '1w': '10080'  # 周线
         }
         
         limit_map = {
             '15m': 672,   # 7天
             '1h': 168,    # 7天
             '4h': 168,    # 28天
-            '1d': 365     # 1年
+            '1d': 365,    # 1年
+            '1w': 104     # 2年
         }
         
         interval = interval_map.get(timeframe, '60')
@@ -151,36 +209,42 @@ def get_light_data():
         # 构建交易对符号
         symbol_pair = f"{symbol}USDT"
         
-        # 尝试从Bitget获取数据
-        bitget_data = get_bitget_klines(symbol_pair, interval, limit)
-        if bitget_data:
-            converted_data = convert_bitget_data(bitget_data)
-            if converted_data:
-                logger.info(f"成功从Bitget获取 {len(converted_data)} 条{symbol}数据")
-                return jsonify({
-                    'success': True,
-                    'data': converted_data,
-                    'source': 'Bitget',
-                    'symbol': symbol,
-                    'timeframe': timeframe,
-                    'count': len(converted_data)
-                })
+        # 尝试从多个交易所获取数据，选择历史最长的
+        exchanges = [
+            ('Bitget', get_bitget_klines, convert_bitget_data),
+            ('Bybit', get_bybit_klines, convert_bybit_data),
+            ('Gate', get_gate_klines, convert_gate_data)
+        ]
         
-        # 如果Bitget失败，尝试Bybit
-        logger.info(f"Bitget获取失败，尝试Bybit...")
-        bybit_data = get_bybit_klines(symbol_pair, interval, limit)
-        if bybit_data:
-            converted_data = convert_bybit_data(bybit_data)
-            if converted_data:
-                logger.info(f"成功从Bybit获取 {len(converted_data)} 条{symbol}数据")
-                return jsonify({
-                    'success': True,
-                    'data': converted_data,
-                    'source': 'Bybit',
-                    'symbol': symbol,
-                    'timeframe': timeframe,
-                    'count': len(converted_data)
-                })
+        best_data = None
+        best_source = None
+        best_count = 0
+        
+        for exchange_name, get_func, convert_func in exchanges:
+            try:
+                logger.info(f"尝试从{exchange_name}获取数据...")
+                raw_data = get_func(symbol_pair, interval, limit)
+                if raw_data:
+                    converted_data = convert_func(raw_data)
+                    if converted_data and len(converted_data) > best_count:
+                        best_data = converted_data
+                        best_source = exchange_name
+                        best_count = len(converted_data)
+                        logger.info(f"{exchange_name}获取到 {len(converted_data)} 条数据")
+            except Exception as e:
+                logger.warning(f"{exchange_name}获取失败: {e}")
+                continue
+        
+        if best_data:
+            logger.info(f"选择{best_source}作为数据源，共{best_count}条数据")
+            return jsonify({
+                'success': True,
+                'data': best_data,
+                'source': best_source,
+                'symbol': symbol,
+                'timeframe': timeframe,
+                'count': best_count
+            })
         
         # 如果都失败了，返回模拟数据
         logger.warning(f"所有API都失败，返回{symbol}模拟数据")

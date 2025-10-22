@@ -233,6 +233,7 @@
                 <button class="timeframe-btn" data-interval="1h">1小时</button>
                 <button class="timeframe-btn" data-interval="4h">4小时</button>
                 <button class="timeframe-btn" data-interval="1d">1天</button>
+                <button class="timeframe-btn" data-interval="1w">1周</button>
             </div>
         </div>
         
@@ -507,6 +508,15 @@
             });
             
             console.log('斐波那契计算完成，levels:', fibonacciLevels);
+            
+            // 添加斐波0的标注
+            const fib0Element = document.getElementById('fib-0');
+            if (fib0Element) {
+                fib0Element.textContent = fib0.toFixed(4);
+                console.log('更新斐波0元素:', fib0.toFixed(4));
+            } else {
+                console.error('找不到fib-0元素');
+            }
         }
         
         // 根据时间周期获取最小时间差（毫秒）
@@ -647,39 +657,56 @@
                         }
                     },
                     // 添加斐波那契线 - 射线版本
-                    ...Object.keys(fibonacciLevels).map((level, index) => ({
-                        name: `${level}x`,
-                        type: 'line',
-                        data: klineData.map(item => [item[0], fibonacciLevels[level]]),
-                        lineStyle: {
-                            color: fibColors[index],
-                            width: 2,
-                            type: 'solid'
-                        },
-                        symbol: 'none',
-                        silent: true,
-                        // 添加射线效果
-                        markLine: {
-                            silent: true,
+                    ...Object.keys(fibonacciLevels).map((level, index) => {
+                        // 找到历史前高的时间点
+                        const historicalHighTime = lightData[historicalHighIndex] ? 
+                            (typeof lightData[historicalHighIndex].timestamp === 'string' ? 
+                                new Date(lightData[historicalHighIndex].timestamp).getTime() : 
+                                parseInt(lightData[historicalHighIndex].timestamp)) : 
+                            klineData[0][0];
+                        
+                        // 计算射线的中间位置
+                        const rayStartTime = historicalHighTime;
+                        const rayEndTime = klineData[klineData.length - 1][0];
+                        const rayMidTime = rayStartTime + (rayEndTime - rayStartTime) / 2;
+                        
+                        return {
+                            name: `${level}x`,
+                            type: 'line',
+                            data: klineData.map(item => [item[0], fibonacciLevels[level]]),
                             lineStyle: {
                                 color: fibColors[index],
                                 width: 2,
                                 type: 'solid'
                             },
-                            label: {
-                                show: true,
-                                position: 'end',
-                                formatter: `${fibonacciLevels[level].toFixed(4)}【${level}】`,
-                                color: fibColors[index],
-                                fontSize: 12,
-                                fontWeight: 'bold'
-                            },
-                            data: [{
-                                xAxis: klineData[klineData.length - 1][0], // 射线延伸到图表最右边
-                                yAxis: fibonacciLevels[level]
-                            }]
-                        }
-                    }))
+                            symbol: 'none',
+                            silent: true,
+                            // 添加射线效果
+                            markLine: {
+                                silent: true,
+                                lineStyle: {
+                                    color: fibColors[index],
+                                    width: 2,
+                                    type: 'solid'
+                                },
+                                label: {
+                                    show: true,
+                                    position: 'middle', // 标注显示在射线中间
+                                    formatter: `${fibonacciLevels[level].toFixed(4)}【${level}】`,
+                                    color: fibColors[index],
+                                    fontSize: 12,
+                                    fontWeight: 'bold'
+                                },
+                                data: [{
+                                    xAxis: rayStartTime, // 从历史前高位置开始
+                                    yAxis: fibonacciLevels[level]
+                                }, {
+                                    xAxis: rayEndTime, // 延伸到图表最右边
+                                    yAxis: fibonacciLevels[level]
+                                }]
+                            }
+                        };
+                    })
                 ]
             };
             
@@ -726,7 +753,8 @@
                 document.getElementById('currentTimeframe').textContent = 
                     currentTimeframe === '15m' ? '15分钟' :
                     currentTimeframe === '1h' ? '1小时' :
-                    currentTimeframe === '4h' ? '4小时' : '1天';
+                    currentTimeframe === '4h' ? '4小时' : 
+                    currentTimeframe === '1d' ? '1天' : '1周';
                 
                 // 重新加载数据
                 document.getElementById('loading').style.display = 'block';
