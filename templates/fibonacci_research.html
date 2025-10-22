@@ -352,51 +352,86 @@
             
             console.log('开始计算斐波那契点位，数据长度:', lightData.length);
             
-            // 找到历史前高（突破前的历史最高点）
+            // 找到历史前高（冲高后调整的起点）
             let historicalHigh = 0;
             let historicalHighIndex = 0;
             
-            // 正确的算法：找到突破前的历史最高点
-            // 1. 先找到整个序列的最高点
-            let maxHigh = 0;
-            let maxHighIndex = 0;
-            for (let i = 0; i < lightData.length; i++) {
-                const currentHigh = parseFloat(lightData[i].high);
-                if (currentHigh > maxHigh) {
-                    maxHigh = currentHigh;
-                    maxHighIndex = i;
+            // 算法：找到冲高后调整的起点（类似BANK的5月23日）
+            // 1. 找到所有的高点
+            let peaks = [];
+            for (let i = 1; i < lightData.length - 1; i++) {
+                const prev = parseFloat(lightData[i-1].high);
+                const current = parseFloat(lightData[i].high);
+                const next = parseFloat(lightData[i+1].high);
+                
+                // 如果当前点是局部高点
+                if (current > prev && current > next) {
+                    peaks.push({
+                        index: i,
+                        high: current,
+                        timestamp: lightData[i].timestamp
+                    });
                 }
             }
             
-            // 2. 从最高点往前找，找到第一个明显低于最高点的位置
-            // 这就是"突破前的历史最高点"
-            historicalHigh = maxHigh;
-            historicalHighIndex = maxHighIndex;
+            console.log('找到的高点:', peaks);
             
-            // 从最高点往前遍历，找到突破前的稳定高点
-            for (let i = maxHighIndex - 1; i >= 0; i--) {
-                const currentHigh = parseFloat(lightData[i].high);
-                // 如果当前高点明显低于历史最高点（下跌超过3%），说明这里可能是突破前的稳定点
-                if (currentHigh < historicalHigh * 0.97) {
-                    // 往前再找几个点，确认这是一个稳定的高点
-                    let isStableHigh = true;
-                    for (let j = Math.max(0, i - 3); j < i; j++) {
-                        if (parseFloat(lightData[j].high) > currentHigh * 1.02) {
-                            isStableHigh = false;
-                            break;
+            // 2. 从最新的高点开始，往前找冲高后调整的起点
+            for (let i = peaks.length - 1; i >= 0; i--) {
+                const peak = peaks[i];
+                const peakIndex = peak.index;
+                
+                // 检查这个高点之后是否有明显的调整（下跌超过5%）
+                let hasSignificantDrop = false;
+                let dropIndex = -1;
+                
+                for (let j = peakIndex + 1; j < lightData.length; j++) {
+                    const currentLow = parseFloat(lightData[j].low);
+                    if (currentLow < peak.high * 0.95) {
+                        hasSignificantDrop = true;
+                        dropIndex = j;
+                        break;
+                    }
+                }
+                
+                // 如果这个高点之后有显著调整，且后续没有有效突破，这就是我们要的起点
+                if (hasSignificantDrop) {
+                    // 检查后续是否有假突破（类似7月18日的长上影线）
+                    let hasFakeBreakout = false;
+                    for (let k = dropIndex; k < lightData.length; k++) {
+                        const currentHigh = parseFloat(lightData[k].high);
+                        if (currentHigh > peak.high * 1.02) {
+                            // 检查是否是长上影线（收盘价明显低于最高价）
+                            const currentClose = parseFloat(lightData[k].close);
+                            const shadowRatio = (currentHigh - currentClose) / currentHigh;
+                            
+                            if (shadowRatio > 0.05) { // 上影线超过5%
+                                // 检查后续是否连续下跌
+                                let consecutiveDown = 0;
+                                for (let m = k + 1; m < Math.min(k + 5, lightData.length); m++) {
+                                    if (parseFloat(lightData[m].close) < parseFloat(lightData[m-1].close)) {
+                                        consecutiveDown++;
+                                    }
+                                }
+                                
+                                if (consecutiveDown >= 3) { // 连续3天以上下跌
+                                    hasFakeBreakout = true;
+                                    break;
+                                }
+                            }
                         }
                     }
-                    if (isStableHigh) {
-                        historicalHigh = currentHigh;
-                        historicalHighIndex = i;
+                    
+                    // 如果没有假突破，或者有假突破但确认是假的，这就是我们要的起点
+                    if (!hasFakeBreakout || hasFakeBreakout) {
+                        historicalHigh = peak.high;
+                        historicalHighIndex = peakIndex;
                         break;
                     }
                 }
             }
             
             console.log('历史前高计算完成:', {
-                maxHigh: maxHigh,
-                maxHighIndex: maxHighIndex,
                 historicalHigh: historicalHigh,
                 historicalHighIndex: historicalHighIndex,
                 time: new Date(lightData[historicalHighIndex].timestamp).toLocaleString()
@@ -611,7 +646,7 @@
                             borderColor0: '#14b143' // 下跌边框
                         }
                     },
-                    // 添加斐波那契线 - 修复版本
+                    // 添加斐波那契线 - 射线版本
                     ...Object.keys(fibonacciLevels).map((level, index) => ({
                         name: `${level}x`,
                         type: 'line',
@@ -622,7 +657,28 @@
                             type: 'solid'
                         },
                         symbol: 'none',
-                        silent: true
+                        silent: true,
+                        // 添加射线效果
+                        markLine: {
+                            silent: true,
+                            lineStyle: {
+                                color: fibColors[index],
+                                width: 2,
+                                type: 'solid'
+                            },
+                            label: {
+                                show: true,
+                                position: 'end',
+                                formatter: `${fibonacciLevels[level].toFixed(4)}【${level}】`,
+                                color: fibColors[index],
+                                fontSize: 12,
+                                fontWeight: 'bold'
+                            },
+                            data: [{
+                                xAxis: klineData[klineData.length - 1][0], // 射线延伸到图表最右边
+                                yAxis: fibonacciLevels[level]
+                            }]
+                        }
                     }))
                 ]
             };
