@@ -1363,11 +1363,79 @@
                             <strong>数据点数:</strong> ${result.data_points}
                         </div>
                         <div class="stat-item">
-                            <strong>基础价格:</strong> ${result.fib_levels[1.0]?.toFixed(6) || 'N/A'}
+                            <strong>历史高点:</strong> ${result.historical_high?.toFixed(6) || 'N/A'}
                         </div>
                         <div class="stat-item">
-                            <strong>目标价格:</strong> ${result.fib_levels[4.236]?.toFixed(6) || 'N/A'}
+                            <strong>历史低点:</strong> ${result.historical_low?.toFixed(6) || 'N/A'}
                         </div>
+                        <div class="stat-item">
+                            <strong>假突破次数:</strong> ${result.fake_breakout_count || 0}
+                        </div>
+                        <div class="stat-item">
+                            <strong>价格范围:</strong> ${((result.historical_high - result.historical_low) / result.historical_low * 100).toFixed(1)}%
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="fibonacci-levels-info">
+                    <h4>📊 斐波那契扩展位详情</h4>
+                    <div class="fib-levels-detail-grid">
+            `;
+
+            // 显示每个斐波位点的详细信息
+            for (const [level, probData] of Object.entries(result.probabilities)) {
+                const probability = probData.probability;
+                const price = probData.price;
+                const factors = probData.factors;
+                
+                // 计算距离历史高点的百分比
+                const distanceFromHigh = ((price - result.historical_high) / result.historical_high * 100).toFixed(1);
+                
+                // 根据概率设置颜色
+                let probClass = 'low';
+                let probText = '低概率';
+                if (probability > 0.7) {
+                    probClass = 'high';
+                    probText = '高概率';
+                } else if (probability > 0.4) {
+                    probClass = 'medium';
+                    probText = '中概率';
+                }
+
+                html += `
+                    <div class="fib-level-detail-item ${probClass}">
+                        <div class="fib-level-header">
+                            <strong>${level}x 斐波位</strong>
+                            <span class="probability-badge">${(probability * 100).toFixed(1)}%</span>
+                        </div>
+                        <div class="fib-level-details">
+                            <div class="fib-price">价格: ${price.toFixed(6)}</div>
+                            <div class="fib-distance">距离高点: ${distanceFromHigh}%</div>
+                            <div class="fib-probability">概率: ${probText}</div>
+                        </div>
+                        <div class="fib-factors">
+                            <div class="factor-item">
+                                <span>速度因子:</span>
+                                <span>${(factors.velocity_factor * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="factor-item">
+                                <span>量能因子:</span>
+                                <span>${(factors.volume_factor * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="factor-item">
+                                <span>盘整因子:</span>
+                                <span>${(factors.consolidation_factor * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="factor-item">
+                                <span>假突破因子:</span>
+                                <span>${(factors.fake_breakout_factor * 100).toFixed(1)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
                     </div>
                 </div>
                 
@@ -1537,6 +1605,275 @@
                             title: {
                                 display: true,
                                 text: '斐波那契扩展位'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 实时斐波分析相关函数
+        let realtimeFibChart = null;
+        let realtimeMonitoringInterval = null;
+
+        // 实时斐波分析主函数
+        async function runRealtimeFibonacciAnalysis() {
+            try {
+                const symbol = document.getElementById('realtimeSymbol').value;
+                const timeframe = document.getElementById('realtimeTimeframe').value;
+
+                showStatus(`开始实时分析 ${symbol} 的斐波扩展位...`, 'info');
+
+                const response = await fetch('/realtime-fib/api/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        timeframe: timeframe
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayRealtimeFibonacciResults(data.result);
+                    drawRealtimeFibonacciChart(data.result);
+                    showStatus(`实时斐波分析完成`, 'success');
+                } else {
+                    showStatus(`分析失败: ${data.error}`, 'error');
+                }
+
+            } catch (error) {
+                console.error('实时斐波分析错误:', error);
+                showStatus(`实时斐波分析失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 开启实时监控
+        function startRealtimeMonitoring() {
+            if (realtimeMonitoringInterval) {
+                clearInterval(realtimeMonitoringInterval);
+                realtimeMonitoringInterval = null;
+                showStatus('实时监控已停止', 'info');
+                return;
+            }
+
+            showStatus('开启实时监控，每30秒更新一次...', 'info');
+            
+            // 立即执行一次分析
+            runRealtimeFibonacciAnalysis();
+            
+            // 设置定时器
+            realtimeMonitoringInterval = setInterval(() => {
+                runRealtimeFibonacciAnalysis();
+            }, 30000); // 30秒更新一次
+        }
+
+        // 显示实时斐波分析结果
+        function displayRealtimeFibonacciResults(result) {
+            const resultsDiv = document.getElementById('realtimeFibResults');
+            
+            let html = `
+                <div class="info-box">
+                    <h4>⚡ ${result.symbol} 实时斐波分析</h4>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <strong>当前价格:</strong> ${result.current_price.toFixed(6)}
+                        </div>
+                        <div class="stat-item">
+                            <strong>历史高点:</strong> ${result.historical_high.toFixed(6)}
+                        </div>
+                        <div class="stat-item">
+                            <strong>历史低点:</strong> ${result.historical_low.toFixed(6)}
+                        </div>
+                        <div class="stat-item">
+                            <strong>斐波扩展阶段:</strong> 
+                            <span class="${result.is_in_fib_extension ? 'status-active' : 'status-inactive'}">
+                                ${result.is_in_fib_extension ? '是' : '否'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 显示当前斐波位置
+            if (result.fib_position) {
+                const pos = result.fib_position;
+                html += `
+                    <div class="fib-position-container">
+                        <h4>📍 当前斐波位置</h4>
+                        <div class="fib-position-info">
+                            <div class="position-item">
+                                <strong>最近位点:</strong> ${pos.closest_level}x (${pos.closest_price.toFixed(6)})
+                            </div>
+                            <div class="position-item">
+                                <strong>距离比例:</strong> ${(pos.distance_ratio * 100).toFixed(2)}%
+                            </div>
+                            <div class="position-item">
+                                <strong>位置:</strong> ${pos.is_above_closest ? '上方' : '下方'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // 显示上方和下方位点
+                if (pos.upper_levels.length > 0) {
+                    html += `
+                        <div class="fib-levels-container">
+                            <h4>⬆️ 上方关键位点</h4>
+                            <div class="fib-levels-grid">
+                    `;
+                    for (const [level, price] of pos.upper_levels) {
+                        const prob = result.resistance_support_probs[level];
+                        const resistanceProb = prob ? prob.resistance_probability : 0;
+                        const probClass = resistanceProb > 0.7 ? 'high' : resistanceProb > 0.4 ? 'medium' : 'low';
+                        
+                        html += `
+                            <div class="fib-level-item ${probClass}">
+                                <div class="fib-level-header">
+                                    <strong>${level}x 斐波位</strong>
+                                    <span class="probability-badge">阻力: ${(resistanceProb * 100).toFixed(1)}%</span>
+                                </div>
+                                <div class="fib-level-details">
+                                    <div class="fib-price">价格: ${price.toFixed(6)}</div>
+                                    <div class="fib-distance">距离: ${((price - result.current_price) / result.current_price * 100).toFixed(1)}%</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    html += `</div></div>`;
+                }
+
+                if (pos.lower_levels.length > 0) {
+                    html += `
+                        <div class="fib-levels-container">
+                            <h4>⬇️ 下方关键位点</h4>
+                            <div class="fib-levels-grid">
+                    `;
+                    for (const [level, price] of pos.lower_levels) {
+                        const prob = result.resistance_support_probs[level];
+                        const supportProb = prob ? prob.support_probability : 0;
+                        const probClass = supportProb > 0.7 ? 'high' : supportProb > 0.4 ? 'medium' : 'low';
+                        
+                        html += `
+                            <div class="fib-level-item ${probClass}">
+                                <div class="fib-level-header">
+                                    <strong>${level}x 斐波位</strong>
+                                    <span class="probability-badge">支撑: ${(supportProb * 100).toFixed(1)}%</span>
+                                </div>
+                                <div class="fib-level-details">
+                                    <div class="fib-price">价格: ${price.toFixed(6)}</div>
+                                    <div class="fib-distance">距离: ${((result.current_price - price) / result.current_price * 100).toFixed(1)}%</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    html += `</div></div>`;
+                }
+            }
+
+            // 显示近期变化分析
+            if (result.recent_analysis) {
+                const recent = result.recent_analysis;
+                html += `
+                    <div class="recent-analysis-container">
+                        <h4>📊 近期变化分析 (${recent.time_hours.toFixed(1)}小时)</h4>
+                        <div class="recent-stats-grid">
+                            <div class="stat-item">
+                                <strong>价格变化:</strong> ${(recent.price_change * 100).toFixed(2)}%
+                            </div>
+                            <div class="stat-item">
+                                <strong>变化速度:</strong> ${(recent.price_velocity * 100).toFixed(2)}%/小时
+                            </div>
+                            <div class="stat-item">
+                                <strong>量能波动:</strong> ${(recent.volume_volatility * 100).toFixed(1)}%
+                            </div>
+                            <div class="stat-item">
+                                <strong>多空比例:</strong> ${(recent.bullish_ratio * 100).toFixed(1)}% 多头
+                            </div>
+                            <div class="stat-item">
+                                <strong>多头强度:</strong> ${recent.bullish_strength.toFixed(0)}
+                            </div>
+                            <div class="stat-item">
+                                <strong>空头强度:</strong> ${recent.bearish_strength.toFixed(0)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        // 绘制实时斐波图表
+        function drawRealtimeFibonacciChart(result) {
+            const ctx = document.getElementById('realtimeFibChart').getContext('2d');
+            
+            if (realtimeFibChart) {
+                realtimeFibChart.destroy();
+            }
+
+            // 准备图表数据
+            const levels = Object.keys(result.fib_levels);
+            const prices = Object.values(result.fib_levels);
+            const currentPrice = result.current_price;
+            
+            // 创建价格线数据
+            const priceData = prices.map(price => ({
+                x: price,
+                y: price,
+                label: `${Object.keys(result.fib_levels).find(k => result.fib_levels[k] === price)}x`
+            }));
+
+            realtimeFibChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: '斐波扩展位',
+                        data: priceData,
+                        backgroundColor: 'rgba(255, 193, 7, 0.8)',
+                        borderColor: 'rgb(255, 193, 7)',
+                        borderWidth: 2,
+                        pointRadius: 8
+                    }, {
+                        label: '当前价格',
+                        data: [{
+                            x: currentPrice,
+                            y: currentPrice,
+                            label: '当前价格'
+                        }],
+                        backgroundColor: 'rgba(76, 175, 80, 0.8)',
+                        borderColor: 'rgb(76, 175, 80)',
+                        borderWidth: 3,
+                        pointRadius: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${result.symbol} 实时斐波扩展位分析`
+                        },
+                        legend: {
+                            display: true
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            title: {
+                                display: true,
+                                text: '价格'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            title: {
+                                display: true,
+                                text: '价格'
                             }
                         }
                     }
@@ -2970,6 +3307,94 @@
              margin-top: 20px;
          }
          
+         /* 斐波详情样式 */
+         .fibonacci-levels-info {
+             margin-top: 20px;
+         }
+         
+         .fib-levels-detail-grid {
+             display: grid;
+             grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+             gap: 15px;
+             margin-top: 15px;
+         }
+         
+         .fib-level-detail-item {
+             background: rgba(255, 255, 255, 0.05);
+             border-radius: 10px;
+             padding: 15px;
+             border: 2px solid transparent;
+             transition: all 0.3s ease;
+         }
+         
+         .fib-level-detail-item.high {
+             border-color: #4CAF50;
+             background: rgba(76, 175, 80, 0.1);
+         }
+         
+         .fib-level-detail-item.medium {
+             border-color: #FFC107;
+             background: rgba(255, 193, 7, 0.1);
+         }
+         
+         .fib-level-detail-item.low {
+             border-color: #f44336;
+             background: rgba(244, 67, 54, 0.1);
+         }
+         
+         .fib-distance {
+             color: #ffd700;
+             font-size: 14px;
+             margin: 5px 0;
+         }
+         
+         /* 实时斐波分析样式 */
+         .fib-position-container {
+             margin-top: 20px;
+         }
+         
+         .fib-position-info {
+             display: grid;
+             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+             gap: 15px;
+             margin-top: 15px;
+         }
+         
+         .position-item {
+             background: rgba(255, 255, 255, 0.05);
+             padding: 10px;
+             border-radius: 5px;
+             border-left: 3px solid #4CAF50;
+         }
+         
+         .recent-analysis-container {
+             margin-top: 20px;
+         }
+         
+         .recent-stats-grid {
+             display: grid;
+             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+             gap: 15px;
+             margin-top: 15px;
+         }
+         
+         .status-active {
+             color: #4CAF50;
+             font-weight: bold;
+         }
+         
+         .status-inactive {
+             color: #f44336;
+             font-weight: bold;
+         }
+         
+         #realtimeFibChart {
+             background: rgba(255, 255, 255, 0.05);
+             border-radius: 10px;
+             padding: 15px;
+             margin-top: 20px;
+         }
+         
     </style>
 </head>
 <body>
@@ -3024,6 +3449,7 @@
             <button class="tab" onclick="showTab('fibonacci', event)">📐 斐波规律研究</button>
             <button class="tab" onclick="showTab('momentumField', event)">⚡ 多空势能场模型</button>
             <button class="tab" onclick="showTab('fibonacciProb', event)">🎯 斐波概率预测</button>
+            <button class="tab" onclick="showTab('realtimeFib', event)">⚡ 实时斐波分析</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
         </div>
@@ -3750,6 +4176,56 @@
 
                 <div id="fibonacciProbResults" class="results-container"></div>
                 <div id="fibonacciProbChart" style="width: 100%; height: 600px; margin-top: 20px;"></div>
+            </div>
+        </div>
+
+        <!-- 实时斐波分析Tab -->
+        <div id="realtimeFib" class="tab-content">
+            <h3>⚡ 实时斐波分析</h3>
+            <div class="form-group">
+                <p>实时判断币种是否在斐波扩展阶段，定位当前点位，分析阻力支撑概率</p>
+                
+                <div class="info-box">
+                    <h4>分析功能：</h4>
+                    <ul>
+                        <li><strong>实时判断</strong>：是否在斐波扩展阶段</li>
+                        <li><strong>点位定位</strong>：当前价格在斐波位点中的位置</li>
+                        <li><strong>关键位点</strong>：上方和下方的关键阻力/支撑位</li>
+                        <li><strong>概率分析</strong>：阻力vs支撑的概率预测</li>
+                        <li><strong>近期变化</strong>：2-4小时价格和量能变化分析</li>
+                        <li><strong>多空强度</strong>：基于变化速度的多空强度计算</li>
+                    </ul>
+                </div>
+
+                <div class="form-group">
+                    <label for="realtimeSymbol">选择标的：</label>
+                    <select id="realtimeSymbol" class="form-control">
+                        <option value="H">$H</option>
+                        <option value="KGEN">$KGEN</option>
+                        <option value="BANK">$BANK</option>
+                        <option value="LA">$LA</option>
+                        <option value="F">$F</option>
+                        <option value="LIGHT">$LIGHT</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="realtimeTimeframe">时间周期：</label>
+                    <select id="realtimeTimeframe" class="form-control">
+                        <option value="1h" selected>1小时</option>
+                        <option value="4h">4小时</option>
+                        <option value="15m">15分钟</option>
+                        <option value="5m">5分钟</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="runRealtimeFibonacciAnalysis()">⚡ 开始实时分析</button>
+                    <button class="btn btn-secondary" onclick="startRealtimeMonitoring()">🔄 开启实时监控</button>
+                </div>
+
+                <div id="realtimeFibResults" class="results-container"></div>
+                <div id="realtimeFibChart" style="width: 100%; height: 600px; margin-top: 20px;"></div>
             </div>
         </div>
 

@@ -89,6 +89,38 @@ class FibonacciProbabilityModel:
             
         return extension_levels
     
+    def identify_historical_high_low(self, price_data, lookback_days=30):
+        """识别历史高点和低点"""
+        # 转换为DataFrame便于分析
+        df = pd.DataFrame(price_data)
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df = df.sort_values('timestamp')
+        
+        # 找到历史高点
+        historical_high = df['high'].max()
+        high_idx = df['high'].idxmax()
+        high_date = df.loc[high_idx, 'timestamp']
+        
+        # 找到历史低点（在高点之后）
+        if high_idx < len(df) - 1:
+            low_data = df.iloc[high_idx:]
+            historical_low = low_data['low'].min()
+            low_idx = low_data['low'].idxmin()
+            low_date = df.loc[low_idx, 'timestamp']
+        else:
+            historical_low = df['low'].min()
+            low_idx = df['low'].idxmin()
+            low_date = df.loc[low_idx, 'timestamp']
+        
+        return {
+            'historical_high': historical_high,
+            'high_date': high_date,
+            'high_timestamp': int(high_date.timestamp() * 1000),
+            'historical_low': historical_low,
+            'low_date': low_date,
+            'low_timestamp': int(low_date.timestamp() * 1000)
+        }
+    
     def analyze_price_velocity(self, price_data, window=20):
         """分析价格运动速度"""
         velocities = []
@@ -155,36 +187,61 @@ class FibonacciProbabilityModel:
         
         return consolidation_strength
     
-    def identify_fake_breakouts(self, price_data, window=10):
-        """识别假突破"""
+    def identify_fake_breakouts(self, price_data, historical_high, window=10):
+        """识别假突破 - 基于LIGHT币种的实际模式优化"""
         fake_breakouts = []
         
-        for i in range(window, len(price_data) - window):
-            current_high = price_data[i]['high']
-            current_close = price_data[i]['close']
+        # 转换为DataFrame便于分析
+        df = pd.DataFrame(price_data)
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df = df.sort_values('timestamp')
+        
+        # 找到历史高点附近的突破尝试
+        high_threshold = historical_high * 0.98  # 接近历史高点的98%
+        
+        for i in range(window, len(df) - window):
+            current_high = df.iloc[i]['high']
+            current_close = df.iloc[i]['close']
+            current_timestamp = df.iloc[i]['timestamp']
             
-            # 检查是否为局部高点
-            is_local_high = True
-            for j in range(i-window, i+window+1):
-                if j != i and price_data[j]['high'] > current_high:
-                    is_local_high = False
-                    break
-            
-            if is_local_high:
-                # 检查后续是否快速回落（假突破特征）
-                max_retracement = 0
-                for k in range(i+1, min(i+window, len(price_data))):
-                    retracement = (current_high - price_data[k]['low']) / current_high
-                    max_retracement = max(max_retracement, retracement)
+            # 检查是否接近或超过历史高点
+            if current_high >= high_threshold:
+                # 检查是否为局部高点
+                is_local_high = True
+                for j in range(max(0, i-window), min(len(df), i+window+1)):
+                    if j != i and df.iloc[j]['high'] > current_high:
+                        is_local_high = False
+                        break
                 
-                # 如果回落超过5%，可能是假突破
-                if max_retracement > 0.05:
-                    fake_breakouts.append({
-                        'timestamp': price_data[i]['timestamp'],
-                        'price': current_high,
-                        'retracement': max_retracement,
-                        'strength': max_retracement  # 回落越大，假突破强度越高
-                    })
+                if is_local_high:
+                    # 检查后续是否快速回落（假突破特征）
+                    max_retracement = 0
+                    retracement_days = 0
+                    
+                    for k in range(i+1, min(i+window, len(df))):
+                        retracement = (current_high - df.iloc[k]['low']) / current_high
+                        if retracement > max_retracement:
+                            max_retracement = retracement
+                            retracement_days = k - i
+                    
+                    # 假突破判断条件：
+                    # 1. 回落超过3%
+                    # 2. 在2-5天内快速回落
+                    # 3. 收盘价明显低于最高价（长上影线）
+                    shadow_ratio = (current_high - current_close) / current_high
+                    
+                    if (max_retracement > 0.03 and 
+                        retracement_days <= 5 and 
+                        shadow_ratio > 0.02):  # 上影线超过2%
+                        
+                        fake_breakouts.append({
+                            'timestamp': int(current_timestamp.timestamp() * 1000),
+                            'price': current_high,
+                            'retracement': max_retracement,
+                            'shadow_ratio': shadow_ratio,
+                            'retracement_days': retracement_days,
+                            'strength': max_retracement * shadow_ratio  # 综合强度
+                        })
         
         return fake_breakouts
     
@@ -289,7 +346,7 @@ class FibonacciProbabilityModel:
         }
     
     def analyze_symbol_behavior(self, symbol, timeframe='4h', days=120):
-        """分析单个币种的行为模式"""
+        """分析单个币种的行为模式 - 基于LIGHT币种优化"""
         try:
             logger.info(f"开始分析 {symbol} 的行为模式...")
             
@@ -301,15 +358,21 @@ class FibonacciProbabilityModel:
                 logger.warning(f"无法获取 {symbol} 数据，使用模拟数据")
                 price_data = self.generate_mock_data(symbol, timeframe, limit)
             
+            # 识别历史高点和低点
+            historical_data = self.identify_historical_high_low(price_data)
+            historical_high = historical_data['historical_high']
+            historical_low = historical_data['historical_low']
+            
+            logger.info(f"历史高点: {historical_high:.4f} ({historical_data['high_date']})")
+            logger.info(f"历史低点: {historical_low:.4f} ({historical_data['low_date']})")
+            
             # 分析各种因子
             velocities = self.analyze_price_velocity(price_data)
             volume_energies = self.calculate_volume_energy(price_data)
-            fake_breakouts = self.identify_fake_breakouts(price_data)
+            fake_breakouts = self.identify_fake_breakouts(price_data, historical_high)
             
-            # 计算斐波扩展位
-            base_price = min(d['low'] for d in price_data)
-            target_price = max(d['high'] for d in price_data)
-            fib_levels = self.calculate_fibonacci_extension_levels(base_price, target_price)
+            # 计算斐波扩展位 - 基于历史低点到高点
+            fib_levels = self.calculate_fibonacci_extension_levels(historical_low, historical_high)
             
             # 分析关键区间盘整
             zone_consolidations = []
@@ -322,7 +385,8 @@ class FibonacciProbabilityModel:
                 'velocities': velocities,
                 'volume_energies': volume_energies,
                 'fake_breakouts': fake_breakouts,
-                'zone_consolidations': zone_consolidations
+                'zone_consolidations': zone_consolidations,
+                'historical_data': historical_data
             }
             
             fib_probabilities = {}
@@ -340,7 +404,10 @@ class FibonacciProbabilityModel:
                 'data_points': len(price_data),
                 'fib_levels': fib_levels,
                 'probabilities': fib_probabilities,
-                'analysis_results': analysis_results
+                'analysis_results': analysis_results,
+                'historical_high': historical_high,
+                'historical_low': historical_low,
+                'fake_breakout_count': len(fake_breakouts)
             }
             
         except Exception as e:
