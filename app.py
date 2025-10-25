@@ -329,7 +329,7 @@ class BollingerBandsAnalyzer:
                 df = self.get_bybit_klines(symbol, '12h', 100)
                 if not df.empty:
                     data_source = "Bybit"
-            else:
+                else:
                     # Bybit也失败，尝试Bitget
                     logger.warning(f"Bybit获取 {symbol} 数据失败，尝试Bitget")
                     df = self.get_bitget_klines(symbol, '12h', 100)
@@ -917,7 +917,7 @@ def analyze():
                 
                 result = analyzer.analyze_symbol(symbol, force_refresh)
                 if result:  # 只添加有效结果
-                results.append(result)
+                    results.append(result)
                 
                 # 减少延迟，提高处理速度
                 time.sleep(0.05)
