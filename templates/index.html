@@ -940,7 +940,7 @@
             const variance = gradientValues.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / gradientValues.length;
             const stdDev = Math.sqrt(variance);
             
-            return mean + 2 * stdDev; // 2倍标准差作为阈值
+            return mean + 0.5 * stdDev; // 降低阈值，从2倍标准差改为0.5倍
         }
 
         // 生成交易信号
@@ -1271,6 +1271,277 @@
                 totalTrades: trades.length,
                 avgHoldTime: avgHoldTime
             };
+        }
+
+        // 斐波概率预测相关函数
+        let fibonacciProbChart = null;
+
+        // 斐波概率分析主函数
+        async function runFibonacciProbabilityAnalysis() {
+            try {
+                const symbol = document.getElementById('fibProbSymbol').value;
+                const timeframe = document.getElementById('fibProbTimeframe').value;
+                const days = parseInt(document.getElementById('fibProbDays').value);
+
+                showStatus(`开始分析 ${symbol} 的斐波概率预测...`, 'info');
+
+                const response = await fetch('/fibonacci-prob/api/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        timeframe: timeframe,
+                        days: days
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayFibonacciProbabilityResults(data.result);
+                    drawFibonacciProbabilityChart(data.result);
+                    showStatus(`斐波概率分析完成`, 'success');
+                } else {
+                    showStatus(`分析失败: ${data.error}`, 'error');
+                }
+
+            } catch (error) {
+                console.error('斐波概率分析错误:', error);
+                showStatus(`斐波概率分析失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 批量斐波分析
+        async function runBatchFibonacciAnalysis() {
+            try {
+                const timeframe = document.getElementById('fibProbTimeframe').value;
+                const days = parseInt(document.getElementById('fibProbDays').value);
+
+                showStatus(`开始批量分析前500币种的斐波概率...`, 'info');
+
+                const response = await fetch('/fibonacci-prob/api/batch-analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        symbols: ['H', 'KGEN', 'BANK', 'LA', 'F', 'LIGHT'],
+                        timeframe: timeframe,
+                        days: days
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayBatchFibonacciResults(data.results);
+                    showStatus(`批量分析完成，共分析 ${data.count} 个币种`, 'success');
+                } else {
+                    showStatus(`批量分析失败: ${data.error}`, 'error');
+                }
+
+            } catch (error) {
+                console.error('批量斐波分析错误:', error);
+                showStatus(`批量斐波分析失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 显示斐波概率结果
+        function displayFibonacciProbabilityResults(result) {
+            const resultsDiv = document.getElementById('fibonacciProbResults');
+            
+            let html = `
+                <div class="info-box">
+                    <h4>🎯 ${result.symbol} 斐波概率预测结果</h4>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <strong>分析周期:</strong> ${result.timeframe}
+                        </div>
+                        <div class="stat-item">
+                            <strong>数据点数:</strong> ${result.data_points}
+                        </div>
+                        <div class="stat-item">
+                            <strong>基础价格:</strong> ${result.fib_levels[1.0]?.toFixed(6) || 'N/A'}
+                        </div>
+                        <div class="stat-item">
+                            <strong>目标价格:</strong> ${result.fib_levels[4.236]?.toFixed(6) || 'N/A'}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="fibonacci-levels-container">
+                    <h4>📊 斐波那契扩展位概率分析</h4>
+                    <div class="fib-levels-grid">
+            `;
+
+            // 显示每个斐波位点的概率
+            for (const [level, probData] of Object.entries(result.probabilities)) {
+                const probability = probData.probability;
+                const price = probData.price;
+                const factors = probData.factors;
+                
+                // 根据概率设置颜色
+                let probClass = 'low';
+                let probText = '低概率';
+                if (probability > 0.7) {
+                    probClass = 'high';
+                    probText = '高概率';
+                } else if (probability > 0.4) {
+                    probClass = 'medium';
+                    probText = '中概率';
+                }
+
+                html += `
+                    <div class="fib-level-item ${probClass}">
+                        <div class="fib-level-header">
+                            <strong>${level}x 斐波位</strong>
+                            <span class="probability-badge">${(probability * 100).toFixed(1)}%</span>
+                        </div>
+                        <div class="fib-level-details">
+                            <div class="fib-price">价格: ${price.toFixed(6)}</div>
+                            <div class="fib-probability">概率: ${probText}</div>
+                        </div>
+                        <div class="fib-factors">
+                            <div class="factor-item">
+                                <span>速度因子:</span>
+                                <span>${(factors.velocity_factor * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="factor-item">
+                                <span>量能因子:</span>
+                                <span>${(factors.volume_factor * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="factor-item">
+                                <span>盘整因子:</span>
+                                <span>${(factors.consolidation_factor * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="factor-item">
+                                <span>假突破因子:</span>
+                                <span>${(factors.fake_breakout_factor * 100).toFixed(1)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+
+            resultsDiv.innerHTML = html;
+        }
+
+        // 显示批量分析结果
+        function displayBatchFibonacciResults(results) {
+            const resultsDiv = document.getElementById('fibonacciProbResults');
+            
+            let html = `
+                <div class="info-box">
+                    <h4>📊 批量斐波概率分析结果</h4>
+                    <p>共分析 ${results.length} 个币种</p>
+                </div>
+                
+                <div class="batch-results-container">
+                    <h4>🎯 各币种斐波概率汇总</h4>
+                    <div class="batch-results-grid">
+            `;
+
+            for (const result of results) {
+                html += `
+                    <div class="batch-result-item">
+                        <div class="batch-symbol">${result.symbol}</div>
+                        <div class="batch-probabilities">
+                `;
+
+                for (const [level, probData] of Object.entries(result.probabilities)) {
+                    const probability = probData.probability;
+                    const probClass = probability > 0.7 ? 'high' : probability > 0.4 ? 'medium' : 'low';
+                    
+                    html += `
+                        <div class="batch-prob-item ${probClass}">
+                            <span>${level}x: ${(probability * 100).toFixed(1)}%</span>
+                        </div>
+                    `;
+                }
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+
+            resultsDiv.innerHTML = html;
+        }
+
+        // 绘制斐波概率图表
+        function drawFibonacciProbabilityChart(result) {
+            const ctx = document.getElementById('fibonacciProbChart').getContext('2d');
+            
+            if (fibonacciProbChart) {
+                fibonacciProbChart.destroy();
+            }
+
+            // 准备图表数据
+            const levels = Object.keys(result.probabilities);
+            const probabilities = Object.values(result.probabilities).map(p => p.probability * 100);
+            const prices = Object.values(result.probabilities).map(p => p.price);
+
+            fibonacciProbChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: levels.map(l => `${l}x`),
+                    datasets: [{
+                        label: '突破概率 (%)',
+                        data: probabilities,
+                        backgroundColor: probabilities.map(p => {
+                            if (p > 70) return 'rgba(76, 175, 80, 0.8)';
+                            if (p > 40) return 'rgba(255, 193, 7, 0.8)';
+                            return 'rgba(244, 67, 54, 0.8)';
+                        }),
+                        borderColor: probabilities.map(p => {
+                            if (p > 70) return 'rgb(76, 175, 80)';
+                            if (p > 40) return 'rgb(255, 193, 7)';
+                            return 'rgb(244, 67, 54)';
+                        }),
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${result.symbol} 斐波那契扩展位突破概率`
+                        },
+                        legend: {
+                            display: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: '突破概率 (%)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '斐波那契扩展位'
+                            }
+                        }
+                    }
+                }
+            });
         }
         
         function toggleVideoBackground() {
@@ -2566,6 +2837,139 @@
              margin-top: 20px;
          }
          
+         /* 斐波概率预测样式 */
+         .fibonacci-levels-container {
+             margin-top: 20px;
+         }
+         
+         .fib-levels-grid {
+             display: grid;
+             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+             gap: 15px;
+             margin-top: 15px;
+         }
+         
+         .fib-level-item {
+             background: rgba(255, 255, 255, 0.05);
+             border-radius: 10px;
+             padding: 15px;
+             border: 2px solid transparent;
+             transition: all 0.3s ease;
+         }
+         
+         .fib-level-item.high {
+             border-color: #4CAF50;
+             background: rgba(76, 175, 80, 0.1);
+         }
+         
+         .fib-level-item.medium {
+             border-color: #FFC107;
+             background: rgba(255, 193, 7, 0.1);
+         }
+         
+         .fib-level-item.low {
+             border-color: #f44336;
+             background: rgba(244, 67, 54, 0.1);
+         }
+         
+         .fib-level-header {
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             margin-bottom: 10px;
+         }
+         
+         .probability-badge {
+             background: rgba(255, 255, 255, 0.2);
+             padding: 4px 8px;
+             border-radius: 15px;
+             font-weight: bold;
+         }
+         
+         .fib-level-details {
+             margin-bottom: 15px;
+         }
+         
+         .fib-price, .fib-probability {
+             margin: 5px 0;
+             font-size: 14px;
+         }
+         
+         .fib-factors {
+             display: grid;
+             grid-template-columns: 1fr 1fr;
+             gap: 8px;
+         }
+         
+         .factor-item {
+             display: flex;
+             justify-content: space-between;
+             font-size: 12px;
+             padding: 4px 8px;
+             background: rgba(255, 255, 255, 0.05);
+             border-radius: 5px;
+         }
+         
+         .batch-results-container {
+             margin-top: 20px;
+         }
+         
+         .batch-results-grid {
+             display: grid;
+             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+             gap: 15px;
+             margin-top: 15px;
+         }
+         
+         .batch-result-item {
+             background: rgba(255, 255, 255, 0.05);
+             border-radius: 10px;
+             padding: 15px;
+         }
+         
+         .batch-symbol {
+             font-weight: bold;
+             font-size: 16px;
+             margin-bottom: 10px;
+             color: #ffd700;
+         }
+         
+         .batch-probabilities {
+             display: flex;
+             flex-direction: column;
+             gap: 5px;
+         }
+         
+         .batch-prob-item {
+             display: flex;
+             justify-content: space-between;
+             padding: 5px 10px;
+             border-radius: 5px;
+             font-size: 12px;
+         }
+         
+         .batch-prob-item.high {
+             background: rgba(76, 175, 80, 0.2);
+             color: #4CAF50;
+         }
+         
+         .batch-prob-item.medium {
+             background: rgba(255, 193, 7, 0.2);
+             color: #FFC107;
+         }
+         
+         .batch-prob-item.low {
+             background: rgba(244, 67, 54, 0.2);
+             color: #f44336;
+         }
+         
+         #fibonacciProbChart {
+             background: rgba(255, 255, 255, 0.05);
+             border-radius: 10px;
+             padding: 15px;
+             margin-top: 20px;
+         }
+         
     </style>
 </head>
 <body>
@@ -2619,6 +3023,7 @@
             <button class="tab" onclick="showTab('hotCoins', event)">🔥 热点币种分析</button>
             <button class="tab" onclick="showTab('fibonacci', event)">📐 斐波规律研究</button>
             <button class="tab" onclick="showTab('momentumField', event)">⚡ 多空势能场模型</button>
+            <button class="tab" onclick="showTab('fibonacciProb', event)">🎯 斐波概率预测</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
         </div>
@@ -3251,6 +3656,7 @@
                     <label for="momentumSymbol">选择标的：</label>
                     <select id="momentumSymbol" class="form-control">
                         <option value="HUSDT.P">$HUSDT.P (永续合约)</option>
+                        <option value="H">$H</option>
                         <option value="KGEN">$KGEN</option>
                         <option value="LA">$LA</option>
                         <option value="F">$F</option>
@@ -3285,6 +3691,65 @@
 
                 <div id="momentumFieldResults" class="results-container"></div>
                 <div id="momentumFieldChart" style="width: 100%; height: 500px; margin-top: 20px;"></div>
+            </div>
+        </div>
+
+        <!-- 斐波概率预测Tab -->
+        <div id="fibonacciProb" class="tab-content">
+            <h3>🎯 斐波概率预测模型</h3>
+            <div class="form-group">
+                <p>基于价格行为模式和强度因子的斐波那契扩展位概率预测系统</p>
+                
+                <div class="info-box">
+                    <h4>模型核心因子：</h4>
+                    <ul>
+                        <li><strong>价格运动速度</strong>：分析价格变化率</li>
+                        <li><strong>量能累积强度</strong>：成交量与价格变化的综合</li>
+                        <li><strong>盘整时间强度</strong>：突破前整理时间和强度</li>
+                        <li><strong>假突破识别</strong>：识别和评估假突破强度</li>
+                        <li><strong>关键区间盘整</strong>：1.0和0.618区间的盘整分析</li>
+                    </ul>
+                </div>
+
+                <div class="form-group">
+                    <label for="fibProbSymbol">选择标的：</label>
+                    <select id="fibProbSymbol" class="form-control">
+                        <option value="H">$H</option>
+                        <option value="KGEN">$KGEN</option>
+                        <option value="BANK">$BANK</option>
+                        <option value="LA">$LA</option>
+                        <option value="F">$F</option>
+                        <option value="LIGHT">$LIGHT</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="fibProbTimeframe">时间周期：</label>
+                    <select id="fibProbTimeframe" class="form-control">
+                        <option value="4h">4小时</option>
+                        <option value="1d">1天</option>
+                        <option value="1h">1小时</option>
+                        <option value="15m">15分钟</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="fibProbDays">分析天数：</label>
+                    <select id="fibProbDays" class="form-control">
+                        <option value="30">30天</option>
+                        <option value="60">60天</option>
+                        <option value="120" selected>120天（4个月）</option>
+                        <option value="180">180天</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="runFibonacciProbabilityAnalysis()">🎯 开始概率分析</button>
+                    <button class="btn btn-secondary" onclick="runBatchFibonacciAnalysis()">📊 批量分析前500币种</button>
+                </div>
+
+                <div id="fibonacciProbResults" class="results-container"></div>
+                <div id="fibonacciProbChart" style="width: 100%; height: 600px; margin-top: 20px;"></div>
             </div>
         </div>
 

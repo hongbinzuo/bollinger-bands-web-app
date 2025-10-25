@@ -25,7 +25,7 @@ class MomentumFieldAnalyzer:
     """多空势能场分析器"""
     
     def __init__(self):
-        self.supported_symbols = ['HUSDT.P', 'KGEN', 'LA', 'F', 'BANK']
+        self.supported_symbols = ['HUSDT.P', 'KGEN', 'LA', 'F', 'BANK', 'H']
         self.timeframes = ['5m', '15m', '1h', '4h']
         
     def get_bybit_klines(self, symbol, interval, limit):
@@ -192,6 +192,7 @@ class MomentumFieldAnalyzer:
         # 根据币种设置不同的起始价格
         base_prices = {
             'HUSDT.P': 100.0,
+            'H': 0.1,
             'KGEN': 0.5,
             'LA': 0.1,
             'F': 0.05,
@@ -204,9 +205,13 @@ class MomentumFieldAnalyzer:
         for i in range(limit):
             timestamp = now - (limit - i) * interval
             
-            # 生成价格变化
-            change = np.random.normal(0, 0.01)  # 1%标准差的正态分布
+            # 生成价格变化 - 增加波动性以便产生更多信号
+            change = np.random.normal(0, 0.03)  # 3%标准差的正态分布
             price = price * (1 + change)
+            
+            # 确保价格不会变成负数
+            if price <= 0:
+                price = base_price
             
             # 生成OHLC数据
             open_price = price * (1 + np.random.normal(0, 0.005))
@@ -448,7 +453,8 @@ def calculate_gradient_threshold(gradients):
     mean = np.mean(gradient_values)
     std = np.std(gradient_values)
     
-    return mean + 2 * std
+    # 降低阈值，使其更容易产生信号
+    return mean + 0.5 * std  # 从2倍标准差降低到0.5倍
 
 def generate_trading_signals(gradients, threshold):
     """生成交易信号"""
