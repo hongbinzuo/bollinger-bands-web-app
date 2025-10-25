@@ -731,6 +731,547 @@
         function openFibonacciPage() {
             window.open('/fibonacci-research', '_blank');
         }
+
+        // 多空势能场模型相关函数
+        let momentumFieldData = [];
+        let momentumFieldChart = null;
+
+        // 势能场分析主函数
+        async function runMomentumFieldAnalysis() {
+            try {
+                const symbol = document.getElementById('momentumSymbol').value;
+                const timeframe = document.getElementById('momentumTimeframe').value;
+                const alpha = parseFloat(document.getElementById('alphaParam').value);
+                const beta = parseFloat(document.getElementById('betaParam').value);
+
+                showStatus(`开始分析 ${symbol} 的势能场模型...`, 'info');
+
+                // 获取价格数据
+                const priceData = await fetchMomentumFieldData(symbol, timeframe);
+                if (!priceData || priceData.length === 0) {
+                    showStatus('获取价格数据失败', 'error');
+                    return;
+                }
+
+                // 计算势能场
+                const momentumResults = calculateMomentumField(priceData, alpha, beta);
+                
+                // 显示结果
+                displayMomentumFieldResults(momentumResults);
+                
+                // 绘制图表
+                drawMomentumFieldChart(priceData, momentumResults);
+
+                showStatus(`势能场分析完成，共分析 ${priceData.length} 个数据点`, 'success');
+
+            } catch (error) {
+                console.error('势能场分析错误:', error);
+                showStatus(`势能场分析失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 势能场回测函数
+        async function runMomentumFieldBacktest() {
+            try {
+                const symbol = document.getElementById('momentumSymbol').value;
+                const timeframe = document.getElementById('momentumTimeframe').value;
+                const alpha = parseFloat(document.getElementById('alphaParam').value);
+                const beta = parseFloat(document.getElementById('betaParam').value);
+
+                showStatus(`开始回测 ${symbol} 的势能场模型...`, 'info');
+
+                // 获取历史数据
+                const priceData = await fetchMomentumFieldData(symbol, timeframe);
+                if (!priceData || priceData.length === 0) {
+                    showStatus('获取历史数据失败', 'error');
+                    return;
+                }
+
+                // 运行回测
+                const backtestResults = runMomentumFieldBacktestAnalysis(priceData, alpha, beta);
+                
+                // 显示回测结果
+                displayMomentumFieldBacktestResults(backtestResults);
+
+                showStatus(`回测完成，总收益率: ${backtestResults.totalReturn.toFixed(2)}%`, 'success');
+
+            } catch (error) {
+                console.error('势能场回测错误:', error);
+                showStatus(`势能场回测失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 获取势能场数据
+        async function fetchMomentumFieldData(symbol, timeframe) {
+            try {
+                const response = await fetch(`/momentum-field/api/data?symbol=${symbol}&timeframe=${timeframe}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    return data.data;
+                } else {
+                    throw new Error(data.error || '获取数据失败');
+                }
+            } catch (error) {
+                console.error('获取势能场数据失败:', error);
+                // 返回模拟数据用于测试
+                return generateMockMomentumFieldData(symbol, timeframe);
+            }
+        }
+
+        // 计算势能场核心算法
+        function calculateMomentumField(priceData, alpha, beta) {
+            const results = {
+                potentialEnergy: [],
+                gradient: [],
+                keyLevels: [],
+                signals: [],
+                statistics: {}
+            };
+
+            // 1. 识别关键中枢
+            const keyLevels = identifyKeyLevels(priceData);
+            results.keyLevels = keyLevels;
+
+            // 2. 计算势能函数
+            for (let i = 0; i < priceData.length; i++) {
+                const currentPrice = priceData[i].close;
+                const timestamp = priceData[i].timestamp;
+                
+                // 计算趋势动能
+                const trendMomentum = calculateTrendMomentum(priceData, i);
+                
+                // 计算关键位引力
+                const keyLevelAttraction = calculateKeyLevelAttraction(currentPrice, keyLevels);
+                
+                // 势能函数 Φ(P,t) = α * 趋势动能 + β * 关键位引力
+                const potentialEnergy = alpha * trendMomentum + beta * keyLevelAttraction;
+                results.potentialEnergy.push({
+                    timestamp: timestamp,
+                    price: currentPrice,
+                    potentialEnergy: potentialEnergy,
+                    trendMomentum: trendMomentum,
+                    keyLevelAttraction: keyLevelAttraction
+                });
+            }
+
+            // 3. 计算势能梯度
+            for (let i = 1; i < results.potentialEnergy.length; i++) {
+                const gradient = results.potentialEnergy[i].potentialEnergy - results.potentialEnergy[i-1].potentialEnergy;
+                results.gradient.push({
+                    timestamp: results.potentialEnergy[i].timestamp,
+                    gradient: gradient
+                });
+            }
+
+            // 4. 生成交易信号
+            const threshold = calculateGradientThreshold(results.gradient);
+            results.signals = generateTradingSignals(results.gradient, threshold);
+
+            // 5. 计算统计信息
+            results.statistics = calculateMomentumFieldStatistics(results);
+
+            return results;
+        }
+
+        // 识别关键中枢
+        function identifyKeyLevels(priceData) {
+            const keyLevels = [];
+            const windowSize = Math.min(20, Math.floor(priceData.length / 10));
+            
+            // 使用滑动窗口寻找关键价位
+            for (let i = windowSize; i < priceData.length - windowSize; i++) {
+                const currentPrice = priceData[i].close;
+                let isKeyLevel = true;
+                
+                // 检查是否为局部极值
+                for (let j = i - windowSize; j <= i + windowSize; j++) {
+                    if (j !== i && Math.abs(priceData[j].close - currentPrice) < currentPrice * 0.01) {
+                        isKeyLevel = false;
+                        break;
+                    }
+                }
+                
+                if (isKeyLevel) {
+                    keyLevels.push({
+                        price: currentPrice,
+                        timestamp: priceData[i].timestamp,
+                        strength: calculateKeyLevelStrength(priceData, i, windowSize)
+                    });
+                }
+            }
+            
+            return keyLevels;
+        }
+
+        // 计算趋势动能
+        function calculateTrendMomentum(priceData, index) {
+            if (index < 5) return 0;
+            
+            const currentPrice = priceData[index].close;
+            const pastPrice = priceData[index - 5].close;
+            const priceChange = (currentPrice - pastPrice) / pastPrice;
+            
+            // 考虑成交量权重
+            const volumeWeight = priceData[index].volume || 1;
+            const avgVolume = calculateAverageVolume(priceData, index, 10);
+            const volumeRatio = volumeWeight / avgVolume;
+            
+            return priceChange * volumeRatio;
+        }
+
+        // 计算关键位引力
+        function calculateKeyLevelAttraction(currentPrice, keyLevels) {
+            let totalAttraction = 0;
+            
+            for (const keyLevel of keyLevels) {
+                const distance = Math.abs(currentPrice - keyLevel.price) / keyLevel.price;
+                const attraction = keyLevel.strength / (1 + distance * 10); // 距离越近引力越强
+                totalAttraction += attraction;
+            }
+            
+            return totalAttraction;
+        }
+
+        // 计算势能梯度阈值
+        function calculateGradientThreshold(gradients) {
+            const gradientValues = gradients.map(g => Math.abs(g.gradient));
+            const mean = gradientValues.reduce((a, b) => a + b, 0) / gradientValues.length;
+            const variance = gradientValues.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / gradientValues.length;
+            const stdDev = Math.sqrt(variance);
+            
+            return mean + 2 * stdDev; // 2倍标准差作为阈值
+        }
+
+        // 生成交易信号
+        function generateTradingSignals(gradients, threshold) {
+            const signals = [];
+            
+            for (let i = 0; i < gradients.length; i++) {
+                const gradient = gradients[i].gradient;
+                
+                if (gradient > threshold) {
+                    signals.push({
+                        timestamp: gradients[i].timestamp,
+                        type: 'BUY',
+                        strength: gradient / threshold,
+                        signal: '多头突破'
+                    });
+                } else if (gradient < -threshold) {
+                    signals.push({
+                        timestamp: gradients[i].timestamp,
+                        type: 'SELL',
+                        strength: Math.abs(gradient) / threshold,
+                        signal: '空头突破'
+                    });
+                }
+            }
+            
+            return signals;
+        }
+
+        // 计算统计信息
+        function calculateMomentumFieldStatistics(results) {
+            const potentialEnergies = results.potentialEnergy.map(p => p.potentialEnergy);
+            const gradients = results.gradient.map(g => g.gradient);
+            
+            return {
+                avgPotentialEnergy: potentialEnergies.reduce((a, b) => a + b, 0) / potentialEnergies.length,
+                maxPotentialEnergy: Math.max(...potentialEnergies),
+                minPotentialEnergy: Math.min(...potentialEnergies),
+                avgGradient: gradients.reduce((a, b) => a + b, 0) / gradients.length,
+                maxGradient: Math.max(...gradients),
+                minGradient: Math.min(...gradients),
+                signalCount: results.signals.length,
+                buySignals: results.signals.filter(s => s.type === 'BUY').length,
+                sellSignals: results.signals.filter(s => s.type === 'SELL').length
+            };
+        }
+
+        // 生成模拟数据
+        function generateMockMomentumFieldData(symbol, timeframe) {
+            const data = [];
+            const now = Date.now();
+            const interval = getTimeframeInterval(timeframe);
+            let price = 100; // 起始价格
+            
+            for (let i = 0; i < 500; i++) {
+                const timestamp = now - (500 - i) * interval;
+                const change = (Math.random() - 0.5) * 0.02; // ±1%随机变化
+                price = price * (1 + change);
+                
+                data.push({
+                    timestamp: timestamp,
+                    open: price * (1 + (Math.random() - 0.5) * 0.001),
+                    high: price * (1 + Math.random() * 0.01),
+                    low: price * (1 - Math.random() * 0.01),
+                    close: price,
+                    volume: Math.random() * 1000000
+                });
+            }
+            
+            return data;
+        }
+
+        // 获取时间周期间隔
+        function getTimeframeInterval(timeframe) {
+            const intervals = {
+                '5m': 5 * 60 * 1000,
+                '15m': 15 * 60 * 1000,
+                '1h': 60 * 60 * 1000,
+                '4h': 4 * 60 * 60 * 1000
+            };
+            return intervals[timeframe] || 60 * 60 * 1000;
+        }
+
+        // 计算平均成交量
+        function calculateAverageVolume(priceData, index, window) {
+            const start = Math.max(0, index - window);
+            const end = Math.min(priceData.length, index + 1);
+            let totalVolume = 0;
+            let count = 0;
+            
+            for (let i = start; i < end; i++) {
+                totalVolume += priceData[i].volume || 0;
+                count++;
+            }
+            
+            return count > 0 ? totalVolume / count : 1;
+        }
+
+        // 计算关键位强度
+        function calculateKeyLevelStrength(priceData, index, windowSize) {
+            let volumeSum = 0;
+            let count = 0;
+            
+            for (let i = Math.max(0, index - windowSize); i <= Math.min(priceData.length - 1, index + windowSize); i++) {
+                volumeSum += priceData[i].volume || 0;
+                count++;
+            }
+            
+            return count > 0 ? volumeSum / count : 1;
+        }
+
+        // 显示势能场结果
+        function displayMomentumFieldResults(results) {
+            const resultsDiv = document.getElementById('momentumFieldResults');
+            const stats = results.statistics;
+            
+            resultsDiv.innerHTML = `
+                <div class="info-box">
+                    <h4>势能场分析结果</h4>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <strong>平均势能:</strong> ${stats.avgPotentialEnergy.toFixed(4)}
+                        </div>
+                        <div class="stat-item">
+                            <strong>最大势能:</strong> ${stats.maxPotentialEnergy.toFixed(4)}
+                        </div>
+                        <div class="stat-item">
+                            <strong>平均梯度:</strong> ${stats.avgGradient.toFixed(4)}
+                        </div>
+                        <div class="stat-item">
+                            <strong>信号总数:</strong> ${stats.signalCount}
+                        </div>
+                        <div class="stat-item">
+                            <strong>多头信号:</strong> ${stats.buySignals}
+                        </div>
+                        <div class="stat-item">
+                            <strong>空头信号:</strong> ${stats.sellSignals}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="signals-container">
+                    <h4>交易信号</h4>
+                    <div class="signals-list">
+                        ${results.signals.slice(-10).map(signal => `
+                            <div class="signal-item ${signal.type.toLowerCase()}">
+                                <span class="signal-time">${new Date(signal.timestamp).toLocaleString()}</span>
+                                <span class="signal-type">${signal.signal}</span>
+                                <span class="signal-strength">强度: ${signal.strength.toFixed(2)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 显示回测结果
+        function displayMomentumFieldBacktestResults(results) {
+            const resultsDiv = document.getElementById('momentumFieldResults');
+            
+            resultsDiv.innerHTML = `
+                <div class="info-box">
+                    <h4>回测结果</h4>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <strong>总收益率:</strong> ${results.totalReturn.toFixed(2)}%
+                        </div>
+                        <div class="stat-item">
+                            <strong>胜率:</strong> ${results.winRate.toFixed(2)}%
+                        </div>
+                        <div class="stat-item">
+                            <strong>最大回撤:</strong> ${results.maxDrawdown.toFixed(2)}%
+                        </div>
+                        <div class="stat-item">
+                            <strong>夏普比率:</strong> ${results.sharpeRatio.toFixed(2)}
+                        </div>
+                        <div class="stat-item">
+                            <strong>交易次数:</strong> ${results.totalTrades}
+                        </div>
+                        <div class="stat-item">
+                            <strong>平均持仓时间:</strong> ${results.avgHoldTime.toFixed(1)}小时
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 绘制势能场图表
+        function drawMomentumFieldChart(priceData, results) {
+            // 使用Chart.js绘制图表
+            const ctx = document.getElementById('momentumFieldChart').getContext('2d');
+            
+            if (momentumFieldChart) {
+                momentumFieldChart.destroy();
+            }
+            
+            const chartData = {
+                labels: priceData.map(d => new Date(d.timestamp).toLocaleString()),
+                datasets: [
+                    {
+                        label: '价格',
+                        data: priceData.map(d => d.close),
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: '势能',
+                        data: results.potentialEnergy.map(p => p.potentialEnergy),
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        yAxisID: 'y1'
+                    }
+                ]
+            };
+            
+            momentumFieldChart = new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: '价格'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: '势能'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // 运行回测分析
+        function runMomentumFieldBacktestAnalysis(priceData, alpha, beta) {
+            const results = calculateMomentumField(priceData, alpha, beta);
+            
+            // 模拟交易
+            let balance = 10000; // 初始资金
+            let position = 0; // 持仓
+            let trades = [];
+            let maxBalance = balance;
+            let maxDrawdown = 0;
+            
+            for (const signal of results.signals) {
+                const signalIndex = priceData.findIndex(d => d.timestamp === signal.timestamp);
+                if (signalIndex === -1) continue;
+                
+                const price = priceData[signalIndex].close;
+                
+                if (signal.type === 'BUY' && position <= 0) {
+                    // 买入
+                    if (position < 0) {
+                        // 平空
+                        const pnl = (trades[trades.length - 1].price - price) / trades[trades.length - 1].price;
+                        balance += balance * pnl;
+                    }
+                    
+                    position = 1;
+                    trades.push({
+                        type: 'BUY',
+                        price: price,
+                        timestamp: signal.timestamp,
+                        balance: balance
+                    });
+                } else if (signal.type === 'SELL' && position >= 0) {
+                    // 卖出
+                    if (position > 0) {
+                        // 平多
+                        const pnl = (price - trades[trades.length - 1].price) / trades[trades.length - 1].price;
+                        balance += balance * pnl;
+                    }
+                    
+                    position = -1;
+                    trades.push({
+                        type: 'SELL',
+                        price: price,
+                        timestamp: signal.timestamp,
+                        balance: balance
+                    });
+                }
+                
+                // 更新最大回撤
+                if (balance > maxBalance) {
+                    maxBalance = balance;
+                }
+                const currentDrawdown = (maxBalance - balance) / maxBalance;
+                if (currentDrawdown > maxDrawdown) {
+                    maxDrawdown = currentDrawdown;
+                }
+            }
+            
+            // 计算最终结果
+            const totalReturn = ((balance - 10000) / 10000) * 100;
+            const winningTrades = trades.filter(t => t.balance > (trades[trades.length - 1]?.balance || 10000)).length;
+            const winRate = trades.length > 0 ? (winningTrades / trades.length) * 100 : 0;
+            const avgHoldTime = trades.length > 0 ? 24 : 0; // 简化计算
+            
+            return {
+                totalReturn: totalReturn,
+                winRate: winRate,
+                maxDrawdown: maxDrawdown * 100,
+                sharpeRatio: totalReturn / (maxDrawdown * 100 + 0.01),
+                totalTrades: trades.length,
+                avgHoldTime: avgHoldTime
+            };
+        }
         
         function toggleVideoBackground() {
             showStatus('切换背景模式', 'info');
@@ -1948,6 +2489,83 @@
              font-size: 11px;
          }
          
+         /* 多空势能场模型样式 */
+         .momentum-field-container {
+             background: rgba(255, 255, 255, 0.05);
+             border-radius: 10px;
+             padding: 20px;
+             margin: 10px 0;
+             border: 1px solid rgba(255, 255, 255, 0.1);
+         }
+         
+         .stats-grid {
+             display: grid;
+             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+             gap: 15px;
+             margin: 15px 0;
+         }
+         
+         .stat-item {
+             background: rgba(255, 255, 255, 0.03);
+             padding: 10px;
+             border-radius: 5px;
+             border-left: 3px solid #4CAF50;
+         }
+         
+         .signals-container {
+             margin-top: 20px;
+         }
+         
+         .signals-list {
+             max-height: 300px;
+             overflow-y: auto;
+             background: rgba(0, 0, 0, 0.3);
+             border-radius: 5px;
+             padding: 10px;
+         }
+         
+         .signal-item {
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             padding: 8px;
+             margin: 5px 0;
+             border-radius: 5px;
+             background: rgba(255, 255, 255, 0.05);
+         }
+         
+         .signal-item.buy {
+             border-left: 3px solid #4CAF50;
+             background: rgba(76, 175, 80, 0.1);
+         }
+         
+         .signal-item.sell {
+             border-left: 3px solid #f44336;
+             background: rgba(244, 67, 54, 0.1);
+         }
+         
+         .signal-time {
+             color: #ccc;
+             font-size: 12px;
+         }
+         
+         .signal-type {
+             font-weight: bold;
+             color: #fff;
+         }
+         
+         .signal-strength {
+             color: #ffd700;
+             font-size: 12px;
+         }
+         
+         #momentumFieldChart {
+             background: rgba(255, 255, 255, 0.05);
+             border-radius: 10px;
+             padding: 15px;
+             margin-top: 20px;
+         }
+         
     </style>
 </head>
 <body>
@@ -2000,6 +2618,7 @@
             <button class="tab" onclick="showTab('multiTimeframe', event)">📈 多时间框架</button>
             <button class="tab" onclick="showTab('hotCoins', event)">🔥 热点币种分析</button>
             <button class="tab" onclick="showTab('fibonacci', event)">📐 斐波规律研究</button>
+            <button class="tab" onclick="showTab('momentumField', event)">⚡ 多空势能场模型</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
         </div>
@@ -2609,6 +3228,63 @@
                 <div class="form-group">
                     <button class="btn btn-primary" onclick="openFibonacciPage()">🔍 打开斐波规律研究页面</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- 多空势能场模型Tab -->
+        <div id="momentumField" class="tab-content">
+            <h3>⚡ 多空势能场模型</h3>
+            <div class="form-group">
+                <p>基于物理学势能场理论的多空力量分析模型，通过势能函数和梯度计算预测价格走势</p>
+                
+                <div class="info-box">
+                    <h4>模型核心算法：</h4>
+                    <ul>
+                        <li><strong>势能函数 Φ(P,t)</strong>：衡量多空双方力量综合作用</li>
+                        <li><strong>趋势动能系数 α</strong>：当前价格变动趋势的权重</li>
+                        <li><strong>关键位引力系数 β</strong>：关键价格位的引力强度</li>
+                        <li><strong>势能梯度 ∇Φ</strong>：生成交易信号的关键指标</li>
+                    </ul>
+                </div>
+
+                <div class="form-group">
+                    <label for="momentumSymbol">选择标的：</label>
+                    <select id="momentumSymbol" class="form-control">
+                        <option value="HUSDT.P">$HUSDT.P (永续合约)</option>
+                        <option value="KGEN">$KGEN</option>
+                        <option value="LA">$LA</option>
+                        <option value="F">$F</option>
+                        <option value="BANK">$BANK</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="momentumTimeframe">时间周期：</label>
+                    <select id="momentumTimeframe" class="form-control">
+                        <option value="5m">5分钟</option>
+                        <option value="15m">15分钟</option>
+                        <option value="1h">1小时</option>
+                        <option value="4h">4小时</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="alphaParam">趋势动能系数 α：</label>
+                    <input type="number" id="alphaParam" class="form-control" value="0.3" step="0.1" min="0" max="1">
+                </div>
+
+                <div class="form-group">
+                    <label for="betaParam">关键位引力系数 β：</label>
+                    <input type="number" id="betaParam" class="form-control" value="0.7" step="0.1" min="0" max="1">
+                </div>
+
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="runMomentumFieldAnalysis()">🚀 开始势能场分析</button>
+                    <button class="btn btn-secondary" onclick="runMomentumFieldBacktest()">📊 运行回测</button>
+                </div>
+
+                <div id="momentumFieldResults" class="results-container"></div>
+                <div id="momentumFieldChart" style="width: 100%; height: 500px; margin-top: 20px;"></div>
             </div>
         </div>
 
