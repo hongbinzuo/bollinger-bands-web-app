@@ -30,6 +30,71 @@ class RealtimeFibonacciAnalyzer:
         self.fibonacci_levels = [0.618, 1.0, 1.618, 2.618, 3.618, 4.236]
         self.fibonacci_names = ['0.618', '1.0', '1.618', '2.618', '3.618', '4.236']
         
+    def get_gate_klines(self, symbol, interval, limit):
+        """从Gate.io获取K线数据"""
+        try:
+            # Gate.io使用时间字符串格式
+            interval_map = {
+                '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h'
+            }
+            gate_interval = interval_map.get(interval, '1h')
+            
+            # 格式化币种符号：BTCUSDT -> BTC_USDT
+            formatted_symbol = symbol
+            if symbol.endswith('USDT') and not '_' in symbol:
+                formatted_symbol = symbol[:-4] + '_USDT'
+            
+            url = f"https://api.gateio.ws/api/v4/spot/candlesticks"
+            params = {
+                'currency_pair': formatted_symbol,
+                'interval': gate_interval,
+                'limit': min(limit, 1000)
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            klines = response.json()
+            
+            if klines:
+                return self.convert_gate_data(klines)
+            return None
+                
+        except Exception as e:
+            logger.error(f"Gate.io获取 {symbol} K线数据失败: {e}")
+            return None
+    
+    def get_bitget_klines(self, symbol, interval, limit):
+        """从Bitget获取K线数据"""
+        try:
+            interval_map = {
+                '5m': '5m', '15m': '15m', '1h': '1H', '4h': '4H'
+            }
+            bitget_interval = interval_map.get(interval, '1H')
+            
+            # Bitget需要合约格式：BTCUSDT -> BTCUSDT_UMCBL
+            formatted_symbol = symbol + '_UMCBL'
+            
+            url = f"https://api.bitget.com/api/mix/v1/market/candles"
+            params = {
+                'symbol': formatted_symbol,
+                'granularity': bitget_interval,
+                'limit': min(limit, 1000),
+                'productType': 'umcbl'
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('code') == '00000':
+                klines = data.get('data', [])
+                return self.convert_bitget_data(klines)
+            return None
+                
+        except Exception as e:
+            logger.error(f"Bitget获取 {symbol} K线数据失败: {e}")
+            return None
+    
     def get_bybit_klines(self, symbol, interval, limit):
         """从Bybit获取K线数据"""
         try:
@@ -38,10 +103,13 @@ class RealtimeFibonacciAnalyzer:
             }
             bybit_interval = interval_map.get(interval, '60')
             
+            # Bybit符号格式：BTCUSDT -> BTCUSDT
+            formatted_symbol = symbol
+            
             url = f"https://api.bybit.com/v5/market/kline"
             params = {
                 'category': 'linear',
-                'symbol': symbol,
+                'symbol': formatted_symbol,
                 'interval': bybit_interval,
                 'limit': min(limit, 1000)
             }
@@ -60,6 +128,36 @@ class RealtimeFibonacciAnalyzer:
         except Exception as e:
             logger.error(f"Bybit获取 {symbol} K线数据失败: {e}")
             return None
+    
+    def convert_gate_data(self, klines):
+        """转换Gate.io数据格式"""
+        converted_data = []
+        for kline in klines:
+            # Gate.io返回的格式: [timestamp(秒), volume, close, high, low, open]
+            # 需要转换为毫秒时间戳
+            converted_data.append({
+                'timestamp': int(kline[0]) * 1000,  # Gate.io返回秒级时间戳，转为毫秒
+                'open': float(kline[5]),
+                'high': float(kline[3]),
+                'low': float(kline[4]),
+                'close': float(kline[2]),
+                'volume': float(kline[1])
+            })
+        return converted_data
+    
+    def convert_bitget_data(self, klines):
+        """转换Bitget数据格式"""
+        converted_data = []
+        for kline in klines:
+            converted_data.append({
+                'timestamp': int(kline[0]),
+                'open': float(kline[1]),
+                'high': float(kline[2]),
+                'low': float(kline[3]),
+                'close': float(kline[4]),
+                'volume': float(kline[5])
+            })
+        return converted_data
     
     def convert_bybit_data(self, klines):
         """转换Bybit数据格式"""
@@ -292,19 +390,48 @@ class RealtimeFibonacciAnalyzer:
             
             # 获取数据
             limit = 200  # 获取足够的历史数据
+            price_data = None
+            data_source = None
+            
+            # 尝试从Bybit获取数据
             price_data = self.get_bybit_klines(symbol, timeframe, limit)
+            if price_data:
+                data_source = "Bybit"
+            else:
+                # 尝试从Gate.io获取数据
+                price_data = self.get_gate_klines(symbol, timeframe, limit)
+                if price_data:
+                    data_source = "Gate.io"
+                else:
+                    # 尝试从Bitget获取数据
+                    price_data = self.get_bitget_klines(symbol, timeframe, limit)
+                    if price_data:
+                        data_source = "Bitget"
             
             if not price_data:
-                logger.warning(f"无法获取 {symbol} 数据，使用模拟数据")
-                price_data = self.generate_mock_data(symbol, timeframe, limit)
+                logger.warning(f"无法从所有交易所获取 {symbol} 数据，使用模拟数据")
+                try:
+                    price_data = self.generate_mock_data(symbol, timeframe, limit)
+                    data_source = "模拟数据"
+                except Exception as e:
+                    logger.error(f"生成模拟数据失败: {e}")
+                    return None
             
             # 识别斐波基准位
-            base_levels = self.identify_fibonacci_base_levels(price_data)
-            historical_high = base_levels['historical_high']
-            historical_low = base_levels['historical_low']
+            try:
+                base_levels = self.identify_fibonacci_base_levels(price_data)
+                historical_high = base_levels['historical_high']
+                historical_low = base_levels['historical_low']
+            except Exception as e:
+                logger.error(f"识别斐波基准位失败: {e}")
+                return None
             
             # 计算斐波扩展位
-            fib_levels = self.calculate_fibonacci_extension_levels(historical_low, historical_high)
+            try:
+                fib_levels = self.calculate_fibonacci_extension_levels(historical_low, historical_high)
+            except Exception as e:
+                logger.error(f"计算斐波扩展位失败: {e}")
+                return None
             
             # 获取当前价格
             current_price = price_data[-1]['close']
@@ -328,6 +455,7 @@ class RealtimeFibonacciAnalyzer:
             return {
                 'symbol': symbol,
                 'timeframe': timeframe,
+                'data_source': data_source,
                 'current_price': current_price,
                 'historical_high': historical_high,
                 'historical_low': historical_low,
