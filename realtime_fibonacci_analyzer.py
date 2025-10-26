@@ -131,46 +131,95 @@ class RealtimeFibonacciAnalyzer:
     
     def convert_gate_data(self, klines):
         """转换Gate.io数据格式"""
+        if not klines or not isinstance(klines, list):
+            logger.error("Gate.io数据格式错误: klines为空或非列表")
+            return None
+            
         converted_data = []
         for kline in klines:
+            if not kline or len(kline) < 6:
+                logger.error(f"Gate.io单条K线数据格式错误: {kline}")
+                continue
             # Gate.io返回的格式: [timestamp(秒), volume, close, high, low, open]
             # 需要转换为毫秒时间戳
-            converted_data.append({
-                'timestamp': int(kline[0]) * 1000,  # Gate.io返回秒级时间戳，转为毫秒
-                'open': float(kline[5]),
-                'high': float(kline[3]),
-                'low': float(kline[4]),
-                'close': float(kline[2]),
-                'volume': float(kline[1])
-            })
+            try:
+                converted_data.append({
+                    'timestamp': int(kline[0]) * 1000,  # Gate.io返回秒级时间戳，转为毫秒
+                    'open': float(kline[5]),
+                    'high': float(kline[3]),
+                    'low': float(kline[4]),
+                    'close': float(kline[2]),
+                    'volume': float(kline[1])
+                })
+            except (ValueError, IndexError) as e:
+                logger.error(f"Gate.io数据转换错误: {e}, kline={kline}")
+                continue
+        
+        if not converted_data:
+            logger.error("Gate.io数据转换后为空")
+            return None
+            
         return converted_data
     
     def convert_bitget_data(self, klines):
         """转换Bitget数据格式"""
+        if not klines or not isinstance(klines, list):
+            logger.error("Bitget数据格式错误: klines为空或非列表")
+            return None
+            
         converted_data = []
         for kline in klines:
-            converted_data.append({
-                'timestamp': int(kline[0]),
-                'open': float(kline[1]),
-                'high': float(kline[2]),
-                'low': float(kline[3]),
-                'close': float(kline[4]),
-                'volume': float(kline[5])
-            })
+            if not kline or len(kline) < 6:
+                logger.error(f"Bitget单条K线数据格式错误: {kline}")
+                continue
+            # Bitget返回格式: [timestamp, open, high, low, close, volume]
+            try:
+                converted_data.append({
+                    'timestamp': int(kline[0]),
+                    'open': float(kline[1]),
+                    'high': float(kline[2]),
+                    'low': float(kline[3]),
+                    'close': float(kline[4]),
+                    'volume': float(kline[5])
+                })
+            except (ValueError, IndexError) as e:
+                logger.error(f"Bitget数据转换错误: {e}, kline={kline}")
+                continue
+        
+        if not converted_data:
+            logger.error("Bitget数据转换后为空")
+            return None
+            
         return converted_data
     
     def convert_bybit_data(self, klines):
         """转换Bybit数据格式"""
+        if not klines or not isinstance(klines, list):
+            logger.error("Bybit数据格式错误: klines为空或非列表")
+            return None
+            
         converted_data = []
         for kline in klines:
-            converted_data.append({
-                'timestamp': int(kline[0]),
-                'open': float(kline[1]),
-                'high': float(kline[2]),
-                'low': float(kline[3]),
-                'close': float(kline[4]),
-                'volume': float(kline[5])
-            })
+            if not kline or len(kline) < 6:
+                logger.error(f"Bybit单条K线数据格式错误: {kline}")
+                continue
+            try:
+                converted_data.append({
+                    'timestamp': int(kline[0]),
+                    'open': float(kline[1]),
+                    'high': float(kline[2]),
+                    'low': float(kline[3]),
+                    'close': float(kline[4]),
+                    'volume': float(kline[5])
+                })
+            except (ValueError, IndexError) as e:
+                logger.error(f"Bybit数据转换错误: {e}, kline={kline}")
+                continue
+        
+        if not converted_data:
+            logger.error("Bybit数据转换后为空")
+            return None
+            
         return converted_data
     
     def identify_fibonacci_base_levels(self, price_data):
@@ -538,21 +587,26 @@ def analyze_realtime_fibonacci():
         symbol = data.get('symbol', 'H')
         timeframe = data.get('timeframe', '1h')
         
+        logger.info(f"收到实时斐波分析请求: symbol={symbol}, timeframe={timeframe}")
+        
         result = analyzer.analyze_realtime_fibonacci(symbol, timeframe)
         
         if result:
+            logger.info(f"实时斐波分析成功: symbol={symbol}")
             return jsonify({
                 'success': True,
                 'result': result
             })
         else:
+            logger.error(f"实时斐波分析返回None: symbol={symbol}")
             return jsonify({
                 'success': False,
                 'error': '分析失败'
             }), 500
             
     except Exception as e:
-        logger.error(f"实时斐波分析失败: {e}")
+        import traceback
+        logger.error(f"实时斐波分析异常: {e}\n{traceback.format_exc()}")
         return jsonify({
             'success': False,
             'error': str(e)
