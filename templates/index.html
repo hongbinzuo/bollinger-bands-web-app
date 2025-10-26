@@ -3395,6 +3395,71 @@
              margin-top: 20px;
          }
          
+        /* RSI日线突破币种样式 */
+        .rsi-breakout-results {
+            margin-top: 20px;
+        }
+        
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        .results-table th {
+            background: #2c3e50;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .results-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .results-table tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .rsi-oversold {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        
+        .rsi-low {
+            color: #f39c12;
+            font-weight: bold;
+        }
+        
+        .rsi-medium {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        
+        .info-box {
+            background: #ecf0f1;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        
+        .info-box h4 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        
+        .info-box ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .info-box li {
+            margin: 5px 0;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
@@ -3450,6 +3515,7 @@
             <button class="tab" onclick="showTab('momentumField', event)">⚡ 多空势能场模型</button>
             <button class="tab" onclick="showTab('fibonacciProb', event)">🎯 斐波概率预测</button>
             <button class="tab" onclick="showTab('realtimeFib', event)">⚡ 实时斐波分析</button>
+            <button class="tab" onclick="showTab('rsiBreakout', event)">📈 RSI日线突破币种</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
         </div>
@@ -4226,6 +4292,48 @@
 
                 <div id="realtimeFibResults" class="results-container"></div>
                 <div id="realtimeFibChart" style="width: 100%; height: 600px; margin-top: 20px;"></div>
+            </div>
+        </div>
+
+        <!-- RSI日线突破币种Tab -->
+        <div id="rsiBreakout" class="tab-content">
+            <h3>📈 RSI日线突破币种</h3>
+            <div class="form-group">
+                <p>扫描前500个币种，寻找满足RSI突破条件的币种</p>
+                
+                <div class="info-box">
+                    <h4>扫描条件：</h4>
+                    <ul>
+                        <li><strong>日线级别</strong>：使用日线K线数据进行分析</li>
+                        <li><strong>RSI超卖≥1天</strong>：RSI低于30且持续至少1天</li>
+                        <li><strong>RSI产生HL</strong>：RSI形成Higher Low模式</li>
+                        <li><strong>RSI上穿均线</strong>：RSI上穿其移动平均线</li>
+                        <li><strong>均线拐头向上</strong>：RSI均线呈上升趋势</li>
+                        <li><strong>RSI低于50</strong>：确保突破尚未完全完成</li>
+                    </ul>
+                </div>
+
+                <div class="form-group">
+                    <label for="rsiScanLimit">扫描数量：</label>
+                    <select id="rsiScanLimit" class="form-control">
+                        <option value="50">50个币种</option>
+                        <option value="100">100个币种</option>
+                        <option value="200">200个币种</option>
+                        <option value="500" selected>500个币种</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="runRSIBreakoutScan()">
+                        🔍 开始扫描RSI突破币种
+                    </button>
+                </div>
+
+                <!-- 扫描状态 -->
+                <div id="rsiScanStatus" class="status-message"></div>
+
+                <!-- 扫描结果 -->
+                <div id="rsiBreakoutResults" class="results-container"></div>
             </div>
         </div>
 
@@ -5218,6 +5326,92 @@
             }
         }
         
+                 // RSI日线突破币种扫描相关函数
+                 async function runRSIBreakoutScan() {
+                     try {
+                         const limit = parseInt(document.getElementById('rsiScanLimit').value);
+                         const statusDiv = document.getElementById('rsiScanStatus');
+                         const resultsDiv = document.getElementById('rsiBreakoutResults');
+                         
+                         statusDiv.textContent = `正在扫描前${limit}个币种，请稍候...`;
+                         statusDiv.className = 'status-message info';
+                         resultsDiv.innerHTML = '';
+                         
+                         const response = await fetch('/rsi-breakout/api/scan', {
+                             method: 'POST',
+                             headers: {
+                                 'Content-Type': 'application/json',
+                             },
+                             body: JSON.stringify({ limit: limit })
+                         });
+                         
+                         const data = await response.json();
+                         
+                         if (data.success && data.results) {
+                             displayRSIBreakoutResults(data.results, data.total_found);
+                             statusDiv.textContent = `扫描完成！找到 ${data.total_found} 个满足条件的币种`;
+                             statusDiv.className = 'status-message success';
+                         } else {
+                             statusDiv.textContent = `扫描失败: ${data.error || '未知错误'}`;
+                             statusDiv.className = 'status-message error';
+                         }
+                         
+                     } catch (error) {
+                         console.error('RSI突破扫描错误:', error);
+                         document.getElementById('rsiScanStatus').textContent = `扫描失败: ${error.message}`;
+                         document.getElementById('rsiScanStatus').className = 'status-message error';
+                     }
+                 }
+                 
+                 function displayRSIBreakoutResults(results, total) {
+                     const resultsDiv = document.getElementById('rsiBreakoutResults');
+                     
+                     if (!results || results.length === 0) {
+                         resultsDiv.innerHTML = '<p>未找到满足条件的币种</p>';
+                         return;
+                     }
+                     
+                     let html = `
+                         <div class="rsi-breakout-results">
+                             <h4>找到 ${total} 个满足RSI突破条件的币种</h4>
+                             <table class="results-table">
+                                 <thead>
+                                     <tr>
+                                         <th>币种</th>
+                                         <th>当前RSI</th>
+                                         <th>超卖天数</th>
+                                         <th>当前价格</th>
+                                         <th>分析时间</th>
+                                     </tr>
+                                 </thead>
+                                 <tbody>
+                     `;
+                     
+                     results.forEach(result => {
+                         const symbol = result.symbol.replace('USDT', '');
+                         const rsiClass = result.current_rsi < 30 ? 'rsi-oversold' : 
+                                        result.current_rsi < 40 ? 'rsi-low' : 'rsi-medium';
+                         
+                         html += `
+                             <tr>
+                                 <td><strong>${symbol}</strong></td>
+                                 <td class="${rsiClass}">${result.current_rsi}</td>
+                                 <td>${result.oversold_days}天</td>
+                                 <td>$${result.current_price.toFixed(6)}</td>
+                                 <td>${new Date(result.analysis_date).toLocaleString('zh-CN')}</td>
+                             </tr>
+                         `;
+                     });
+                     
+                     html += `
+                                 </tbody>
+                             </table>
+                         </div>
+                     `;
+                     
+                     resultsDiv.innerHTML = html;
+                 }
+
                  // 页面加载完成后的初始化
          document.addEventListener('DOMContentLoaded', function() {
              console.log('布林带策略系统已加载完成');

@@ -269,73 +269,82 @@ class RealtimeFibonacciAnalyzer:
     
     def analyze_recent_price_volume_changes(self, price_data, hours=4):
         """分析近期价格和量能变化"""
-        df = pd.DataFrame(price_data)
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-        df = df.sort_values('timestamp')
-        
-        # 获取最近N小时的数据
-        now = datetime.now()
-        cutoff_time = now - timedelta(hours=hours)
-        recent_data = df[df['timestamp'] >= cutoff_time]
-        
-        if len(recent_data) < 2:
-            return None
-        
-        # 计算价格变化
-        start_price = recent_data.iloc[0]['close']
-        end_price = recent_data.iloc[-1]['close']
-        price_change = (end_price - start_price) / start_price
-        
-        # 计算价格变化速度（每小时）
-        time_hours = (recent_data.iloc[-1]['timestamp'] - recent_data.iloc[0]['timestamp']).total_seconds() / 3600
-        price_velocity = price_change / time_hours if time_hours > 0 else 0
-        
-        # 计算量能变化
-        avg_volume = recent_data['volume'].mean()
-        volume_volatility = recent_data['volume'].std() / avg_volume if avg_volume > 0 else 0
-        
-        # 计算量能加权价格变化
-        volume_weighted_change = 0
-        total_volume = 0
-        for i in range(1, len(recent_data)):
-            price_change_i = (recent_data.iloc[i]['close'] - recent_data.iloc[i-1]['close']) / recent_data.iloc[i-1]['close']
-            volume_i = recent_data.iloc[i]['volume']
-            volume_weighted_change += price_change_i * volume_i
-            total_volume += volume_i
-        
-        volume_weighted_change = volume_weighted_change / total_volume if total_volume > 0 else 0
-        
-        # 计算多空强度
-        bullish_strength = 0
-        bearish_strength = 0
-        
-        for i in range(1, len(recent_data)):
-            current = recent_data.iloc[i]
-            previous = recent_data.iloc[i-1]
+        try:
+            df = pd.DataFrame(price_data)
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df = df.sort_values('timestamp')
             
-            if current['close'] > previous['close']:
-                # 多头强度 = 涨幅 × 成交量
-                strength = ((current['close'] - previous['close']) / previous['close']) * current['volume']
-                bullish_strength += strength
-            else:
-                # 空头强度 = 跌幅 × 成交量
-                strength = ((previous['close'] - current['close']) / previous['close']) * current['volume']
-                bearish_strength += strength
+            # 获取最近N小时的数据
+            now = datetime.now()
+            cutoff_time = now - timedelta(hours=hours)
+            recent_data = df[df['timestamp'] >= cutoff_time]
+            
+            # 如果近期数据不足，使用最后几条数据
+            if len(recent_data) < 2:
+                logger.warning(f"近期数据不足: 需要至少2条，实际{len(recent_data)}条，使用最后几条数据")
+                recent_data = df.tail(max(2, min(10, len(df))))
+                if len(recent_data) < 2:
+                    logger.error("数据总量不足，无法进行分析")
+                    return None
         
-        total_strength = bullish_strength + bearish_strength
-        bullish_ratio = bullish_strength / total_strength if total_strength > 0 else 0.5
-        
-        return {
-            'price_change': price_change,
-            'price_velocity': price_velocity,
-            'volume_volatility': volume_volatility,
-            'volume_weighted_change': volume_weighted_change,
-            'bullish_strength': bullish_strength,
-            'bearish_strength': bearish_strength,
-            'bullish_ratio': bullish_ratio,
-            'time_hours': time_hours,
-            'data_points': len(recent_data)
-        }
+            # 计算价格变化
+            start_price = recent_data.iloc[0]['close']
+            end_price = recent_data.iloc[-1]['close']
+            price_change = (end_price - start_price) / start_price
+            
+            # 计算价格变化速度（每小时）
+            time_hours = (recent_data.iloc[-1]['timestamp'] - recent_data.iloc[0]['timestamp']).total_seconds() / 3600
+            price_velocity = price_change / time_hours if time_hours > 0 else 0
+            
+            # 计算量能变化
+            avg_volume = recent_data['volume'].mean()
+            volume_volatility = recent_data['volume'].std() / avg_volume if avg_volume > 0 else 0
+            
+            # 计算量能加权价格变化
+            volume_weighted_change = 0
+            total_volume = 0
+            for i in range(1, len(recent_data)):
+                price_change_i = (recent_data.iloc[i]['close'] - recent_data.iloc[i-1]['close']) / recent_data.iloc[i-1]['close']
+                volume_i = recent_data.iloc[i]['volume']
+                volume_weighted_change += price_change_i * volume_i
+                total_volume += volume_i
+            
+            volume_weighted_change = volume_weighted_change / total_volume if total_volume > 0 else 0
+            
+            # 计算多空强度
+            bullish_strength = 0
+            bearish_strength = 0
+            
+            for i in range(1, len(recent_data)):
+                current = recent_data.iloc[i]
+                previous = recent_data.iloc[i-1]
+                
+                if current['close'] > previous['close']:
+                    # 多头强度 = 涨幅 × 成交量
+                    strength = ((current['close'] - previous['close']) / previous['close']) * current['volume']
+                    bullish_strength += strength
+                else:
+                    # 空头强度 = 跌幅 × 成交量
+                    strength = ((previous['close'] - current['close']) / previous['close']) * current['volume']
+                    bearish_strength += strength
+            
+            total_strength = bullish_strength + bearish_strength
+            bullish_ratio = bullish_strength / total_strength if total_strength > 0 else 0.5
+            
+            return {
+                'price_change': price_change,
+                'price_velocity': price_velocity,
+                'volume_volatility': volume_volatility,
+                'volume_weighted_change': volume_weighted_change,
+                'bullish_strength': bullish_strength,
+                'bearish_strength': bearish_strength,
+                'bullish_ratio': bullish_ratio,
+                'time_hours': time_hours,
+                'data_points': len(recent_data)
+            }
+        except Exception as e:
+            logger.error(f"分析近期价格量能变化失败: {e}")
+            return None
     
     def locate_current_fibonacci_position(self, current_price, fib_levels):
         """定位当前价格在斐波扩展位中的位置"""
@@ -442,18 +451,19 @@ class RealtimeFibonacciAnalyzer:
             price_data = None
             data_source = None
             
-            # 尝试从Bybit获取数据
-            price_data = self.get_bybit_klines(symbol, timeframe, limit)
+            # 尝试从Bybit获取数据（使用BTCUSDT作为测试）
+            test_symbol = 'BTCUSDT' if symbol == 'H' else symbol
+            price_data = self.get_bybit_klines(test_symbol, timeframe, limit)
             if price_data:
                 data_source = "Bybit"
             else:
                 # 尝试从Gate.io获取数据
-                price_data = self.get_gate_klines(symbol, timeframe, limit)
+                price_data = self.get_gate_klines(test_symbol, timeframe, limit)
                 if price_data:
                     data_source = "Gate.io"
                 else:
                     # 尝试从Bitget获取数据
-                    price_data = self.get_bitget_klines(symbol, timeframe, limit)
+                    price_data = self.get_bitget_klines(test_symbol, timeframe, limit)
                     if price_data:
                         data_source = "Bitget"
             
@@ -497,9 +507,13 @@ class RealtimeFibonacciAnalyzer:
             )
             
             # 判断是否在斐波扩展阶段
-            is_in_fib_extension = self.is_in_fibonacci_extension_phase(
-                current_price, fib_levels, recent_analysis
-            )
+            try:
+                is_in_fib_extension = self.is_in_fibonacci_extension_phase(
+                    current_price, fib_levels, recent_analysis
+                )
+            except Exception as e:
+                logger.error(f"判断斐波扩展阶段失败: {e}")
+                is_in_fib_extension = False
             
             return {
                 'symbol': symbol,
@@ -522,24 +536,31 @@ class RealtimeFibonacciAnalyzer:
     
     def is_in_fibonacci_extension_phase(self, current_price, fib_levels, recent_analysis):
         """判断是否在斐波扩展阶段"""
-        if not fib_levels or not recent_analysis:
+        try:
+            if not fib_levels or not recent_analysis:
+                return False
+            
+            # 检查当前价格是否在斐波扩展位附近
+            in_fib_range = False
+            for level, price in fib_levels.items():
+                if price > 0:  # 避免除零错误
+                    distance_ratio = abs(current_price - price) / price
+                    if distance_ratio < 0.05:  # 5%范围内
+                        in_fib_range = True
+                        break
+            
+            # 检查是否有明显的趋势
+            price_velocity = recent_analysis.get('price_velocity', 0)
+            has_trend = abs(price_velocity) > 0.01  # 每小时变化超过1%
+            
+            # 检查量能是否配合
+            volume_volatility = recent_analysis.get('volume_volatility', 0)
+            has_volume_confirmation = volume_volatility > 0.5
+            
+            return in_fib_range and has_trend and has_volume_confirmation
+        except Exception as e:
+            logger.error(f"判断斐波扩展阶段异常: {e}")
             return False
-        
-        # 检查当前价格是否在斐波扩展位附近
-        in_fib_range = False
-        for level, price in fib_levels.items():
-            distance_ratio = abs(current_price - price) / price
-            if distance_ratio < 0.05:  # 5%范围内
-                in_fib_range = True
-                break
-        
-        # 检查是否有明显的趋势
-        has_trend = abs(recent_analysis['price_velocity']) > 0.01  # 每小时变化超过1%
-        
-        # 检查量能是否配合
-        has_volume_confirmation = recent_analysis['volume_volatility'] > 0.5
-        
-        return in_fib_range and has_trend and has_volume_confirmation
     
     def generate_mock_data(self, symbol, timeframe, limit):
         """生成模拟数据"""
@@ -557,6 +578,7 @@ class RealtimeFibonacciAnalyzer:
         base_price = 0.1 if symbol == 'H' else 1.0
         price = base_price
         
+        # 生成更多历史数据，确保有足够的近期数据
         for i in range(limit):
             timestamp = now - (limit - i) * interval
             
