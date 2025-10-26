@@ -14,7 +14,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from typing import List, Dict, Tuple, Optional
-import talib
+# import talib  # 使用pandas内置函数替代
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -145,10 +145,18 @@ class RSIBreakoutScanner:
         return converted_data if converted_data else None
     
     def calculate_rsi(self, prices, period=14):
-        """计算RSI指标"""
+        """计算RSI指标 - 使用指数移动平均"""
         try:
-            rsi_values = talib.RSI(np.array(prices, dtype=float), timeperiod=period)
-            return rsi_values
+            prices = pd.Series(prices)
+            delta = prices.diff()
+            
+            # 使用指数移动平均（EMA）而不是简单移动平均
+            gain = (delta.where(delta > 0, 0)).ewm(alpha=1/period, adjust=False).mean()
+            loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/period, adjust=False).mean()
+            
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            return rsi.values
         except Exception as e:
             logger.error(f"RSI计算失败: {e}")
             return None
@@ -156,8 +164,9 @@ class RSIBreakoutScanner:
     def calculate_ma(self, prices, period=20):
         """计算移动平均线"""
         try:
-            ma_values = talib.SMA(np.array(prices, dtype=float), timeperiod=period)
-            return ma_values
+            prices = pd.Series(prices)
+            ma_values = prices.rolling(window=period).mean()
+            return ma_values.values
         except Exception as e:
             logger.error(f"MA计算失败: {e}")
             return None
@@ -183,36 +192,42 @@ class RSIBreakoutScanner:
         oversold_days = len(rsi_values) - 1 - oversold_start
         return oversold_days >= min_days, oversold_days
     
-    def check_rsi_hl(self, rsi_values, lookback=5):
+    def check_rsi_hl(self, rsi_values, lookback=10):
         """检查RSI是否产生HL（Higher Low）"""
-        if rsi_values is None or len(rsi_values) < lookback + 1:
+        if rsi_values is None or len(rsi_values) < lookback:
             return False
         
         # 获取最近的数据
-        recent_rsi = rsi_values[-lookback-1:]
+        recent_rsi = rsi_values[-lookback:]
         recent_rsi = recent_rsi[~np.isnan(recent_rsi)]
         
-        if len(recent_rsi) < 3:
+        if len(recent_rsi) < 6:
             return False
         
-        # 检查是否有HL模式
+        # 找到最近的两个低点
+        lows = []
         for i in range(1, len(recent_rsi) - 1):
-            if (recent_rsi[i] > recent_rsi[i-1] and 
-                recent_rsi[i] > recent_rsi[i+1] and
-                recent_rsi[i] > recent_rsi[0]):  # 当前点高于起始点
-                return True
+            if (recent_rsi[i] < recent_rsi[i-1] and 
+                recent_rsi[i] < recent_rsi[i+1]):
+                lows.append((i, recent_rsi[i]))
+        
+        # 如果有至少两个低点，检查是否形成HL
+        if len(lows) >= 2:
+            # 取最近的两个低点
+            last_two_lows = lows[-2:]
+            return last_two_lows[1][1] > last_two_lows[0][1]  # 第二个低点高于第一个
         
         return False
     
     def check_rsi_ma_crossover(self, rsi_values, ma_values):
         """检查RSI上穿均线且均线拐头向上"""
         if (rsi_values is None or ma_values is None or 
-            len(rsi_values) < 3 or len(ma_values) < 3):
+            len(rsi_values) < 5 or len(ma_values) < 5):
             return False
         
-        # 检查RSI上穿均线
+        # 检查最近5天内是否有RSI上穿均线
         rsi_cross_up = False
-        for i in range(1, len(rsi_values)):
+        for i in range(max(1, len(rsi_values) - 5), len(rsi_values)):
             if (not np.isnan(rsi_values[i]) and not np.isnan(rsi_values[i-1]) and
                 not np.isnan(ma_values[i]) and not np.isnan(ma_values[i-1])):
                 if (rsi_values[i-1] <= ma_values[i-1] and 
@@ -223,18 +238,15 @@ class RSIBreakoutScanner:
         if not rsi_cross_up:
             return False
         
-        # 检查均线拐头向上
-        recent_ma = ma_values[-3:]
+        # 检查均线趋势（更宽松的条件）
+        recent_ma = ma_values[-5:]
         recent_ma = recent_ma[~np.isnan(recent_ma)]
         
         if len(recent_ma) < 3:
             return False
         
-        # 均线应该呈上升趋势
-        ma_trending_up = (recent_ma[-1] > recent_ma[-2] and 
-                         recent_ma[-2] > recent_ma[-3])
-        
-        return ma_trending_up
+        # 均线整体呈上升趋势（不要求连续上升）
+        return recent_ma[-1] > recent_ma[0]
     
     def analyze_symbol_rsi_breakout(self, symbol):
         """分析单个币种的RSI突破条件"""
@@ -279,7 +291,7 @@ class RSIBreakoutScanner:
             )
             
             # 检查条件2：RSI产生了HL
-            hl_condition = self.check_rsi_hl(rsi_values, lookback=5)
+            hl_condition = self.check_rsi_hl(rsi_values, lookback=10)
             
             # 检查条件3：RSI上穿均线 & 均线拐头向上
             crossover_condition = self.check_rsi_ma_crossover(rsi_values, ma_values)
