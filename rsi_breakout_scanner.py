@@ -74,6 +74,9 @@ class RSIBreakoutScanner:
             formatted_symbol = symbol
             if symbol.endswith('USDT') and not '_' in symbol:
                 formatted_symbol = symbol[:-4] + '_USDT'
+            elif symbol.endswith('USDT') and '_' in symbol:
+                # 已经是正确格式，直接使用
+                formatted_symbol = symbol
             
             url = f"https://api.gateio.ws/api/v4/spot/candlesticks"
             params = {
@@ -253,13 +256,13 @@ class RSIBreakoutScanner:
         try:
             logger.info(f"分析 {symbol} 的RSI突破条件...")
             
-            # 获取日线数据
+            # 获取日线数据 - 优先使用Gate.io
             limit = 50  # 获取50天数据
-            price_data = self.get_bybit_klines(symbol, '1d', limit)
+            price_data = self.get_gate_klines(symbol, '1d', limit)
             
             if not price_data:
-                # 尝试Gate.io
-                price_data = self.get_gate_klines(symbol, '1d', limit)
+                # 备用：尝试Bybit
+                price_data = self.get_bybit_klines(symbol, '1d', limit)
             
             if not price_data or len(price_data) < 30:
                 logger.warning(f"{symbol} 数据不足，跳过")
@@ -323,40 +326,116 @@ class RSIBreakoutScanner:
             logger.error(f"分析 {symbol} RSI突破条件失败: {e}")
             return None
     
+    def get_gate_symbols(self, limit=500):
+        """从Gate.io获取前N个币种"""
+        try:
+            logger.info(f"从Gate.io获取前{limit}个币种...")
+            
+            url = "https://api.gateio.ws/api/v4/spot/currency_pairs"
+            response = requests.get(url, timeout=15)
+            
+            if response.status_code != 200:
+                logger.error(f"Gate.io API错误: {response.status_code} - {response.text}")
+                return self.get_fallback_symbols(limit)
+            
+            data = response.json()
+            if not data:
+                logger.error("Gate.io币种列表为空")
+                return self.get_fallback_symbols(limit)
+            
+            # 过滤USDT交易对
+            usdt_pairs = []
+            for pair in data:
+                if (pair.get('quote') == 'USDT' and 
+                    pair.get('trade_status') == 'tradable'):
+                    base = pair.get('base', '')
+                    if base and base != 'USDT':
+                        usdt_pairs.append(f"{base}USDT")
+            
+            if not usdt_pairs:
+                logger.error("未找到USDT交易对")
+                return self.get_fallback_symbols(limit)
+            
+            # 限制数量
+            symbols = usdt_pairs[:min(limit, len(usdt_pairs))]
+            logger.info(f"获取到{len(symbols)}个USDT交易对")
+            return symbols
+            
+        except Exception as e:
+            logger.error(f"获取Gate.io币种列表失败: {e}")
+            return self.get_fallback_symbols(limit)
+    
+    def get_fallback_symbols(self, limit=500):
+        """获取备用币种列表"""
+        fallback_symbols = [
+            'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'SOLUSDT',
+            'XRPUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'SHIBUSDT',
+            'MATICUSDT', 'LTCUSDT', 'UNIUSDT', 'LINKUSDT', 'ATOMUSDT',
+            'ALGOUSDT', 'VETUSDT', 'FILUSDT', 'TRXUSDT', 'ETCUSDT',
+            'XLMUSDT', 'ICPUSDT', 'THETAUSDT', 'EOSUSDT', 'AAVEUSDT',
+            'SUSHIUSDT', 'SNXUSDT', 'YFIUSDT', 'COMPUSDT', 'MKRUSDT',
+            'CRVUSDT', '1INCHUSDT', 'BALUSDT', 'RENUSDT', 'KNCUSDT',
+            'ZRXUSDT', 'BATUSDT', 'ZECUSDT', 'DASHUSDT', 'NEOUSDT',
+            'QTUMUSDT', 'OMGUSDT', 'LSKUSDT', 'NANOUSDT', 'ONTUSDT',
+            'IOTAUSDT', 'ICXUSDT', 'WAVESUSDT', 'REPUSDT', 'MANAUSDT',
+            'SANDUSDT', 'AXSUSDT', 'GALAUSDT', 'ENJUSDT', 'CHZUSDT',
+            'FLOWUSDT', 'NEARUSDT', 'FTMUSDT', 'ROSEUSDT', 'HBARUSDT',
+            'ONEUSDT', 'ZILUSDT', 'IOSTUSDT', 'BTTUSDT', 'WINUSDT',
+            'BCHUSDT', 'BSVUSDT', 'EOSUSDT', 'XMRUSDT', 'DASHUSDT',
+            'ZECUSDT', 'DCRUSDT', 'DGBUSDT', 'SCUSDT', 'DGBUSDT',
+            'RVNUSDT', 'BEAMUSDT', 'GRINUSDT', 'MWCUSDT', 'AEUSDT',
+            'AIONUSDT', 'BLZUSDT', 'BNTUSDT', 'BQXUSDT', 'BRDUSDT',
+            'BTSUSDT', 'CDTUSDT', 'CMTUSDT', 'CNDUSDT', 'CTRUSDT',
+            'DGDUSDT', 'DLTUSDT', 'DNTUSDT', 'EDGUSDT', 'ENGUSDT',
+            'ENJUSDT', 'EOSUSDT', 'ETCUSDT', 'ETHUSDT', 'EVXUSDT',
+            'FCTUSDT', 'FUNUSDT', 'GASUSDT', 'GNTUSDT', 'GRSUSDT',
+            'GTOUSDT', 'GVTUSDT', 'GXSUSDT', 'HSRUSDT', 'ICNUSDT',
+            'ICXUSDT', 'INSUSDT', 'IOSTUSDT', 'IOTAUSDT', 'KMDUSDT',
+            'KNCUSDT', 'LENDUSDT', 'LINKUSDT', 'LRCUSDT', 'LSKUSDT',
+            'LTCUSDT', 'LUNUSDT', 'MANAUSDT', 'MCOUSDT', 'MDAUSDT',
+            'MITHUSDT', 'MKRUSDT', 'MLNUSDT', 'MODUSDT', 'MTHUSDT',
+            'MTLUSDT', 'NANOUSDT', 'NEBLUSDT', 'NEOUSDT', 'NULSUSDT',
+            'OAXUSDT', 'OMGUSDT', 'ONTUSDT', 'OSTUSDT', 'OXTUSDT',
+            'PAXUSDT', 'PIVXUSDT', 'POAUSDT', 'POEUSDT', 'POLYUSDT',
+            'POWRUSDT', 'PPTUSDT', 'QKCUSDT', 'QLCUSDT', 'QSPUSDT',
+            'QTUMUSDT', 'RCNUSDT', 'RDNUSDT', 'REPUSDT', 'REQUSDT',
+            'RLCUSDT', 'RPXUSDT', 'SALTUSDT', 'SANUSDT', 'SBDUSDT',
+            'SCUSDT', 'SKYUSDT', 'SNGLSUSDT', 'SNMUSDT', 'SNTUSDT',
+            'STORJUSDT', 'STRATUSDT', 'SUBUSDT', 'SYSUSDT', 'TNBUSDT',
+            'TNTUSDT', 'TRIGUSDT', 'TRXUSDT', 'USDCUSDT', 'USDTUSDT',
+            'UTKUSDT', 'VENUSDT', 'VIBUSDT', 'VIBEUSDT', 'WABIUSDT',
+            'WANUSDT', 'WAVESUSDT', 'WINGSUSDT', 'WTCUSDT', 'XLMUSDT',
+            'XMRUSDT', 'XRPUSDT', 'XVGUSDT', 'XZCUSDT', 'YOYOWUSDT',
+            'ZECUSDT', 'ZILUSDT', 'ZRXUSDT'
+        ]
+        
+        logger.info(f"使用备用币种列表，共{len(fallback_symbols)}个币种")
+        return fallback_symbols[:min(limit, len(fallback_symbols))]
+
     def scan_top_symbols(self, limit=500):
         """扫描前500个币种"""
         try:
             logger.info(f"开始扫描前{limit}个币种的RSI突破条件...")
             
-            # 获取币种列表（这里使用一些常见的币种作为示例）
-            # 实际应用中应该从交易所API获取前500个币种
-            common_symbols = [
-                'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'SOLUSDT',
-                'XRPUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'SHIBUSDT',
-                'MATICUSDT', 'LTCUSDT', 'UNIUSDT', 'LINKUSDT', 'ATOMUSDT',
-                'ALGOUSDT', 'VETUSDT', 'FILUSDT', 'TRXUSDT', 'ETCUSDT',
-                'XLMUSDT', 'ICPUSDT', 'THETAUSDT', 'EOSUSDT', 'AAVEUSDT',
-                'SUSHIUSDT', 'SNXUSDT', 'YFIUSDT', 'COMPUSDT', 'MKRUSDT',
-                'CRVUSDT', '1INCHUSDT', 'BALUSDT', 'RENUSDT', 'KNCUSDT',
-                'ZRXUSDT', 'BATUSDT', 'ZECUSDT', 'DASHUSDT', 'NEOUSDT',
-                'QTUMUSDT', 'OMGUSDT', 'LSKUSDT', 'NANOUSDT', 'ONTUSDT',
-                'IOTAUSDT', 'ICXUSDT', 'WAVESUSDT', 'STRATUSDT', 'REPUSDT'
-            ]
-            
-            # 限制扫描数量
-            symbols_to_scan = common_symbols[:min(limit, len(common_symbols))]
+            # 从Gate.io获取币种列表
+            symbols_to_scan = self.get_gate_symbols(limit)
             
             results = []
+            total_symbols = len(symbols_to_scan)
+            logger.info(f"开始扫描{total_symbols}个币种...")
+            
             for i, symbol in enumerate(symbols_to_scan):
                 try:
-                    logger.info(f"扫描进度: {i+1}/{len(symbols_to_scan)} - {symbol}")
+                    if i % 10 == 0:  # 每10个币种报告一次进度
+                        logger.info(f"扫描进度: {i+1}/{total_symbols} ({((i+1)/total_symbols)*100:.1f}%)")
                     
                     result = self.analyze_symbol_rsi_breakout(symbol)
                     if result:
                         results.append(result)
+                        logger.info(f"找到符合条件的币种: {symbol} (RSI: {result['current_rsi']})")
                     
                     # 添加延迟避免API限制
-                    time.sleep(0.1)
+                    time.sleep(0.2)
                     
                 except Exception as e:
                     logger.error(f"扫描 {symbol} 时出错: {e}")
