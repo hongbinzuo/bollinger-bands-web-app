@@ -288,6 +288,11 @@ class RSIBreakoutScanner:
                 logger.warning(f"{symbol} 当前RSI值无效，跳过")
                 return None
             
+            # 计算RSI均值（最近7天）
+            recent_rsi = rsi_values[-7:] if len(rsi_values) >= 7 else rsi_values
+            recent_rsi_clean = recent_rsi[~np.isnan(recent_rsi)]
+            rsi_mean = np.mean(recent_rsi_clean) if len(recent_rsi_clean) > 0 else current_rsi
+            
             # 检查条件1：RSI超卖>=1天
             oversold_condition, oversold_days = self.check_rsi_oversold_duration(
                 rsi_values, threshold=30, min_days=1
@@ -302,15 +307,33 @@ class RSIBreakoutScanner:
             # 检查条件4：RSI值低于50
             rsi_below_50 = current_rsi < 50
             
+            # 检查一周内是否超卖
+            weekly_oversold = False
+            if len(rsi_values) >= 7:
+                weekly_rsi = rsi_values[-7:]
+                weekly_oversold = np.any(weekly_rsi < 30)
+            
+            # 打印详细信息
+            logger.info(f"{symbol} 详细信息:")
+            logger.info(f"  当前RSI: {current_rsi:.2f}")
+            logger.info(f"  RSI均值(7天): {rsi_mean:.2f}")
+            logger.info(f"  一周内超卖: {'是' if weekly_oversold else '否'}")
+            logger.info(f"  超卖持续天数: {oversold_days}")
+            logger.info(f"  有HL模式: {'是' if hl_condition else '否'}")
+            logger.info(f"  RSI上穿均线: {'是' if crossover_condition else '否'}")
+            logger.info(f"  RSI<50: {'是' if rsi_below_50 else '否'}")
+            
             # 综合判断
             all_conditions_met = (oversold_condition and hl_condition and 
                                 crossover_condition and rsi_below_50)
             
             if all_conditions_met:
-                logger.info(f"{symbol} 满足RSI突破条件！RSI={current_rsi:.2f}")
+                logger.info(f"✓ {symbol} 满足RSI突破条件！")
                 return {
                     'symbol': symbol,
                     'current_rsi': round(current_rsi, 2),
+                    'rsi_mean_7d': round(rsi_mean, 2),
+                    'weekly_oversold': weekly_oversold,
                     'oversold_days': oversold_days,
                     'has_hl': hl_condition,
                     'has_crossover': crossover_condition,
@@ -319,7 +342,7 @@ class RSIBreakoutScanner:
                     'analysis_date': datetime.now().isoformat()
                 }
             else:
-                logger.debug(f"{symbol} 不满足RSI突破条件")
+                logger.info(f"- {symbol} 不满足RSI突破条件")
                 return None
                 
         except Exception as e:
@@ -421,6 +444,7 @@ class RSIBreakoutScanner:
             symbols_to_scan = self.get_gate_symbols(limit)
             
             results = []
+            all_symbols_info = []  # 存储所有币种的详细信息
             total_symbols = len(symbols_to_scan)
             logger.info(f"开始扫描{total_symbols}个币种...")
             
@@ -432,7 +456,47 @@ class RSIBreakoutScanner:
                     result = self.analyze_symbol_rsi_breakout(symbol)
                     if result:
                         results.append(result)
-                        logger.info(f"找到符合条件的币种: {symbol} (RSI: {result['current_rsi']})")
+                        logger.info(f"✓ 找到符合条件的币种: {symbol} (RSI: {result['current_rsi']})")
+                    
+                    # 收集所有币种的基本信息（即使不满足条件）
+                    try:
+                        # 获取基本RSI信息
+                        limit = 50
+                        price_data = self.get_gate_klines(symbol, '1d', limit)
+                        if not price_data:
+                            price_data = self.get_bybit_klines(symbol, '1d', limit)
+                        
+                        if price_data and len(price_data) >= 30:
+                            df = pd.DataFrame(price_data)
+                            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                            df = df.sort_values('timestamp')
+                            
+                            close_prices = df['close'].values
+                            rsi_values = self.calculate_rsi(close_prices, self.rsi_period)
+                            
+                            if rsi_values is not None:
+                                current_rsi = rsi_values[-1]
+                                if not np.isnan(current_rsi):
+                                    # 计算RSI均值（最近7天）
+                                    recent_rsi = rsi_values[-7:] if len(rsi_values) >= 7 else rsi_values
+                                    recent_rsi_clean = recent_rsi[~np.isnan(recent_rsi)]
+                                    rsi_mean = np.mean(recent_rsi_clean) if len(recent_rsi_clean) > 0 else current_rsi
+                                    
+                                    # 检查一周内是否超卖
+                                    weekly_oversold = False
+                                    if len(rsi_values) >= 7:
+                                        weekly_rsi = rsi_values[-7:]
+                                        weekly_oversold = np.any(weekly_rsi < 30)
+                                    
+                                    all_symbols_info.append({
+                                        'symbol': symbol,
+                                        'current_rsi': round(current_rsi, 2),
+                                        'rsi_mean_7d': round(rsi_mean, 2),
+                                        'weekly_oversold': weekly_oversold,
+                                        'current_price': close_prices[-1]
+                                    })
+                    except Exception as e:
+                        logger.debug(f"获取 {symbol} 基本信息失败: {e}")
                     
                     # 添加延迟避免API限制
                     time.sleep(0.2)
@@ -441,7 +505,20 @@ class RSIBreakoutScanner:
                     logger.error(f"扫描 {symbol} 时出错: {e}")
                     continue
             
-            logger.info(f"扫描完成，找到 {len(results)} 个满足条件的币种")
+            # 打印所有币种的汇总信息
+            logger.info(f"\n=== 扫描完成 ===")
+            logger.info(f"找到 {len(results)} 个满足条件的币种")
+            logger.info(f"成功分析 {len(all_symbols_info)} 个币种")
+            
+            # 按RSI值排序显示
+            all_symbols_info.sort(key=lambda x: x['current_rsi'])
+            logger.info(f"\n=== 所有币种RSI信息（按RSI值排序）===")
+            for info in all_symbols_info[:20]:  # 显示前20个
+                logger.info(f"{info['symbol']}: RSI={info['current_rsi']}, 均值={info['rsi_mean_7d']}, 一周超卖={'是' if info['weekly_oversold'] else '否'}")
+            
+            if len(all_symbols_info) > 20:
+                logger.info(f"... 还有 {len(all_symbols_info) - 20} 个币种")
+            
             return results
             
         except Exception as e:
