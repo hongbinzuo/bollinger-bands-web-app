@@ -282,27 +282,43 @@ class RealtimeFibonacciV2:
         if not self._ok(price) or not self._ok(low) or not self._ok(high) or high == low:
             return {}
         rng = high - low
+        # 比例定义
         if orientation == 'high_to_low':
             # 0->high, 1->low（回撤）
             ratio = (price - high) / (low - high)
+            price_for_level = lambda lv: float(high - rng * lv)
+            # 上方=价格更高 => lv < ratio， 下方=价格更低 => lv >= ratio
+            upper_candidates = [lv for lv in FIB_LEVELS if lv < ratio]
+            lower_candidates = [lv for lv in FIB_LEVELS if lv >= ratio]
+            upper_candidates.sort(key=lambda lv: (ratio - lv, lv))  # 最近的在前
+            lower_candidates.sort(key=lambda lv: (lv - ratio, lv))
         else:
             # 0->low, 1->high（反弹）
             ratio = (price - low) / rng
+            price_for_level = lambda lv: float(low + rng * lv)
+            # 上方=价格更高 => lv > ratio， 下方=价格更低 => lv <= ratio
+            upper_candidates = [lv for lv in FIB_LEVELS if lv > ratio]
+            lower_candidates = [lv for lv in FIB_LEVELS if lv <= ratio]
+            upper_candidates.sort(key=lambda lv: (lv - ratio, lv))
+            lower_candidates.sort(key=lambda lv: (ratio - lv, lv))
         # 找最近的标准位
         nearest = min(FIB_LEVELS, key=lambda lv: abs(ratio - lv))
-        if orientation == 'high_to_low':
-            nearest_price = high - rng * nearest
-        else:
-            nearest_price = low + rng * nearest
-        # 上下方位点（各取3个）
-        upper = sorted([lv for lv in FIB_LEVELS if lv > ratio])[:3]
-        lower = sorted([lv for lv in FIB_LEVELS if lv <= ratio], reverse=True)[:3]
+        nearest_price = price_for_level(nearest)
+        # 仅返回最近的上方/下方位点各1个即可
+        nearest_above = upper_candidates[0] if upper_candidates else None
+        nearest_below = lower_candidates[0] if lower_candidates else None
+        upper = []
+        lower = []
+        if nearest_above is not None:
+            upper.append([float(nearest_above), price_for_level(nearest_above)])
+        if nearest_below is not None:
+            lower.append([float(nearest_below), price_for_level(nearest_below)])
         return {
             'ratio': float(ratio),
             'nearest_level': float(nearest),
             'nearest_price': float(nearest_price),
-            'upper_levels': [[float(lv), float(low + rng * lv)] for lv in upper],
-            'lower_levels': [[float(lv), float(low + rng * lv)] for lv in lower],
+            'upper_levels': upper,
+            'lower_levels': lower,
             'orientation': orientation
         }
 

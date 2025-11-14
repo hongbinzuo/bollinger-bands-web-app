@@ -1725,58 +1725,7 @@
                     </div>
                 `;
 
-                // 显示上方和下方位点
-                if (pos.upper_levels && pos.upper_levels.length > 0) {
-                    html += `
-                        <div class="fib-levels-container">
-                            <h4>⬆️ 上方关键位点</h4>
-                            <div class="fib-levels-grid">
-                    `;
-                    for (const [level, price] of pos.upper_levels) {
-                        const resistanceProb = 0;
-                        const probClass = 'low';
-                        
-                        html += `
-                            <div class="fib-level-item ${probClass}">
-                                <div class="fib-level-header">
-                                    <strong>${level}x 斐波位</strong>
-                                    <span class="probability-badge">阻力: -</span>
-                                </div>
-                                <div class="fib-level-details">
-                                    <div class="fib-price">价格: ${price.toFixed(6)}</div>
-                                    <div class="fib-distance">距离: ${cp ? (((price - cp) / cp) * 100).toFixed(1) + '%' : '-'}</div>
-                                </div>
-                            </div>
-                        `;
-                    }
-                    html += `</div></div>`;
-                }
-
-                if (pos.lower_levels && pos.lower_levels.length > 0) {
-                    html += `
-                        <div class="fib-levels-container">
-                            <h4>⬇️ 下方关键位点</h4>
-                            <div class="fib-levels-grid">
-                    `;
-                    for (const [level, price] of pos.lower_levels) {
-                        const supportProb = 0;
-                        const probClass = 'low';
-                        
-                        html += `
-                            <div class="fib-level-item ${probClass}">
-                                <div class="fib-level-header">
-                                    <strong>${level}x 斐波位</strong>
-                                    <span class="probability-badge">支撑: -</span>
-                                </div>
-                                <div class="fib-level-details">
-                                    <div class="fib-price">价格: ${price.toFixed(6)}</div>
-                                    <div class="fib-distance">距离: ${cp ? (((cp - price) / cp) * 100).toFixed(1) + '%' : '-'}</div>
-                                </div>
-                            </div>
-                        `;
-                    }
-                    html += `</div></div>`;
-                }
+                // 简化显示：只展示最近位点，不展示上下方列表
             }
 
             // 显示近期变化分析
@@ -3535,16 +3484,17 @@
          
         
         .info-box {
-            background: #ecf0f1;
+            background: rgba(255, 255, 255, 0.10);
             border-left: 4px solid #3498db;
             padding: 15px;
             margin: 15px 0;
             border-radius: 4px;
+            color: #ffffff;
         }
         
         .info-box h4 {
             margin-top: 0;
-            color: #2c3e50;
+            color: #ffffff;
         }
         
         .info-box ul {
