@@ -1882,29 +1882,80 @@
         }
 
         // ======= 实时斐波 扫描列表 =======
+        let realtimeFibQuery = { page: 1, totalPages: 1 };
+
+        function readRealtimeFibQueryFromUI() {
+            const sort = document.getElementById('realtimeFibSort').value;
+            const [sort_by, sort_dir] = sort.split('-');
+            return {
+                source: document.getElementById('realtimeFibSource').value,
+                limit: parseInt(document.getElementById('realtimeFibLimit').value) || 1000,
+                timeframe: document.getElementById('realtimeFibScanTf').value,
+                only_extension: document.getElementById('realtimeFibOnlyExt').checked,
+                sort_by, sort_dir,
+                page: 1,
+                page_size: parseInt(document.getElementById('realtimeFibPageSize').value) || 50,
+            };
+        }
+
         async function scanRealtimeFibList() {
             try {
-                const src = document.getElementById('realtimeFibSource').value;
-                const limit = parseInt(document.getElementById('realtimeFibLimit').value) || 1000;
-                const tf = document.getElementById('realtimeFibScanTf').value;
-                showStatus(`开始扫描 ${src.toUpperCase()} 前 ${limit} 个交易对...`, 'info');
+                realtimeFibQuery = readRealtimeFibQueryFromUI();
+                showStatus(`开始扫描 ${realtimeFibQuery.source.toUpperCase()} 前 ${realtimeFibQuery.limit} 个交易对...`, 'info');
                 const resp = await fetch('/realtime-fib/api/scan', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ source: src, limit: limit, timeframe: tf })
+                    body: JSON.stringify(realtimeFibQuery)
                 });
                 const data = await resp.json();
                 if (!data.success) {
                     showStatus('扫描失败: ' + (data.error || '未知错误'), 'error');
                     return;
                 }
+                realtimeFibQuery.page = data.pagination?.page || 1;
+                realtimeFibQuery.page_size = data.pagination?.page_size || realtimeFibQuery.page_size;
+                realtimeFibQuery.totalPages = data.pagination?.total_pages || 1;
                 renderRealtimeFibList(data.rows, data.source, data.timeframe);
+                updateRealtimeFibPager();
                 showStatus(`扫描完成，共 ${data.total} 条`, 'success');
             } catch (e) {
                 console.error('扫描失败', e);
                 showStatus('扫描失败: ' + e.message, 'error');
             }
         }
+
+        function updateRealtimeFibPager() {
+            const el = document.getElementById('realtimeFibPageInfo');
+            if (el) el.textContent = `第 ${realtimeFibQuery.page || 1} / ${realtimeFibQuery.totalPages || 1} 页`;
+        }
+
+        async function applyRealtimeFibSortFilter() {
+            const q = readRealtimeFibQueryFromUI();
+            realtimeFibQuery = q;
+            await scanRealtimeFibGoToPage(1);
+        }
+
+        async function scanRealtimeFibGoToPage(page) {
+            try {
+                realtimeFibQuery.page = Math.max(1, page);
+                const resp = await fetch('/realtime-fib/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(realtimeFibQuery)
+                });
+                const data = await resp.json();
+                if (!data.success) return;
+                realtimeFibQuery.page = data.pagination?.page || realtimeFibQuery.page;
+                realtimeFibQuery.totalPages = data.pagination?.total_pages || 1;
+                renderRealtimeFibList(data.rows, data.source, data.timeframe);
+                updateRealtimeFibPager();
+            } catch (e) {
+                showStatus('分页加载失败: ' + e.message, 'error');
+            }
+        }
+
+        function realtimeFibPrevPage() { if ((realtimeFibQuery.page || 1) > 1) scanRealtimeFibGoToPage((realtimeFibQuery.page || 1) - 1); }
+        function realtimeFibNextPage() { scanRealtimeFibGoToPage((realtimeFibQuery.page || 1) + 1); }
 
         function renderRealtimeFibList(rows, source, timeframe) {
             const el = document.getElementById('realtimeFibList');

@@ -266,17 +266,40 @@ class RealtimeFibonacciV2:
             'position': pos
         }
 
-    def scan_symbols(self, symbols: List[str], timeframe: str = '1d', source: str = 'gate', max_workers: int = 12) -> List[Dict]:
+    def scan_symbols(
+        self,
+        symbols: List[str],
+        timeframe: str = '1d',
+        source: str = 'gate',
+        max_workers: int = 8,
+        batch_size: int = 50,
+        throttle_sec: float = 0.2,
+    ) -> List[Dict]:
+        """分批并发扫描，批间节流，降低被限频概率。"""
         results: List[Dict] = []
-        with ThreadPoolExecutor(max_workers=max_workers) as ex:
-            futures = {ex.submit(self.analyze_one, s, timeframe, source): s for s in symbols}
-            for fut in as_completed(futures):
+        n = len(symbols)
+        if n == 0:
+            return results
+        batch_size = max(1, min(batch_size, 200))
+        max_workers = max(1, min(max_workers, 32))
+        for i in range(0, n, batch_size):
+            chunk = symbols[i:i + batch_size]
+            with ThreadPoolExecutor(max_workers=max_workers) as ex:
+                futures = {ex.submit(self.analyze_one, s, timeframe, source): s for s in chunk}
+                for fut in as_completed(futures):
+                    try:
+                        r = fut.result()
+                        if r:
+                            results.append(r)
+                    except Exception as e:
+                        logger.debug(f"扫描 {futures[fut]} 失败: {e}")
+            # 批次之间稍作等待
+            if i + batch_size < n and throttle_sec > 0:
                 try:
-                    r = fut.result()
-                    if r:
-                        results.append(r)
-                except Exception as e:
-                    logger.debug(f"扫描 {futures[fut]} 失败: {e}")
+                    import time as _t
+                    _t.sleep(throttle_sec)
+                except Exception:
+                    pass
         return results
 
 
@@ -303,10 +326,32 @@ def api_scan():
     source = (data.get('source') or 'gate').lower()
     limit = int(data.get('limit', 1000))
     timeframe = data.get('timeframe', '1d')
+    # 并发与限速参数
+    max_workers = int(data.get('max_workers', 8))
+    batch_size = int(data.get('batch_size', 50))
+    throttle_sec = float(data.get('throttle_sec', 0.2))
+    # 分页与排序/筛选
+    page = max(1, int(data.get('page', 1)))
+    page_size = max(1, min(200, int(data.get('page_size', 50))))
+    sort_by = (data.get('sort_by') or 'ratio').lower()  # ratio/current_price/nearest_level
+    sort_dir = (data.get('sort_dir') or 'desc').lower()  # asc/desc
+    only_extension = bool(data.get('only_extension', False))  # ratio>=1
+    min_ratio = data.get('min_ratio')
+    try:
+        min_ratio = float(min_ratio) if min_ratio is not None else None
+    except Exception:
+        min_ratio = None
     # 获取交易对列表
     symbols = engine.get_bybit_top_symbols(limit) if source == 'bybit' else engine.get_gate_top_symbols(limit)
     # 扫描
-    results = engine.scan_symbols(symbols, timeframe=timeframe, source=source)
+    results = engine.scan_symbols(
+        symbols,
+        timeframe=timeframe,
+        source=source,
+        max_workers=max_workers,
+        batch_size=batch_size,
+        throttle_sec=throttle_sec,
+    )
     # 简化列表返回字段，便于前端表格展示
     list_rows = []
     for r in results:
@@ -322,9 +367,45 @@ def api_scan():
             'nearest_level': pos.get('nearest_level'),
             'nearest_price': pos.get('nearest_price')
         })
-    # 结果按 ratio 从大到小排序，方便观察处于扩展区的标的
-    list_rows.sort(key=lambda x: (x.get('ratio') is not None, x.get('ratio') or -1), reverse=True)
-    return jsonify({'success': True, 'source': source, 'timeframe': timeframe, 'total': len(list_rows), 'rows': list_rows[:limit]})
+    # 筛选（仅扩展位 / 最小比例）
+    filtered = []
+    for row in list_rows:
+        r = row.get('ratio')
+        if r is None:
+            continue
+        if only_extension and r < 1.0:
+            continue
+        if min_ratio is not None and r < min_ratio:
+            continue
+        filtered.append(row)
+    # 排序
+    key_funcs = {
+        'ratio': lambda x: (x.get('ratio') is not None, x.get('ratio') or -1),
+        'current_price': lambda x: x.get('current_price') or 0,
+        'nearest_level': lambda x: x.get('nearest_level') or 0,
+    }
+    key_fn = key_funcs.get(sort_by, key_funcs['ratio'])
+    reverse = (sort_dir != 'asc')
+    filtered.sort(key=key_fn, reverse=reverse)
+    # 分页
+    total = len(filtered)
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+    page = min(page, max(1, total_pages) if total_pages > 0 else 1)
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_rows = filtered[start:end]
+    return jsonify({
+        'success': True,
+        'source': source,
+        'timeframe': timeframe,
+        'total': total,
+        'pagination': {
+            'page': page,
+            'page_size': page_size,
+            'total_pages': total_pages,
+        },
+        'rows': page_rows
+    })
 
 
 @realtime_fib_bp.route('/api/analyze', methods=['POST'])
@@ -337,4 +418,3 @@ def api_analyze_one():
     if not res:
         return jsonify({'success': False, 'error': '分析失败或无数据'}), 500
     return jsonify({'success': True, 'result': res})
-
