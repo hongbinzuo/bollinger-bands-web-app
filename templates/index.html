@@ -1641,7 +1641,16 @@
                         symbol: symbol,
                         timeframe: timeframe,
                         algo: algo,
-                        swing: swing
+                        swing: {
+                            ...swing,
+                            anchor: {
+                                high_date: document.getElementById('fibAnchorHighDate')?.value || null,
+                                high_price: (function(){ const v=document.getElementById('fibAnchorHighPrice')?.value; return v===''? null: parseFloat(v); })(),
+                                low_date: document.getElementById('fibAnchorLowDate')?.value || null,
+                                low_price: (function(){ const v=document.getElementById('fibAnchorLowPrice')?.value; return v===''? null: parseFloat(v); })(),
+                            }
+                        },
+                        include_series: true
                     })
                 });
 
@@ -1858,6 +1867,15 @@
                 },
                 plugins: [rightLabelPlugin]
             });
+        }
+        function exportFibChartPng(){
+            const canvas = document.getElementById('realtimeFibChart');
+            try {
+                const url = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = url; a.download = `${document.getElementById('realtimeSymbol').value}_${document.getElementById('realtimeTimeframe').value}_fib.png`;
+                document.body.appendChild(a); a.click(); a.remove();
+            } catch (e){ console.error('导出失败', e); }
         }
 
         // ======= 实时斐波 扫描列表 =======

@@ -323,6 +323,57 @@ class RealtimeFibonacciV2:
         }
 
     # ----------------------------- 单币与批量分析 -----------------------------
+    def _parse_anchor(self, df: pd.DataFrame, anchor: Dict) -> Optional[Swing]:
+        """根据锚点覆盖高低点。anchor 可包含:
+        {high_date: 'YYYY-MM-DD', high_price: float, low_date: 'YYYY-MM-DD', low_price: float}
+        若只给日期/价格的一部分，将尽力匹配最近K线并回退到K线的high/low。
+        """
+        if not anchor:
+            return None
+        try:
+            # 找到日期对应的索引
+            def near_index(date_str: str) -> Optional[int]:
+                if not date_str:
+                    return None
+                try:
+                    ts = pd.to_datetime(date_str)
+                except Exception:
+                    return None
+                # 找最接近的行
+                deltas = (df['t'] - ts).abs()
+                i = int(deltas.idxmin())
+                return i
+
+            i_high = near_index(str(anchor.get('high_date', '')).strip())
+            i_low = near_index(str(anchor.get('low_date', '')).strip())
+
+            if i_high is None and i_low is None:
+                return None
+
+            # 价格覆盖或回退到K线 extremum
+            if i_high is not None:
+                high_ts = int(df['t'].iloc[i_high].timestamp() * 1000)
+                high_price = float(anchor.get('high_price') or df['high'].iloc[i_high])
+            else:
+                # 只有低点
+                high_ts = int(df['t'].iloc[-1].timestamp() * 1000)
+                high_price = float(df['high'].iloc[-1])
+
+            if i_low is not None:
+                low_ts = int(df['t'].iloc[i_low].timestamp() * 1000)
+                low_price = float(anchor.get('low_price') or df['low'].iloc[i_low])
+            else:
+                low_ts = int(df['t'].iloc[0].timestamp() * 1000)
+                low_price = float(df['low'].iloc[0])
+
+            if low_price <= 0 or high_price <= 0 or low_price == high_price:
+                return None
+            # 趋势按时间判断
+            tr = 'up' if low_ts <= high_ts else 'down'
+            return Swing(low=low_price, low_ts=low_ts, high=high_price, high_ts=high_ts, trend=tr)
+        except Exception:
+            return None
+
     def analyze_one(self, symbol: str, timeframe: str = '1d', source: str = 'gate', algo: str = 'cycle', swing_cfg: Optional[Dict] = None, include_series: bool = False) -> Optional[Dict]:
         df = None
         if source == 'bybit':
@@ -335,8 +386,12 @@ class RealtimeFibonacciV2:
             return None
         swing = None
         cfg = swing_cfg or {}
+        # 1) 手动锚定优先
+        anchor = cfg.get('anchor') or {}
+        if anchor:
+            swing = self._parse_anchor(df, anchor)
         if algo == 'cycle' and timeframe == '1d':
-            swing = self.find_cycle_swing(
+            swing = swing or self.find_cycle_swing(
                 df,
                 lookback_days=int(cfg.get('lookback_days', 420)),
                 pivot=int(cfg.get('pivot', 10)),
@@ -368,7 +423,8 @@ class RealtimeFibonacciV2:
         }
         if include_series:
             try:
-                series = [{'t': int(ts.value // 10**6), 'close': float(c)} for ts, c in zip(df['t'], df['close'])]
+                series = [{'t': int(ts.value // 10**6), 'open': float(o), 'high': float(h), 'low': float(l), 'close': float(c)} 
+                          for ts, o, h, l, c in zip(df['t'], df['open'], df['high'], df['low'], df['close'])]
                 result['series'] = series
             except Exception:
                 pass
