@@ -205,6 +205,67 @@ class RealtimeFibonacciV2:
                      high=float(highs[i_high]), high_ts=int(df['t'].iloc[i_high].timestamp() * 1000),
                      trend=tr)
 
+    def find_cycle_swing(
+        self,
+        df: pd.DataFrame,
+        lookback_days: int = 420,
+        pivot: int = 10,
+        min_separation_days: int = 10,
+        min_move_pct: float = 0.10,
+    ) -> Optional[Swing]:
+        """
+        识别一个“周期”高低点：
+        - 在近 lookback_days 天内取最高点作为周期高点
+        - 选取该高点之前的最低点作为周期低点（需与高点时间相隔>=min_separation_days）
+        - 要求高低点涨幅至少为 min_move_pct，否则退化为最近极值法
+        """
+        if df is None or df.empty:
+            return None
+        dff = df.copy()
+        if 't' not in dff.columns:
+            return None
+        # 仅保留近 lookback_days 的数据（按日）
+        try:
+            end_ts = dff['t'].iloc[-1]
+            start_ts = end_ts - pd.Timedelta(days=lookback_days)
+            dff = dff[dff['t'] >= start_ts].reset_index(drop=True)
+        except Exception:
+            pass
+        if len(dff) < max(40, pivot * 4):
+            return None
+
+        highs = dff['high'].values
+        lows = dff['low'].values
+        # 周期高点 = 近窗口内最高价所在的索引
+        try:
+            i_high = int(np.nanargmax(highs))
+        except ValueError:
+            return None
+
+        # 找到高点之前的最低点，且至少相隔 min_separation_days 根K线（按1d）
+        sep = max(1, min_separation_days)
+        search_end = max(0, i_high - sep)
+        if search_end <= 0:
+            return None
+        try:
+            i_low = int(np.nanargmin(lows[:search_end]))
+        except ValueError:
+            return None
+
+        low = float(lows[i_low])
+        high = float(highs[i_high])
+        if low <= 0 or high <= 0 or high == low:
+            return None
+        move = (high - low) / low
+        if move < min_move_pct:
+            # 涨幅不够，退化为最近极值法
+            return self.find_recent_swing(df, pivot=pivot)
+
+        low_ts = int(dff['t'].iloc[i_low].timestamp() * 1000)
+        high_ts = int(dff['t'].iloc[i_high].timestamp() * 1000)
+        # 趋势由低到高
+        return Swing(low=low, low_ts=low_ts, high=high, high_ts=high_ts, trend='up')
+
     def compute_fib_map(self, low: float, high: float) -> Dict[float, float]:
         if not self._ok(low) or not self._ok(high) or high <= 0 or low <= 0 or high == low:
             return {}
@@ -231,7 +292,7 @@ class RealtimeFibonacciV2:
         }
 
     # ----------------------------- 单币与批量分析 -----------------------------
-    def analyze_one(self, symbol: str, timeframe: str = '1d', source: str = 'gate') -> Optional[Dict]:
+    def analyze_one(self, symbol: str, timeframe: str = '1d', source: str = 'gate', algo: str = 'cycle') -> Optional[Dict]:
         df = None
         if source == 'bybit':
             interval = {'1d': 'D', '4h': '240', '1h': '60'}.get(timeframe, 'D')
@@ -241,7 +302,11 @@ class RealtimeFibonacciV2:
             df = self.get_klines_gate(symbol, interval=interval)
         if df is None or len(df) < 20:
             return None
-        swing = self.find_recent_swing(df)
+        swing = None
+        if algo == 'cycle' and timeframe == '1d':
+            swing = self.find_cycle_swing(df)
+        if swing is None:
+            swing = self.find_recent_swing(df)
         if swing is None:
             return None
         current_price = float(df['close'].iloc[-1])
@@ -326,6 +391,7 @@ def api_scan():
     source = (data.get('source') or 'gate').lower()
     limit = int(data.get('limit', 1000))
     timeframe = data.get('timeframe', '1d')
+    algo = (data.get('algo') or 'cycle').lower()
     # 并发与限速参数
     max_workers = int(data.get('max_workers', 8))
     batch_size = int(data.get('batch_size', 50))
@@ -414,7 +480,8 @@ def api_analyze_one():
     symbol = data.get('symbol', 'BTCUSDT').upper()
     timeframe = data.get('timeframe', '1d')
     source = (data.get('source') or 'gate').lower()
-    res = engine.analyze_one(symbol, timeframe=timeframe, source=source)
+    algo = (data.get('algo') or 'cycle').lower()
+    res = engine.analyze_one(symbol, timeframe=timeframe, source=source, algo=algo)
     if not res:
         return jsonify({'success': False, 'error': '分析失败或无数据'}), 500
     return jsonify({'success': True, 'result': res})
