@@ -23,7 +23,6 @@ from fibonacci_api import fibonacci_bp
 from momentum_field_api import momentum_field_bp
 from fibonacci_probability_model import fibonacci_prob_bp
 from realtime_fibonacci_analyzer import realtime_fib_bp
-from rsi_breakout_scanner import rsi_breakout_bp
 
 app = Flask(__name__)
 
@@ -42,7 +41,6 @@ app.register_blueprint(fibonacci_bp)
 app.register_blueprint(momentum_field_bp)
 app.register_blueprint(fibonacci_prob_bp)
 app.register_blueprint(realtime_fib_bp)
-app.register_blueprint(rsi_breakout_bp)
 
 # 设置日志
 import logging
