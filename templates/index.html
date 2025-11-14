@@ -1764,74 +1764,99 @@
         // 绘制实时斐波图表
         function drawRealtimeFibonacciChart(result) {
             const ctx = document.getElementById('realtimeFibChart').getContext('2d');
-            
-            if (realtimeFibChart) {
-                realtimeFibChart.destroy();
+            if (realtimeFibChart) realtimeFibChart.destroy();
+
+            const series = Array.isArray(result.series) ? result.series : [];
+            const labels = series.map(p => new Date(p.t).toLocaleDateString());
+            const closes = series.map(p => p.close);
+
+            // 斐波位水平线作为多条 line 数据集
+            const fibDatasets = [];
+            const levels = Object.keys(result.fib_levels).map(parseFloat).sort((a,b)=>a-b);
+            for (const lv of levels) {
+                const y = result.fib_levels[lv];
+                fibDatasets.push({
+                    type: 'line',
+                    label: `${lv}`,
+                    data: Array(labels.length).fill(y),
+                    borderColor: 'rgba(200,200,200,0.35)',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    fill: false,
+                    borderDash: lv===0.5?[]:[5,5]
+                });
             }
 
-            // 准备图表数据
-            const levels = Object.keys(result.fib_levels);
-            const prices = Object.values(result.fib_levels);
-            const currentPrice = result.current_price;
-            
-            // 创建价格线数据
-            const priceData = prices.map(price => ({
-                x: price,
-                y: price,
-                label: `${Object.keys(result.fib_levels).find(k => result.fib_levels[k] === price)}x`
-            }));
+            // 当前价格线
+            const cp = Number(result.current_price || 0);
+            if (cp) {
+                fibDatasets.push({
+                    type: 'line',
+                    label: '当前价格',
+                    data: Array(labels.length).fill(cp),
+                    borderColor: 'rgba(76,175,80,0.8)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false
+                });
+            }
+
+            // K线替代：收盘价折线（无需额外插件）
+            const priceLine = {
+                type: 'line',
+                label: '收盘价',
+                data: closes,
+                borderColor: 'rgba(52,152,219,0.9)',
+                borderWidth: 1.5,
+                pointRadius: 0,
+                fill: false
+            };
+
+            // 右侧文字标签插件（显示各斐波位的价格和标签）
+            const rightLabelPlugin = {
+                id: 'rightLabels',
+                afterDraw(chart, args, opts) {
+                    const {ctx, scales} = chart;
+                    const yScale = scales.y;
+                    ctx.save();
+                    ctx.font = '12px sans-serif';
+                    ctx.textAlign = 'right';
+                    ctx.fillStyle = '#ccc';
+                    for (const lv of levels) {
+                        const y = result.fib_levels[lv];
+                        const py = yScale.getPixelForValue(y);
+                        const text = `${lv} (${Number(y).toFixed(2)})`;
+                        ctx.fillText(text, chart.chartArea.right - 4, py - 2);
+                    }
+                    // 当前价格
+                    if (cp) {
+                        const py = yScale.getPixelForValue(cp);
+                        ctx.fillStyle = '#4CAF50';
+                        ctx.fillText(`P (${cp.toFixed(2)})`, chart.chartArea.right - 4, py - 2);
+                    }
+                    ctx.restore();
+                }
+            };
 
             realtimeFibChart = new Chart(ctx, {
-                type: 'scatter',
+                type: 'line',
                 data: {
-                    datasets: [{
-                        label: '斐波扩展位',
-                        data: priceData,
-                        backgroundColor: 'rgba(255, 193, 7, 0.8)',
-                        borderColor: 'rgb(255, 193, 7)',
-                        borderWidth: 2,
-                        pointRadius: 8
-                    }, {
-                        label: '当前价格',
-                        data: [{
-                            x: currentPrice,
-                            y: currentPrice,
-                            label: '当前价格'
-                        }],
-                        backgroundColor: 'rgba(76, 175, 80, 0.8)',
-                        borderColor: 'rgb(76, 175, 80)',
-                        borderWidth: 3,
-                        pointRadius: 10
-                    }]
+                    labels,
+                    datasets: [priceLine, ...fibDatasets]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
-                        title: {
-                            display: true,
-                            text: `${result.symbol} 实时斐波扩展位分析`
-                        },
-                        legend: {
-                            display: true
-                        }
+                        title: { display: true, text: `${result.symbol} 斐波图表` },
+                        legend: { display: false }
                     },
                     scales: {
-                        x: {
-                            type: 'linear',
-                            title: {
-                                display: true,
-                                text: '价格'
-                            }
-                        },
-                        y: {
-                            type: 'linear',
-                            title: {
-                                display: true,
-                                text: '价格'
-                            }
-                        }
+                        x: { display: true },
+                        y: { display: true }
                     }
-                }
+                },
+                plugins: [rightLabelPlugin]
             });
         }
 

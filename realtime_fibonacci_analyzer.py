@@ -323,7 +323,7 @@ class RealtimeFibonacciV2:
         }
 
     # ----------------------------- 单币与批量分析 -----------------------------
-    def analyze_one(self, symbol: str, timeframe: str = '1d', source: str = 'gate', algo: str = 'cycle', swing_cfg: Optional[Dict] = None) -> Optional[Dict]:
+    def analyze_one(self, symbol: str, timeframe: str = '1d', source: str = 'gate', algo: str = 'cycle', swing_cfg: Optional[Dict] = None, include_series: bool = False) -> Optional[Dict]:
         df = None
         if source == 'bybit':
             interval = {'1d': 'D', '4h': '240', '1h': '60'}.get(timeframe, 'D')
@@ -353,7 +353,7 @@ class RealtimeFibonacciV2:
         orientation = 'high_to_low' if swing.high_ts >= swing.low_ts else 'low_to_high'
         fib_map = self.compute_fib_map(low, high, orientation)
         pos = self.locate_position(current_price, low, high, orientation)
-        return {
+        result = {
             'symbol': symbol,
             'timeframe': timeframe,
             'source': source,
@@ -366,6 +366,13 @@ class RealtimeFibonacciV2:
             'fib_levels': fib_map,
             'position': pos
         }
+        if include_series:
+            try:
+                series = [{'t': int(ts.value // 10**6), 'close': float(c)} for ts, c in zip(df['t'], df['close'])]
+                result['series'] = series
+            except Exception:
+                pass
+        return result
 
     def scan_symbols(
         self,
@@ -523,7 +530,8 @@ def api_analyze_one():
     source = (data.get('source') or 'gate').lower()
     algo = (data.get('algo') or 'cycle').lower()
     swing_cfg = data.get('swing') or {}
-    res = engine.analyze_one(symbol, timeframe=timeframe, source=source, algo=algo, swing_cfg=swing_cfg)
+    include_series = bool(data.get('include_series', True))
+    res = engine.analyze_one(symbol, timeframe=timeframe, source=source, algo=algo, swing_cfg=swing_cfg, include_series=include_series)
     if not res:
         return jsonify({'success': False, 'error': '分析失败或无数据'}), 500
     return jsonify({'success': True, 'result': res})
