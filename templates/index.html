@@ -1628,6 +1628,7 @@
                     min_separation_days: parseInt(document.getElementById('realtimeFibSep')?.value || '10'),
                     min_move_pct: parseFloat(document.getElementById('realtimeFibMinMove')?.value || '0.1'),
                     fallback_pivot: parseInt(document.getElementById('realtimeFibFallbackPivot')?.value || '5'),
+                    orientation: (document.getElementById('fibOrientation')?.value || 'low_to_high'),
                 };
 
                 showStatus(`开始实时分析 ${symbol} 的斐波扩展位...`, 'info');
@@ -1829,6 +1830,27 @@
                     ctx.restore();
                 }
             };
+            // Swing标记
+            const swingMarkers = {
+                id: 'swingMarkers',
+                afterDraw(chart){
+                    if (!result.recent_low_ts || !result.recent_high_ts) return;
+                    const {ctx, chartArea, scales} = chart; const xScale = scales.x; const yScale = scales.y;
+                    const labelsArr = labels;
+                    function idxByTs(ts){
+                        const dstr = new Date(ts).toLocaleDateString();
+                        let idx = labelsArr.indexOf(dstr);
+                        if (idx >= 0) return idx;
+                        let best=0,bestDiff=1e18; for (let i=0;i<labelsArr.length;i++){ const diff=Math.abs(new Date(labelsArr[i]).getTime()-ts); if(diff<bestDiff){best=i;bestDiff=diff;} } return best;
+                    }
+                    function drawMarker(ts, price, color, text){
+                        const idx = idxByTs(ts); const x = xScale.getPixelForValue(labelsArr[idx]); const y = yScale.getPixelForValue(price);
+                        ctx.save(); ctx.strokeStyle=color; ctx.fillStyle=color; ctx.beginPath(); ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke(); ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill(); ctx.font='12px sans-serif'; ctx.textAlign='left'; ctx.fillStyle='#fff'; ctx.fillText(text, x+6, y-6); ctx.restore();
+                    }
+                    drawMarker(result.recent_low_ts, result.recent_low, '#f1c40f', `低点(0) ${new Date(result.recent_low_ts).toLocaleDateString()} ${Number(result.recent_low).toFixed(2)}`);
+                    drawMarker(result.recent_high_ts, result.recent_high, '#e74c3c', `高点(1) ${new Date(result.recent_high_ts).toLocaleDateString()} ${Number(result.recent_high).toFixed(2)}`);
+                }
+            };
 
             realtimeFibChart = new Chart(ctx, {
                 type: 'line',
@@ -1848,7 +1870,7 @@
                         y: { display: true }
                     }
                 },
-                plugins: [rightLabelPlugin]
+                plugins: [rightLabelPlugin, swingMarkers]
             });
         }
         function exportFibChartPng(){
@@ -4366,6 +4388,52 @@
                         <div>
                             <label>回退 pivot：</label>
                             <input id="realtimeFibFallbackPivot" type="number" class="form-control" value="5" min="3" max="50" style="width: 100px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>方向：</label>
+                            <select id="fibOrientation" class="form-control" style="width: 160px; display: inline-block;">
+                                <option value="low_to_high" selected>低(0) → 高(1)</option>
+                                <option value="high_to_low">高(0) → 低(1)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>锚定高点日期：</label>
+                            <input id="fibAnchorHighDate" type="date" class="form-control" style="width: 170px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>锚定高点价格：</label>
+                            <input id="fibAnchorHighPrice" type="number" step="0.01" class="form-control" placeholder="可选" style="width: 140px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>锚定低点日期：</label>
+                            <input id="fibAnchorLowDate" type="date" class="form-control" style="width: 170px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>锚定低点价格：</label>
+                            <input id="fibAnchorLowPrice" type="number" step="0.01" class="form-control" placeholder="可选" style="width: 140px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>方向：</label>
+                            <select id="fibOrientation" class="form-control" style="width: 160px; display: inline-block;">
+                                <option value="low_to_high" selected>低(0) → 高(1)</option>
+                                <option value="high_to_low">高(0) → 低(1)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>锚定高点日期：</label>
+                            <input id="fibAnchorHighDate" type="date" class="form-control" style="width: 170px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>锚定高点价格：</label>
+                            <input id="fibAnchorHighPrice" type="number" step="0.01" class="form-control" placeholder="可选" style="width: 140px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>锚定低点日期：</label>
+                            <input id="fibAnchorLowDate" type="date" class="form-control" style="width: 170px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>锚定低点价格：</label>
+                            <input id="fibAnchorLowPrice" type="number" step="0.01" class="form-control" placeholder="可选" style="width: 140px; display: inline-block;">
                         </div>
                     </div>
                 </details>

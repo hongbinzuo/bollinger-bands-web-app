@@ -403,9 +403,11 @@ class RealtimeFibonacciV2:
         if swing is None:
             return None
         current_price = float(df['close'].iloc[-1])
-        # 确定方向：如果高点时间更近（回撤）=> high_to_low，否则（反弹）=> low_to_high
+        # 确定方向：优先使用前端传入的 orientation 覆盖；否则自动判断
         low, high = swing.low, swing.high
-        orientation = 'high_to_low' if swing.high_ts >= swing.low_ts else 'low_to_high'
+        orientation = str(cfg.get('orientation') or '').lower()
+        if orientation not in ('low_to_high', 'high_to_low'):
+            orientation = 'high_to_low' if swing.high_ts >= swing.low_ts else 'low_to_high'
         fib_map = self.compute_fib_map(low, high, orientation)
         pos = self.locate_position(current_price, low, high, orientation)
         result = {
