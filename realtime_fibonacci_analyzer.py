@@ -292,7 +292,7 @@ class RealtimeFibonacciV2:
         }
 
     # ----------------------------- 单币与批量分析 -----------------------------
-    def analyze_one(self, symbol: str, timeframe: str = '1d', source: str = 'gate', algo: str = 'cycle') -> Optional[Dict]:
+    def analyze_one(self, symbol: str, timeframe: str = '1d', source: str = 'gate', algo: str = 'cycle', swing_cfg: Optional[Dict] = None) -> Optional[Dict]:
         df = None
         if source == 'bybit':
             interval = {'1d': 'D', '4h': '240', '1h': '60'}.get(timeframe, 'D')
@@ -303,10 +303,17 @@ class RealtimeFibonacciV2:
         if df is None or len(df) < 20:
             return None
         swing = None
+        cfg = swing_cfg or {}
         if algo == 'cycle' and timeframe == '1d':
-            swing = self.find_cycle_swing(df)
+            swing = self.find_cycle_swing(
+                df,
+                lookback_days=int(cfg.get('lookback_days', 420)),
+                pivot=int(cfg.get('pivot', 10)),
+                min_separation_days=int(cfg.get('min_separation_days', 10)),
+                min_move_pct=float(cfg.get('min_move_pct', 0.10)),
+            )
         if swing is None:
-            swing = self.find_recent_swing(df)
+            swing = self.find_recent_swing(df, pivot=int(cfg.get('fallback_pivot', 5)))
         if swing is None:
             return None
         current_price = float(df['close'].iloc[-1])
@@ -339,6 +346,8 @@ class RealtimeFibonacciV2:
         max_workers: int = 8,
         batch_size: int = 50,
         throttle_sec: float = 0.2,
+        algo: str = 'cycle',
+        swing_cfg: Optional[Dict] = None,
     ) -> List[Dict]:
         """分批并发扫描，批间节流，降低被限频概率。"""
         results: List[Dict] = []
@@ -350,7 +359,7 @@ class RealtimeFibonacciV2:
         for i in range(0, n, batch_size):
             chunk = symbols[i:i + batch_size]
             with ThreadPoolExecutor(max_workers=max_workers) as ex:
-                futures = {ex.submit(self.analyze_one, s, timeframe, source): s for s in chunk}
+                futures = {ex.submit(self.analyze_one, s, timeframe, source, algo, swing_cfg): s for s in chunk}
                 for fut in as_completed(futures):
                     try:
                         r = fut.result()
@@ -392,6 +401,7 @@ def api_scan():
     limit = int(data.get('limit', 1000))
     timeframe = data.get('timeframe', '1d')
     algo = (data.get('algo') or 'cycle').lower()
+    swing_cfg = data.get('swing') or {}
     # 并发与限速参数
     max_workers = int(data.get('max_workers', 8))
     batch_size = int(data.get('batch_size', 50))
@@ -417,6 +427,8 @@ def api_scan():
         max_workers=max_workers,
         batch_size=batch_size,
         throttle_sec=throttle_sec,
+        algo=algo,
+        swing_cfg=swing_cfg,
     )
     # 简化列表返回字段，便于前端表格展示
     list_rows = []
@@ -481,7 +493,8 @@ def api_analyze_one():
     timeframe = data.get('timeframe', '1d')
     source = (data.get('source') or 'gate').lower()
     algo = (data.get('algo') or 'cycle').lower()
-    res = engine.analyze_one(symbol, timeframe=timeframe, source=source, algo=algo)
+    swing_cfg = data.get('swing') or {}
+    res = engine.analyze_one(symbol, timeframe=timeframe, source=source, algo=algo, swing_cfg=swing_cfg)
     if not res:
         return jsonify({'success': False, 'error': '分析失败或无数据'}), 500
     return jsonify({'success': True, 'result': res})

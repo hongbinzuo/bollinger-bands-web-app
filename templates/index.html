@@ -1621,6 +1621,14 @@
             try {
                 const symbol = document.getElementById('realtimeSymbol').value;
                 const timeframe = document.getElementById('realtimeTimeframe').value;
+                const algo = document.getElementById('realtimeFibAlgo') ? document.getElementById('realtimeFibAlgo').value : 'cycle';
+                const swing = {
+                    lookback_days: parseInt(document.getElementById('realtimeFibLookback')?.value || '420'),
+                    pivot: parseInt(document.getElementById('realtimeFibPivot')?.value || '10'),
+                    min_separation_days: parseInt(document.getElementById('realtimeFibSep')?.value || '10'),
+                    min_move_pct: parseFloat(document.getElementById('realtimeFibMinMove')?.value || '0.1'),
+                    fallback_pivot: parseInt(document.getElementById('realtimeFibFallbackPivot')?.value || '5'),
+                };
 
                 showStatus(`开始实时分析 ${symbol} 的斐波扩展位...`, 'info');
 
@@ -1631,7 +1639,9 @@
                     },
                     body: JSON.stringify({
                         symbol: symbol,
-                        timeframe: timeframe
+                        timeframe: timeframe,
+                        algo: algo,
+                        swing: swing
                     })
                 });
 
@@ -1887,9 +1897,21 @@
                 limit: parseInt(document.getElementById('realtimeFibLimit').value) || 1000,
                 timeframe: document.getElementById('realtimeFibScanTf').value,
                 only_extension: document.getElementById('realtimeFibOnlyExt').checked,
+                min_ratio: (function(){ const v = document.getElementById('realtimeFibMinRatio').value; return v === '' ? null : parseFloat(v); })(),
                 sort_by, sort_dir,
                 page: 1,
                 page_size: parseInt(document.getElementById('realtimeFibPageSize').value) || 50,
+                algo: (document.getElementById('realtimeFibAlgo')?.value || 'cycle'),
+                swing: {
+                    lookback_days: parseInt(document.getElementById('realtimeFibLookback')?.value || '420'),
+                    pivot: parseInt(document.getElementById('realtimeFibPivot')?.value || '10'),
+                    min_separation_days: parseInt(document.getElementById('realtimeFibSep')?.value || '10'),
+                    min_move_pct: parseFloat(document.getElementById('realtimeFibMinMove')?.value || '0.1'),
+                    fallback_pivot: parseInt(document.getElementById('realtimeFibFallbackPivot')?.value || '5'),
+                },
+                max_workers: parseInt(document.getElementById('realtimeFibMaxWorkers')?.value || '8'),
+                batch_size: parseInt(document.getElementById('realtimeFibBatchSize')?.value || '50'),
+                throttle_sec: parseFloat(document.getElementById('realtimeFibThrottle')?.value || '0.2'),
             };
         }
 
@@ -4331,6 +4353,41 @@
                 <button class="btn btn-secondary" onclick="startRealtimeMonitoring()">开启/停止实时监控</button>
             </div>
 
+            <div class="form-group">
+                <details>
+                    <summary>高级设置（斐波高低点算法）</summary>
+                    <div class="stats-grid" style="margin-top: 8px;">
+                        <div>
+                            <label>算法：</label>
+                            <select id="realtimeFibAlgo" class="form-control" style="width: 140px; display: inline-block;">
+                                <option value="cycle" selected>周期（建议）</option>
+                                <option value="pivot">局部极值</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>窗口天数：</label>
+                            <input id="realtimeFibLookback" type="number" class="form-control" value="420" min="30" max="2000" style="width: 120px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>周期 pivot：</label>
+                            <input id="realtimeFibPivot" type="number" class="form-control" value="10" min="3" max="50" style="width: 100px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>最小间隔天数：</label>
+                            <input id="realtimeFibSep" type="number" class="form-control" value="10" min="1" max="120" style="width: 120px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>最小涨幅：</label>
+                            <input id="realtimeFibMinMove" type="number" step="0.01" class="form-control" value="0.1" min="0" max="5" style="width: 100px; display: inline-block;">
+                        </div>
+                        <div>
+                            <label>回退 pivot：</label>
+                            <input id="realtimeFibFallbackPivot" type="number" class="form-control" value="5" min="3" max="50" style="width: 100px; display: inline-block;">
+                        </div>
+                    </div>
+                </details>
+            </div>
+
             <div class="form-group" style="margin-top: 16px;">
                 <h4>📋 扫描列表</h4>
                 <div class="stats-grid">
@@ -4354,8 +4411,42 @@
                         </select>
                     </div>
                     <div>
-                        <button class="btn btn-primary" onclick="scanRealtimeFibList()">🔍 扫描并生成列表</button>
+                        <label>排序：</label>
+                        <select id="realtimeFibSort" class="form-control" style="width: 200px; display: inline-block;">
+                            <option value="ratio-desc" selected>斐波比例 高→低</option>
+                            <option value="ratio-asc">斐波比例 低→高</option>
+                            <option value="current_price-desc">当前价格 高→低</option>
+                            <option value="current_price-asc">当前价格 低→高</option>
+                            <option value="nearest_level-desc">最近位点 高→低</option>
+                            <option value="nearest_level-asc">最近位点 低→高</option>
+                        </select>
                     </div>
+                    <div>
+                        <label><input id="realtimeFibOnlyExt" type="checkbox"> 仅扩展位 (ratio ≥ 1)</label>
+                    </div>
+                    <div>
+                        <label>最小比例：</label>
+                        <input id="realtimeFibMinRatio" type="number" step="0.01" class="form-control" placeholder="可选" style="width: 100px; display: inline-block;">
+                    </div>
+                    <div>
+                        <label>每页：</label>
+                        <input id="realtimeFibPageSize" type="number" class="form-control" value="50" min="10" max="200" style="width: 90px; display: inline-block;">
+                    </div>
+                    <div>
+                        <label>并发:</label>
+                        <input id="realtimeFibMaxWorkers" type="number" class="form-control" value="8" min="1" max="32" style="width: 80px; display: inline-block;" title="max_workers">
+                        <input id="realtimeFibBatchSize" type="number" class="form-control" value="50" min="1" max="200" style="width: 80px; display: inline-block;" title="batch_size">
+                        <input id="realtimeFibThrottle" type="number" class="form-control" value="0.2" step="0.1" min="0" max="10" style="width: 80px; display: inline-block;" title="throttle_sec">
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" onclick="scanRealtimeFibList()">🔍 扫描并生成列表</button>
+                        <button class="btn" onclick="applyRealtimeFibSortFilter()">应用排序/筛选</button>
+                    </div>
+                </div>
+                <div style="margin-top:8px;">
+                    <button class="btn" onclick="realtimeFibPrevPage()">上一页</button>
+                    <span id="realtimeFibPageInfo" style="margin: 0 8px;">第 1 / 1 页</span>
+                    <button class="btn" onclick="realtimeFibNextPage()">下一页</button>
                 </div>
             </div>
 
