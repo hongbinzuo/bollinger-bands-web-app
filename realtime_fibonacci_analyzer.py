@@ -266,20 +266,34 @@ class RealtimeFibonacciV2:
         # 趋势由低到高
         return Swing(low=low, low_ts=low_ts, high=high, high_ts=high_ts, trend='up')
 
-    def compute_fib_map(self, low: float, high: float) -> Dict[float, float]:
+    def compute_fib_map(self, low: float, high: float, orientation: str = 'low_to_high') -> Dict[float, float]:
+        """生成斐波位映射。
+        orientation='low_to_high': 0->low, 1->high（反弹场景）
+        orientation='high_to_low': 0->high, 1->low（回撤场景）
+        """
         if not self._ok(low) or not self._ok(high) or high <= 0 or low <= 0 or high == low:
             return {}
         rng = high - low
-        return {lvl: low + rng * lvl for lvl in FIB_LEVELS}
+        if orientation == 'high_to_low':
+            return {lvl: float(high - rng * lvl) for lvl in FIB_LEVELS}
+        return {lvl: float(low + rng * lvl) for lvl in FIB_LEVELS}
 
-    def locate_position(self, price: float, low: float, high: float) -> Dict:
+    def locate_position(self, price: float, low: float, high: float, orientation: str = 'low_to_high') -> Dict:
         if not self._ok(price) or not self._ok(low) or not self._ok(high) or high == low:
             return {}
         rng = high - low
-        ratio = (price - low) / rng
+        if orientation == 'high_to_low':
+            # 0->high, 1->low（回撤）
+            ratio = (price - high) / (low - high)
+        else:
+            # 0->low, 1->high（反弹）
+            ratio = (price - low) / rng
         # 找最近的标准位
         nearest = min(FIB_LEVELS, key=lambda lv: abs(ratio - lv))
-        nearest_price = low + rng * nearest
+        if orientation == 'high_to_low':
+            nearest_price = high - rng * nearest
+        else:
+            nearest_price = low + rng * nearest
         # 上下方位点（各取3个）
         upper = sorted([lv for lv in FIB_LEVELS if lv > ratio])[:3]
         lower = sorted([lv for lv in FIB_LEVELS if lv <= ratio], reverse=True)[:3]
@@ -288,7 +302,8 @@ class RealtimeFibonacciV2:
             'nearest_level': float(nearest),
             'nearest_price': float(nearest_price),
             'upper_levels': [[float(lv), float(low + rng * lv)] for lv in upper],
-            'lower_levels': [[float(lv), float(low + rng * lv)] for lv in lower]
+            'lower_levels': [[float(lv), float(low + rng * lv)] for lv in lower],
+            'orientation': orientation
         }
 
     # ----------------------------- 单币与批量分析 -----------------------------
@@ -317,13 +332,11 @@ class RealtimeFibonacciV2:
         if swing is None:
             return None
         current_price = float(df['close'].iloc[-1])
-        # 统一采用 low->high 作为基准，若趋势为 down 且 low_index>high_index 可交换
+        # 确定方向：如果高点时间更近（回撤）=> high_to_low，否则（反弹）=> low_to_high
         low, high = swing.low, swing.high
-        if swing.trend == 'down' and swing.high_ts < swing.low_ts:
-            # 先高后低，交换
-            low, high = swing.low, swing.high  # 值保持不变，但 ratio 解释为可能<0
-        fib_map = self.compute_fib_map(low, high)
-        pos = self.locate_position(current_price, low, high)
+        orientation = 'high_to_low' if swing.high_ts >= swing.low_ts else 'low_to_high'
+        fib_map = self.compute_fib_map(low, high, orientation)
+        pos = self.locate_position(current_price, low, high, orientation)
         return {
             'symbol': symbol,
             'timeframe': timeframe,
