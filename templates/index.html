@@ -1670,25 +1670,8 @@
             }
         }
 
-        // 开启实时监控
-        function startRealtimeMonitoring() {
-            if (realtimeMonitoringInterval) {
-                clearInterval(realtimeMonitoringInterval);
-                realtimeMonitoringInterval = null;
-                showStatus('实时监控已停止', 'info');
-                return;
-            }
-
-            showStatus('开启实时监控，每30秒更新一次...', 'info');
-            
-            // 立即执行一次分析
-            runRealtimeFibonacciAnalysis();
-            
-            // 设置定时器
-            realtimeMonitoringInterval = setInterval(() => {
-                runRealtimeFibonacciAnalysis();
-            }, 30000); // 30秒更新一次
-        }
+        // 取消实时监控：该功能已关闭，保持图表稳定
+        function startRealtimeMonitoring() { showStatus('实时监控已关闭（图表保持稳定）', 'info'); }
 
         // 显示实时斐波分析结果
         function displayRealtimeFibonacciResults(result) {
@@ -3518,11 +3501,17 @@
              font-weight: bold;
          }
          
-         #realtimeFibChart {
+         .chart-container {
+             max-width: 1100px;
+             height: 420px;
+             margin: 0 auto;
              background: rgba(255, 255, 255, 0.05);
              border-radius: 10px;
-             padding: 15px;
-             margin-top: 20px;
+             padding: 10px;
+         }
+         .chart-container canvas {
+             width: 100% !important;
+             height: 100% !important;
          }
          
         
@@ -4340,13 +4329,11 @@
                 <label for="realtimeSymbol">币种：</label>
                 <input type="text" class="form-control" id="realtimeSymbol" placeholder="例如: BTCUSDT" value="BTCUSDT">
                 <label for="realtimeTimeframe">时间框架：</label>
-                <select class="form-control" id="realtimeTimeframe">
-                    <option value="1h">1小时</option>
+                 <select class="form-control" id="realtimeTimeframe">
                     <option value="4h">4小时</option>
                     <option value="1d" selected>1天</option>
                 </select>
                 <button class="btn btn-primary" onclick="runRealtimeFibonacciAnalysis()">开始分析</button>
-                <button class="btn btn-secondary" onclick="startRealtimeMonitoring()">开启/停止实时监控</button>
             </div>
 
             <div class="form-group">
@@ -4403,7 +4390,6 @@
                         <select id="realtimeFibScanTf" class="form-control" style="width: 120px; display: inline-block;">
                             <option value="1d" selected>1天</option>
                             <option value="4h">4小时</option>
-                            <option value="1h">1小时</option>
                         </select>
                     </div>
                     <div>
@@ -4448,8 +4434,10 @@
 
             <div id="realtimeFibResults" class="results-container"></div>
             <div id="realtimeFibList" class="results-container" style="margin-top: 10px;"></div>
-            <canvas id="realtimeFibChart" style="width: 100%; height: 600px; margin-top: 20px;"></canvas>
-            <div style="margin-top:6px;">
+            <div class="chart-container" style="margin-top: 12px;">
+                <canvas id="realtimeFibChart"></canvas>
+            </div>
+            <div style="margin-top:6px; text-align:center;">
                 <button class="btn" onclick="exportFibChartPng()">导出图片</button>
             </div>
         </div>
