@@ -1675,70 +1675,66 @@
         function displayRealtimeFibonacciResults(result) {
             const resultsDiv = document.getElementById('realtimeFibResults');
             
+            const cp = Number(result.current_price || 0);
+            const rLow = Number(result.recent_low || 0);
+            const rHigh = Number(result.recent_high || 0);
             let html = `
                 <div class="info-box">
                     <h4>⚡ ${result.symbol} 实时斐波分析</h4>
                     <div class="stats-grid">
                         <div class="stat-item">
-                            <strong>当前价格:</strong> ${result.current_price.toFixed(6)}
+                            <strong>当前价格:</strong> ${cp ? cp.toFixed(6) : '-'}
                         </div>
                         <div class="stat-item">
-                            <strong>历史高点:</strong> ${result.historical_high.toFixed(6)}
+                            <strong>最近高点:</strong> ${rHigh ? rHigh.toFixed(6) : '-'}
                         </div>
                         <div class="stat-item">
-                            <strong>历史低点:</strong> ${result.historical_low.toFixed(6)}
-                        </div>
-                        <div class="stat-item">
-                            <strong>斐波扩展阶段:</strong> 
-                            <span class="${result.is_in_fib_extension ? 'status-active' : 'status-inactive'}">
-                                ${result.is_in_fib_extension ? '是' : '否'}
-                            </span>
+                            <strong>最近低点:</strong> ${rLow ? rLow.toFixed(6) : '-'}
                         </div>
                     </div>
                 </div>
             `;
 
             // 显示当前斐波位置
-            if (result.fib_position) {
-                const pos = result.fib_position;
+            if (result.position) {
+                const pos = result.position;
                 html += `
                     <div class="fib-position-container">
                         <h4>📍 当前斐波位置</h4>
                         <div class="fib-position-info">
                             <div class="position-item">
-                                <strong>最近位点:</strong> ${pos.closest_level}x (${pos.closest_price.toFixed(6)})
+                                <strong>当前比例:</strong> ${(Number(pos.ratio || 0)).toFixed(3)}
                             </div>
                             <div class="position-item">
-                                <strong>距离比例:</strong> ${(pos.distance_ratio * 100).toFixed(2)}%
+                                <strong>最近位点:</strong> ${(Number(pos.nearest_level || 0)).toFixed(3)}
                             </div>
                             <div class="position-item">
-                                <strong>位置:</strong> ${pos.is_above_closest ? '上方' : '下方'}
+                                <strong>位点价格:</strong> ${pos.nearest_price ? Number(pos.nearest_price).toFixed(6) : '-'}
                             </div>
                         </div>
                     </div>
                 `;
 
                 // 显示上方和下方位点
-                if (pos.upper_levels.length > 0) {
+                if (pos.upper_levels && pos.upper_levels.length > 0) {
                     html += `
                         <div class="fib-levels-container">
                             <h4>⬆️ 上方关键位点</h4>
                             <div class="fib-levels-grid">
                     `;
                     for (const [level, price] of pos.upper_levels) {
-                        const prob = result.resistance_support_probs[level];
-                        const resistanceProb = prob ? prob.resistance_probability : 0;
-                        const probClass = resistanceProb > 0.7 ? 'high' : resistanceProb > 0.4 ? 'medium' : 'low';
+                        const resistanceProb = 0;
+                        const probClass = 'low';
                         
                         html += `
                             <div class="fib-level-item ${probClass}">
                                 <div class="fib-level-header">
                                     <strong>${level}x 斐波位</strong>
-                                    <span class="probability-badge">阻力: ${(resistanceProb * 100).toFixed(1)}%</span>
+                                    <span class="probability-badge">阻力: -</span>
                                 </div>
                                 <div class="fib-level-details">
                                     <div class="fib-price">价格: ${price.toFixed(6)}</div>
-                                    <div class="fib-distance">距离: ${((price - result.current_price) / result.current_price * 100).toFixed(1)}%</div>
+                                    <div class="fib-distance">距离: ${cp ? (((price - cp) / cp) * 100).toFixed(1) + '%' : '-'}</div>
                                 </div>
                             </div>
                         `;
@@ -1746,26 +1742,25 @@
                     html += `</div></div>`;
                 }
 
-                if (pos.lower_levels.length > 0) {
+                if (pos.lower_levels && pos.lower_levels.length > 0) {
                     html += `
                         <div class="fib-levels-container">
                             <h4>⬇️ 下方关键位点</h4>
                             <div class="fib-levels-grid">
                     `;
                     for (const [level, price] of pos.lower_levels) {
-                        const prob = result.resistance_support_probs[level];
-                        const supportProb = prob ? prob.support_probability : 0;
-                        const probClass = supportProb > 0.7 ? 'high' : supportProb > 0.4 ? 'medium' : 'low';
+                        const supportProb = 0;
+                        const probClass = 'low';
                         
                         html += `
                             <div class="fib-level-item ${probClass}">
                                 <div class="fib-level-header">
                                     <strong>${level}x 斐波位</strong>
-                                    <span class="probability-badge">支撑: ${(supportProb * 100).toFixed(1)}%</span>
+                                    <span class="probability-badge">支撑: -</span>
                                 </div>
                                 <div class="fib-level-details">
                                     <div class="fib-price">价格: ${price.toFixed(6)}</div>
-                                    <div class="fib-distance">距离: ${((result.current_price - price) / result.current_price * 100).toFixed(1)}%</div>
+                                    <div class="fib-distance">距离: ${cp ? (((cp - price) / cp) * 100).toFixed(1) + '%' : '-'}</div>
                                 </div>
                             </div>
                         `;
