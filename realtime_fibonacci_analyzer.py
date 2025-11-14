@@ -1,635 +1,340 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-实时斐波那契扩展位分析系统
-实时判断币种是否在斐波扩展阶段，定位当前点位，分析阻力支撑概率
+实时斐波分析（重写版）
+- 数据源：Gate.io 或 Bybit（默认 Gate.io）
+- 扫描前 N（最多1000）个交易对，排除稳定币
+- 识别最近斐波高/低点，计算当前价格所在的斐波位置（0-1区间及>1扩展位）
+- 提供单币分析与批量扫描接口
 """
 
 import logging
 import requests
-import time
-import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
-from flask import Blueprint, request, jsonify
-from typing import List, Dict, Tuple, Optional
-import math
+from flask import Blueprint, jsonify, request
 
-# 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 创建蓝图
 realtime_fib_bp = Blueprint('realtime_fib', __name__, url_prefix='/realtime-fib')
 
-class RealtimeFibonacciAnalyzer:
-    """实时斐波那契扩展位分析器"""
-    
-    def __init__(self):
-        self.fibonacci_levels = [0.618, 1.0, 1.618, 2.618, 3.618, 4.236]
-        self.fibonacci_names = ['0.618', '1.0', '1.618', '2.618', '3.618', '4.236']
-        
-    def get_gate_klines(self, symbol, interval, limit):
-        """从Gate.io获取K线数据"""
-        try:
-            # Gate.io使用时间字符串格式
-            interval_map = {
-                '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h'
-            }
-            gate_interval = interval_map.get(interval, '1h')
-            
-            # 格式化币种符号：BTCUSDT -> BTC_USDT
-            formatted_symbol = symbol
-            if symbol.endswith('USDT') and not '_' in symbol:
-                formatted_symbol = symbol[:-4] + '_USDT'
-            
-            url = f"https://api.gateio.ws/api/v4/spot/candlesticks"
-            params = {
-                'currency_pair': formatted_symbol,
-                'interval': gate_interval,
-                'limit': min(limit, 1000)
-            }
-            
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            klines = response.json()
-            
-            if klines:
-                return self.convert_gate_data(klines)
-            return None
-                
-        except Exception as e:
-            logger.error(f"Gate.io获取 {symbol} K线数据失败: {e}")
-            return None
-    
-    def get_bitget_klines(self, symbol, interval, limit):
-        """从Bitget获取K线数据"""
-        try:
-            interval_map = {
-                '5m': '5m', '15m': '15m', '1h': '1H', '4h': '4H'
-            }
-            bitget_interval = interval_map.get(interval, '1H')
-            
-            # Bitget需要合约格式：BTCUSDT -> BTCUSDT_UMCBL
-            formatted_symbol = symbol + '_UMCBL'
-            
-            url = f"https://api.bitget.com/api/mix/v1/market/candles"
-            params = {
-                'symbol': formatted_symbol,
-                'granularity': bitget_interval,
-                'limit': min(limit, 1000),
-                'productType': 'umcbl'
-            }
-            
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get('code') == '00000':
-                klines = data.get('data', [])
-                return self.convert_bitget_data(klines)
-            return None
-                
-        except Exception as e:
-            logger.error(f"Bitget获取 {symbol} K线数据失败: {e}")
-            return None
-    
-    def get_bybit_klines(self, symbol, interval, limit):
-        """从Bybit获取K线数据"""
-        try:
-            interval_map = {
-                '5m': '5', '15m': '15', '1h': '60', '4h': '240'
-            }
-            bybit_interval = interval_map.get(interval, '60')
-            
-            # Bybit符号格式：BTCUSDT -> BTCUSDT
-            formatted_symbol = symbol
-            
-            url = f"https://api.bybit.com/v5/market/kline"
-            params = {
-                'category': 'linear',
-                'symbol': formatted_symbol,
-                'interval': bybit_interval,
-                'limit': min(limit, 1000)
-            }
-            
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get('retCode') == 0:
-                klines = data['result']['list']
-                return self.convert_bybit_data(klines)
-            else:
-                logger.error(f"Bybit API错误: {data.get('retMsg', 'Unknown error')}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Bybit获取 {symbol} K线数据失败: {e}")
-            return None
-    
-    def convert_gate_data(self, klines):
-        """转换Gate.io数据格式"""
-        if not klines or not isinstance(klines, list):
-            logger.error("Gate.io数据格式错误: klines为空或非列表")
-            return None
-            
-        converted_data = []
-        for kline in klines:
-            if not kline or len(kline) < 6:
-                logger.error(f"Gate.io单条K线数据格式错误: {kline}")
-                continue
-            # Gate.io返回的格式: [timestamp(秒), volume, close, high, low, open]
-            # 需要转换为毫秒时间戳
-            try:
-                converted_data.append({
-                    'timestamp': int(kline[0]) * 1000,  # Gate.io返回秒级时间戳，转为毫秒
-                    'open': float(kline[5]),
-                    'high': float(kline[3]),
-                    'low': float(kline[4]),
-                    'close': float(kline[2]),
-                    'volume': float(kline[1])
-                })
-            except (ValueError, IndexError) as e:
-                logger.error(f"Gate.io数据转换错误: {e}, kline={kline}")
-                continue
-        
-        if not converted_data:
-            logger.error("Gate.io数据转换后为空")
-            return None
-            
-        return converted_data
-    
-    def convert_bitget_data(self, klines):
-        """转换Bitget数据格式"""
-        if not klines or not isinstance(klines, list):
-            logger.error("Bitget数据格式错误: klines为空或非列表")
-            return None
-            
-        converted_data = []
-        for kline in klines:
-            if not kline or len(kline) < 6:
-                logger.error(f"Bitget单条K线数据格式错误: {kline}")
-                continue
-            # Bitget返回格式: [timestamp, open, high, low, close, volume]
-            try:
-                converted_data.append({
-                    'timestamp': int(kline[0]),
-                    'open': float(kline[1]),
-                    'high': float(kline[2]),
-                    'low': float(kline[3]),
-                    'close': float(kline[4]),
-                    'volume': float(kline[5])
-                })
-            except (ValueError, IndexError) as e:
-                logger.error(f"Bitget数据转换错误: {e}, kline={kline}")
-                continue
-        
-        if not converted_data:
-            logger.error("Bitget数据转换后为空")
-            return None
-            
-        return converted_data
-    
-    def convert_bybit_data(self, klines):
-        """转换Bybit数据格式"""
-        if not klines or not isinstance(klines, list):
-            logger.error("Bybit数据格式错误: klines为空或非列表")
-            return None
-            
-        converted_data = []
-        for kline in klines:
-            if not kline or len(kline) < 6:
-                logger.error(f"Bybit单条K线数据格式错误: {kline}")
-                continue
-            try:
-                converted_data.append({
-                    'timestamp': int(kline[0]),
-                    'open': float(kline[1]),
-                    'high': float(kline[2]),
-                    'low': float(kline[3]),
-                    'close': float(kline[4]),
-                    'volume': float(kline[5])
-                })
-            except (ValueError, IndexError) as e:
-                logger.error(f"Bybit数据转换错误: {e}, kline={kline}")
-                continue
-        
-        if not converted_data:
-            logger.error("Bybit数据转换后为空")
-            return None
-            
-        return converted_data
-    
-    def identify_fibonacci_base_levels(self, price_data):
-        """识别斐波那契基准位（历史高点和低点）"""
-        df = pd.DataFrame(price_data)
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-        df = df.sort_values('timestamp')
-        
-        # 找到历史高点
-        historical_high = df['high'].max()
-        high_idx = df['high'].idxmax()
-        high_date = df.loc[high_idx, 'timestamp']
-        
-        # 找到历史低点（在高点之后）
-        if high_idx < len(df) - 1:
-            low_data = df.iloc[high_idx:]
-            historical_low = low_data['low'].min()
-            low_idx = low_data['low'].idxmin()
-            low_date = df.loc[low_idx, 'timestamp']
-        else:
-            historical_low = df['low'].min()
-            low_idx = df['low'].idxmin()
-            low_date = df.loc[low_idx, 'timestamp']
-        
-        return {
-            'historical_high': historical_high,
-            'high_date': high_date,
-            'high_timestamp': int(high_date.timestamp() * 1000),
-            'historical_low': historical_low,
-            'low_date': low_date,
-            'low_timestamp': int(low_date.timestamp() * 1000)
-        }
-    
-    def calculate_fibonacci_extension_levels(self, base_price, target_price):
-        """计算斐波那契扩展位"""
-        if base_price == 0:
-            return {}
-        
-        price_range = target_price - base_price
-        extension_levels = {}
-        
-        for level in self.fibonacci_levels:
-            extension_price = base_price + (price_range * level)
-            extension_levels[level] = extension_price
-            
-        return extension_levels
-    
-    def analyze_recent_price_volume_changes(self, price_data, hours=4):
-        """分析近期价格和量能变化"""
-        try:
-            df = pd.DataFrame(price_data)
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df = df.sort_values('timestamp')
-            
-            # 获取最近N小时的数据
-            now = datetime.now()
-            cutoff_time = now - timedelta(hours=hours)
-            recent_data = df[df['timestamp'] >= cutoff_time]
-            
-            # 如果近期数据不足，使用最后几条数据
-            if len(recent_data) < 2:
-                logger.warning(f"近期数据不足: 需要至少2条，实际{len(recent_data)}条，使用最后几条数据")
-                recent_data = df.tail(max(2, min(10, len(df))))
-                if len(recent_data) < 2:
-                    logger.error("数据总量不足，无法进行分析")
-                    return None
-        
-            # 计算价格变化
-            start_price = recent_data.iloc[0]['close']
-            end_price = recent_data.iloc[-1]['close']
-            price_change = (end_price - start_price) / start_price
-            
-            # 计算价格变化速度（每小时）
-            time_hours = (recent_data.iloc[-1]['timestamp'] - recent_data.iloc[0]['timestamp']).total_seconds() / 3600
-            price_velocity = price_change / time_hours if time_hours > 0 else 0
-            
-            # 计算量能变化
-            avg_volume = recent_data['volume'].mean()
-            volume_volatility = recent_data['volume'].std() / avg_volume if avg_volume > 0 else 0
-            
-            # 计算量能加权价格变化
-            volume_weighted_change = 0
-            total_volume = 0
-            for i in range(1, len(recent_data)):
-                price_change_i = (recent_data.iloc[i]['close'] - recent_data.iloc[i-1]['close']) / recent_data.iloc[i-1]['close']
-                volume_i = recent_data.iloc[i]['volume']
-                volume_weighted_change += price_change_i * volume_i
-                total_volume += volume_i
-            
-            volume_weighted_change = volume_weighted_change / total_volume if total_volume > 0 else 0
-            
-            # 计算多空强度
-            bullish_strength = 0
-            bearish_strength = 0
-            
-            for i in range(1, len(recent_data)):
-                current = recent_data.iloc[i]
-                previous = recent_data.iloc[i-1]
-                
-                if current['close'] > previous['close']:
-                    # 多头强度 = 涨幅 × 成交量
-                    strength = ((current['close'] - previous['close']) / previous['close']) * current['volume']
-                    bullish_strength += strength
-                else:
-                    # 空头强度 = 跌幅 × 成交量
-                    strength = ((previous['close'] - current['close']) / previous['close']) * current['volume']
-                    bearish_strength += strength
-            
-            total_strength = bullish_strength + bearish_strength
-            bullish_ratio = bullish_strength / total_strength if total_strength > 0 else 0.5
-            
-            return {
-                'price_change': price_change,
-                'price_velocity': price_velocity,
-                'volume_volatility': volume_volatility,
-                'volume_weighted_change': volume_weighted_change,
-                'bullish_strength': bullish_strength,
-                'bearish_strength': bearish_strength,
-                'bullish_ratio': bullish_ratio,
-                'time_hours': time_hours,
-                'data_points': len(recent_data)
-            }
-        except Exception as e:
-            logger.error(f"分析近期价格量能变化失败: {e}")
-            return None
-    
-    def locate_current_fibonacci_position(self, current_price, fib_levels):
-        """定位当前价格在斐波扩展位中的位置"""
-        # 找到最接近的斐波位点
-        closest_level = None
-        min_distance = float('inf')
-        
-        for level, price in fib_levels.items():
-            distance = abs(current_price - price)
-            if distance < min_distance:
-                min_distance = distance
-                closest_level = level
-        
-        # 确定当前价格相对于斐波位点的位置
-        if closest_level is None:
-            return None
-        
-        closest_price = fib_levels[closest_level]
-        position_ratio = (current_price - closest_price) / closest_price
-        
-        # 找到上方和下方的关键位点
-        sorted_levels = sorted(fib_levels.items(), key=lambda x: x[1])
-        current_index = None
-        
-        for i, (level, price) in enumerate(sorted_levels):
-            if level == closest_level:
-                current_index = i
-                break
-        
-        if current_index is None:
-            return None
-        
-        # 上方和下方的位点
-        upper_levels = []
-        lower_levels = []
-        
-        for i, (level, price) in enumerate(sorted_levels):
-            if i > current_index:
-                upper_levels.append((level, price))
-            elif i < current_index:
-                lower_levels.append((level, price))
-        
-        return {
-            'closest_level': closest_level,
-            'closest_price': closest_price,
-            'distance_ratio': position_ratio,
-            'upper_levels': upper_levels,
-            'lower_levels': lower_levels,
-            'is_above_closest': current_price > closest_price
-        }
-    
-    def calculate_resistance_support_probability(self, current_price, fib_levels, recent_analysis):
-        """计算阻力/支撑概率"""
-        probabilities = {}
-        
-        for level, price in fib_levels.items():
-            # 基础概率计算
-            distance_ratio = abs(current_price - price) / price
-            
-            # 基于距离的概率
-            distance_prob = max(0, 1 - distance_ratio * 10)  # 距离越近概率越高
-            
-            # 基于近期变化的概率
-            if recent_analysis:
-                price_velocity = recent_analysis['price_velocity']
-                bullish_ratio = recent_analysis['bullish_ratio']
-                
-                # 如果价格在斐波位点上方且上涨，阻力概率高
-                if current_price > price and price_velocity > 0:
-                    resistance_prob = 0.7 + (price_velocity * 10)
-                    support_prob = 0.3
-                # 如果价格在斐波位点下方且下跌，支撑概率高
-                elif current_price < price and price_velocity < 0:
-                    support_prob = 0.7 + (abs(price_velocity) * 10)
-                    resistance_prob = 0.3
-                else:
-                    # 基于多空强度比例
-                    resistance_prob = 0.5 + (bullish_ratio - 0.5) * 0.4
-                    support_prob = 0.5 + (0.5 - bullish_ratio) * 0.4
-            else:
-                resistance_prob = 0.5
-                support_prob = 0.5
-            
-            # 综合概率
-            resistance_prob = min(0.9, max(0.1, resistance_prob * distance_prob))
-            support_prob = min(0.9, max(0.1, support_prob * distance_prob))
-            
-            probabilities[level] = {
-                'price': price,
-                'resistance_probability': resistance_prob,
-                'support_probability': support_prob,
-                'distance_ratio': distance_ratio
-            }
-        
-        return probabilities
-    
-    def analyze_realtime_fibonacci(self, symbol, timeframe='1h'):
-        """实时斐波那契分析"""
-        try:
-            logger.info(f"开始实时分析 {symbol} 的斐波扩展位...")
-            
-            # 获取数据
-            limit = 200  # 获取足够的历史数据
-            price_data = None
-            data_source = None
-            
-            # 尝试从Bybit获取数据（使用BTCUSDT作为测试）
-            test_symbol = 'BTCUSDT' if symbol == 'H' else symbol
-            price_data = self.get_bybit_klines(test_symbol, timeframe, limit)
-            if price_data:
-                data_source = "Bybit"
-            else:
-                # 尝试从Gate.io获取数据
-                price_data = self.get_gate_klines(test_symbol, timeframe, limit)
-                if price_data:
-                    data_source = "Gate.io"
-                else:
-                    # 尝试从Bitget获取数据
-                    price_data = self.get_bitget_klines(test_symbol, timeframe, limit)
-                    if price_data:
-                        data_source = "Bitget"
-            
-            if not price_data:
-                logger.warning(f"无法从所有交易所获取 {symbol} 数据，使用模拟数据")
-                try:
-                    price_data = self.generate_mock_data(symbol, timeframe, limit)
-                    data_source = "模拟数据"
-                except Exception as e:
-                    logger.error(f"生成模拟数据失败: {e}")
-                    return None
-            
-            # 识别斐波基准位
-            try:
-                base_levels = self.identify_fibonacci_base_levels(price_data)
-                historical_high = base_levels['historical_high']
-                historical_low = base_levels['historical_low']
-            except Exception as e:
-                logger.error(f"识别斐波基准位失败: {e}")
-                return None
-            
-            # 计算斐波扩展位
-            try:
-                fib_levels = self.calculate_fibonacci_extension_levels(historical_low, historical_high)
-            except Exception as e:
-                logger.error(f"计算斐波扩展位失败: {e}")
-                return None
-            
-            # 获取当前价格
-            current_price = price_data[-1]['close']
-            
-            # 分析近期变化
-            recent_analysis = self.analyze_recent_price_volume_changes(price_data, hours=4)
-            
-            # 定位当前斐波位置
-            fib_position = self.locate_current_fibonacci_position(current_price, fib_levels)
-            
-            # 计算阻力支撑概率
-            resistance_support_probs = self.calculate_resistance_support_probability(
-                current_price, fib_levels, recent_analysis
-            )
-            
-            # 判断是否在斐波扩展阶段
-            try:
-                is_in_fib_extension = self.is_in_fibonacci_extension_phase(
-                    current_price, fib_levels, recent_analysis
-                )
-            except Exception as e:
-                logger.error(f"判断斐波扩展阶段失败: {e}")
-                is_in_fib_extension = False
-            
-            return {
-                'symbol': symbol,
-                'timeframe': timeframe,
-                'data_source': data_source,
-                'current_price': current_price,
-                'historical_high': historical_high,
-                'historical_low': historical_low,
-                'fib_levels': fib_levels,
-                'fib_position': fib_position,
-                'recent_analysis': recent_analysis,
-                'resistance_support_probs': resistance_support_probs,
-                'is_in_fib_extension': is_in_fib_extension,
-                'analysis_time': datetime.now().isoformat()
-            }
-            
-        except Exception as e:
-            logger.error(f"实时斐波分析失败: {e}")
-            return None
-    
-    def is_in_fibonacci_extension_phase(self, current_price, fib_levels, recent_analysis):
-        """判断是否在斐波扩展阶段"""
-        try:
-            if not fib_levels or not recent_analysis:
-                return False
-            
-            # 检查当前价格是否在斐波扩展位附近
-            in_fib_range = False
-            for level, price in fib_levels.items():
-                if price > 0:  # 避免除零错误
-                    distance_ratio = abs(current_price - price) / price
-                    if distance_ratio < 0.05:  # 5%范围内
-                        in_fib_range = True
-                        break
-            
-            # 检查是否有明显的趋势
-            price_velocity = recent_analysis.get('price_velocity', 0)
-            has_trend = abs(price_velocity) > 0.01  # 每小时变化超过1%
-            
-            # 检查量能是否配合
-            volume_volatility = recent_analysis.get('volume_volatility', 0)
-            has_volume_confirmation = volume_volatility > 0.5
-            
-            return in_fib_range and has_trend and has_volume_confirmation
-        except Exception as e:
-            logger.error(f"判断斐波扩展阶段异常: {e}")
-            return False
-    
-    def generate_mock_data(self, symbol, timeframe, limit):
-        """生成模拟数据"""
-        data = []
-        now = int(time.time() * 1000)
-        
-        interval_map = {
-            '5m': 5 * 60 * 1000,
-            '15m': 15 * 60 * 1000,
-            '1h': 60 * 60 * 1000,
-            '4h': 4 * 60 * 60 * 1000
-        }
-        
-        interval = interval_map.get(timeframe, 60 * 60 * 1000)
-        base_price = 0.1 if symbol == 'H' else 1.0
-        price = base_price
-        
-        # 生成更多历史数据，确保有足够的近期数据
-        for i in range(limit):
-            timestamp = now - (limit - i) * interval
-            
-            # 生成更真实的价格波动
-            change = np.random.normal(0, 0.02)
-            price = price * (1 + change)
-            price = max(price, base_price * 0.1)
-            
-            data.append({
-                'timestamp': timestamp,
-                'open': price * (1 + np.random.normal(0, 0.005)),
-                'high': price * (1 + abs(np.random.normal(0, 0.01))),
-                'low': price * (1 - abs(np.random.normal(0, 0.01))),
-                'close': price,
-                'volume': np.random.uniform(100000, 1000000)
-            })
-        
-        return data
 
-# 创建分析器实例
-analyzer = RealtimeFibonacciAnalyzer()
+# ----------------------------- 核心数据结构 -----------------------------
+
+FIB_LEVELS = [
+    0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.272, 1.414, 1.618, 2.0, 2.618, 3.618, 4.236
+]
+
+STABLECOIN_BASES = {
+    'USDT', 'USDC', 'BUSD', 'DAI', 'TUSD', 'FDUSD', 'USDD', 'EURS', 'EURT', 'GUSD', 'UST', 'PAX'
+}
+
+
+@dataclass
+class Swing:
+    low: float
+    low_ts: int
+    high: float
+    high_ts: int
+    trend: str  # 'up' or 'down'
+
+
+class RealtimeFibonacciV2:
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.headers.update({'User-Agent': 'Mozilla/5.0'})
+
+    # ----------------------------- 工具函数 -----------------------------
+    def _ok(self, x) -> bool:
+        try:
+            return x is not None and not (isinstance(x, float) and (np.isnan(x) or np.isinf(x)))
+        except Exception:
+            return False
+
+    # ----------------------------- 交易对列表 -----------------------------
+    def get_gate_top_symbols(self, limit: int = 1000) -> List[str]:
+        url = 'https://api.gateio.ws/api/v4/spot/tickers'
+        try:
+            r = self.session.get(url, timeout=15)
+            r.raise_for_status()
+            data = r.json()
+            pairs: List[Tuple[str, float]] = []
+            for item in data:
+                cp = item.get('currency_pair', '')  # e.g., BTC_USDT
+                if not cp or '_USDT' not in cp:
+                    continue
+                base = cp.split('_')[0]
+                if base.upper() in STABLECOIN_BASES:
+                    continue
+                # 排除杠杆/奇异代币
+                base_up = base.upper()
+                if any(k in base_up for k in ['3L', '3S', '5L', '5S', 'BULL', 'BEAR']):
+                    continue
+                qv = float(item.get('quote_volume', 0) or 0)
+                symbol = f"{base.upper()}USDT"
+                pairs.append((symbol, qv))
+            pairs.sort(key=lambda x: x[1], reverse=True)
+            return [s for s, _ in pairs[: min(limit, 1000)]]
+        except Exception as e:
+            logger.error(f"Gate.io 获取交易对失败: {e}")
+            # 兜底：常见主流币
+            return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT']
+
+    def get_bybit_top_symbols(self, limit: int = 1000) -> List[str]:
+        url = 'https://api.bybit.com/v5/market/tickers'
+        params = {'category': 'spot'}
+        try:
+            r = self.session.get(url, params=params, timeout=15)
+            r.raise_for_status()
+            data = r.json()
+            if data.get('retCode') != 0:
+                raise RuntimeError(data.get('retMsg'))
+            items = data.get('result', {}).get('list', [])
+            pairs: List[Tuple[str, float]] = []
+            for it in items:
+                symbol = it.get('symbol', '')  # e.g., BTCUSDT
+                if not symbol.endswith('USDT'):
+                    continue
+                base = symbol[:-4]
+                if base.upper() in STABLECOIN_BASES:
+                    continue
+                if any(k in base.upper() for k in ['3L', '3S', '5L', '5S', 'BULL', 'BEAR']):
+                    continue
+                qv = float(it.get('turnover24h', 0) or 0)
+                pairs.append((symbol, qv))
+            pairs.sort(key=lambda x: x[1], reverse=True)
+            return [s for s, _ in pairs[: min(limit, 1000)]]
+        except Exception as e:
+            logger.error(f"Bybit 获取交易对失败: {e}")
+            return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT']
+
+    # ----------------------------- 行情数据 -----------------------------
+    def get_klines_gate(self, symbol: str, interval: str = '1d', limit: int = 300) -> Optional[pd.DataFrame]:
+        try:
+            cp = symbol
+            if symbol.endswith('USDT') and '_' not in symbol:
+                cp = f"{symbol[:-4]}_USDT"
+            url = 'https://api.gateio.ws/api/v4/spot/candlesticks'
+            params = {'currency_pair': cp, 'interval': interval, 'limit': min(limit, 1000)}
+            r = self.session.get(url, params=params, timeout=15)
+            r.raise_for_status()
+            raw = r.json()  # [t, vol, close, high, low, open, ...]
+            if not raw:
+                return None
+            df = pd.DataFrame(raw, columns=['t', 'vol', 'close', 'high', 'low', 'open', 'x1', 'x2'])
+            for col in ['open', 'high', 'low', 'close', 'vol']:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            df['t'] = pd.to_datetime(pd.to_numeric(df['t'], errors='coerce'), unit='s')
+            df = df[['t', 'open', 'high', 'low', 'close', 'vol']].dropna()
+            return df.sort_values('t').reset_index(drop=True)
+        except Exception as e:
+            logger.debug(f"Gate kline 失败 {symbol}: {e}")
+            return None
+
+    def get_klines_bybit(self, symbol: str, interval: str = 'D', limit: int = 300) -> Optional[pd.DataFrame]:
+        try:
+            url = 'https://api.bybit.com/v5/market/kline'
+            params = {'category': 'spot', 'symbol': symbol, 'interval': interval, 'limit': min(limit, 1000)}
+            r = self.session.get(url, params=params, timeout=15)
+            r.raise_for_status()
+            data = r.json()
+            if data.get('retCode') != 0:
+                return None
+            rows = data.get('result', {}).get('list', [])
+            if not rows:
+                return None
+            df = pd.DataFrame(rows, columns=['t', 'open', 'high', 'low', 'close', 'vol', 'turnover'])
+            for col in ['open', 'high', 'low', 'close', 'vol']:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            df['t'] = pd.to_datetime(pd.to_numeric(df['t'], errors='coerce'), unit='ms')
+            df = df[['t', 'open', 'high', 'low', 'close', 'vol']].dropna()
+            return df.sort_values('t').reset_index(drop=True)
+        except Exception as e:
+            logger.debug(f"Bybit kline 失败 {symbol}: {e}")
+            return None
+
+    # ----------------------------- 斐波计算 -----------------------------
+    def find_recent_swing(self, df: pd.DataFrame, pivot: int = 5, max_lookback: int = 300) -> Optional[Swing]:
+        """用局部极值寻找最近一对高低点。pivot=5 表示两侧各5根K线确认。"""
+        if df is None or df.empty:
+            return None
+        highs = df['high'].values
+        lows = df['low'].values
+        idxs_high: List[int] = []
+        idxs_low: List[int] = []
+        n = len(df)
+        start = max(0, n - max_lookback)
+        for i in range(start + pivot, n - pivot):
+            if highs[i] == np.nanmax(highs[i - pivot:i + pivot + 1]):
+                idxs_high.append(i)
+            if lows[i] == np.nanmin(lows[i - pivot:i + pivot + 1]):
+                idxs_low.append(i)
+        if not idxs_high or not idxs_low:
+            # 退化为窗口最高/最低
+            h_idx = int(np.nanargmax(highs[start:])) + start
+            l_idx = int(np.nanargmin(lows[start:])) + start
+            if l_idx < h_idx:
+                return Swing(low=float(lows[l_idx]), low_ts=int(df['t'].iloc[l_idx].timestamp() * 1000),
+                             high=float(highs[h_idx]), high_ts=int(df['t'].iloc[h_idx].timestamp() * 1000),
+                             trend='up')
+            else:
+                return Swing(low=float(lows[l_idx]), low_ts=int(df['t'].iloc[l_idx].timestamp() * 1000),
+                             high=float(highs[h_idx]), high_ts=int(df['t'].iloc[h_idx].timestamp() * 1000),
+                             trend='down')
+        # 从最近的极值向前找到一对先低后高或先高后低
+        i_high = idxs_high[-1]
+        # 找到该高点之前最近的低点
+        prior_lows = [i for i in idxs_low if i < i_high]
+        if prior_lows:
+            i_low = prior_lows[-1]
+            tr = 'up'
+        else:
+            # 没有低点在前，则找高点之后的低点，趋势为下
+            after_lows = [i for i in idxs_low if i > i_high]
+            if not after_lows:
+                return None
+            i_low = after_lows[0]
+            tr = 'down'
+        return Swing(low=float(lows[i_low]), low_ts=int(df['t'].iloc[i_low].timestamp() * 1000),
+                     high=float(highs[i_high]), high_ts=int(df['t'].iloc[i_high].timestamp() * 1000),
+                     trend=tr)
+
+    def compute_fib_map(self, low: float, high: float) -> Dict[float, float]:
+        if not self._ok(low) or not self._ok(high) or high <= 0 or low <= 0 or high == low:
+            return {}
+        rng = high - low
+        return {lvl: low + rng * lvl for lvl in FIB_LEVELS}
+
+    def locate_position(self, price: float, low: float, high: float) -> Dict:
+        if not self._ok(price) or not self._ok(low) or not self._ok(high) or high == low:
+            return {}
+        rng = high - low
+        ratio = (price - low) / rng
+        # 找最近的标准位
+        nearest = min(FIB_LEVELS, key=lambda lv: abs(ratio - lv))
+        nearest_price = low + rng * nearest
+        # 上下方位点（各取3个）
+        upper = sorted([lv for lv in FIB_LEVELS if lv > ratio])[:3]
+        lower = sorted([lv for lv in FIB_LEVELS if lv <= ratio], reverse=True)[:3]
+        return {
+            'ratio': float(ratio),
+            'nearest_level': float(nearest),
+            'nearest_price': float(nearest_price),
+            'upper_levels': [[float(lv), float(low + rng * lv)] for lv in upper],
+            'lower_levels': [[float(lv), float(low + rng * lv)] for lv in lower]
+        }
+
+    # ----------------------------- 单币与批量分析 -----------------------------
+    def analyze_one(self, symbol: str, timeframe: str = '1d', source: str = 'gate') -> Optional[Dict]:
+        df = None
+        if source == 'bybit':
+            interval = {'1d': 'D', '4h': '240', '1h': '60'}.get(timeframe, 'D')
+            df = self.get_klines_bybit(symbol, interval=interval)
+        else:
+            interval = timeframe if timeframe in {'1d', '4h', '1h'} else '1d'
+            df = self.get_klines_gate(symbol, interval=interval)
+        if df is None or len(df) < 20:
+            return None
+        swing = self.find_recent_swing(df)
+        if swing is None:
+            return None
+        current_price = float(df['close'].iloc[-1])
+        # 统一采用 low->high 作为基准，若趋势为 down 且 low_index>high_index 可交换
+        low, high = swing.low, swing.high
+        if swing.trend == 'down' and swing.high_ts < swing.low_ts:
+            # 先高后低，交换
+            low, high = swing.low, swing.high  # 值保持不变，但 ratio 解释为可能<0
+        fib_map = self.compute_fib_map(low, high)
+        pos = self.locate_position(current_price, low, high)
+        return {
+            'symbol': symbol,
+            'timeframe': timeframe,
+            'source': source,
+            'current_price': current_price,
+            'recent_low': low,
+            'recent_low_ts': swing.low_ts,
+            'recent_high': high,
+            'recent_high_ts': swing.high_ts,
+            'trend': swing.trend,
+            'fib_levels': fib_map,
+            'position': pos
+        }
+
+    def scan_symbols(self, symbols: List[str], timeframe: str = '1d', source: str = 'gate', max_workers: int = 12) -> List[Dict]:
+        results: List[Dict] = []
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(self.analyze_one, s, timeframe, source): s for s in symbols}
+            for fut in as_completed(futures):
+                try:
+                    r = fut.result()
+                    if r:
+                        results.append(r)
+                except Exception as e:
+                    logger.debug(f"扫描 {futures[fut]} 失败: {e}")
+        return results
+
+
+# 实例化
+engine = RealtimeFibonacciV2()
+
+
+# ----------------------------- HTTP 接口 -----------------------------
+
+@realtime_fib_bp.route('/api/top_symbols', methods=['GET'])
+def api_top_symbols():
+    source = request.args.get('source', 'gate').lower()
+    limit = int(request.args.get('limit', 1000))
+    if source == 'bybit':
+        syms = engine.get_bybit_top_symbols(limit)
+    else:
+        syms = engine.get_gate_top_symbols(limit)
+    return jsonify({'success': True, 'source': source, 'count': len(syms), 'symbols': syms})
+
+
+@realtime_fib_bp.route('/api/scan', methods=['POST'])
+def api_scan():
+    data = request.get_json(silent=True) or {}
+    source = (data.get('source') or 'gate').lower()
+    limit = int(data.get('limit', 1000))
+    timeframe = data.get('timeframe', '1d')
+    # 获取交易对列表
+    symbols = engine.get_bybit_top_symbols(limit) if source == 'bybit' else engine.get_gate_top_symbols(limit)
+    # 扫描
+    results = engine.scan_symbols(symbols, timeframe=timeframe, source=source)
+    # 简化列表返回字段，便于前端表格展示
+    list_rows = []
+    for r in results:
+        pos = r.get('position') or {}
+        list_rows.append({
+            'symbol': r['symbol'],
+            'timeframe': r['timeframe'],
+            'trend': r['trend'],
+            'current_price': r['current_price'],
+            'recent_low': r['recent_low'],
+            'recent_high': r['recent_high'],
+            'ratio': pos.get('ratio'),
+            'nearest_level': pos.get('nearest_level'),
+            'nearest_price': pos.get('nearest_price')
+        })
+    # 结果按 ratio 从大到小排序，方便观察处于扩展区的标的
+    list_rows.sort(key=lambda x: (x.get('ratio') is not None, x.get('ratio') or -1), reverse=True)
+    return jsonify({'success': True, 'source': source, 'timeframe': timeframe, 'total': len(list_rows), 'rows': list_rows[:limit]})
+
 
 @realtime_fib_bp.route('/api/analyze', methods=['POST'])
-def analyze_realtime_fibonacci():
-    """实时斐波那契分析API"""
-    try:
-        data = request.get_json()
-        symbol = data.get('symbol', 'H')
-        timeframe = data.get('timeframe', '1h')
-        
-        logger.info(f"收到实时斐波分析请求: symbol={symbol}, timeframe={timeframe}")
-        
-        result = analyzer.analyze_realtime_fibonacci(symbol, timeframe)
-        
-        if result:
-            logger.info(f"实时斐波分析成功: symbol={symbol}")
-            return jsonify({
-                'success': True,
-                'result': result
-            })
-        else:
-            logger.error(f"实时斐波分析返回None: symbol={symbol}")
-            return jsonify({
-                'success': False,
-                'error': '分析失败'
-            }), 500
-            
-    except Exception as e:
-        import traceback
-        logger.error(f"实时斐波分析异常: {e}\n{traceback.format_exc()}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+def api_analyze_one():
+    data = request.get_json(silent=True) or {}
+    symbol = data.get('symbol', 'BTCUSDT').upper()
+    timeframe = data.get('timeframe', '1d')
+    source = (data.get('source') or 'gate').lower()
+    res = engine.analyze_one(symbol, timeframe=timeframe, source=source)
+    if not res:
+        return jsonify({'success': False, 'error': '分析失败或无数据'}), 500
+    return jsonify({'success': True, 'result': res})
+

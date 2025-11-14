@@ -1880,6 +1880,73 @@
                 }
             });
         }
+
+        // ======= 实时斐波 扫描列表 =======
+        async function scanRealtimeFibList() {
+            try {
+                const src = document.getElementById('realtimeFibSource').value;
+                const limit = parseInt(document.getElementById('realtimeFibLimit').value) || 1000;
+                const tf = document.getElementById('realtimeFibScanTf').value;
+                showStatus(`开始扫描 ${src.toUpperCase()} 前 ${limit} 个交易对...`, 'info');
+                const resp = await fetch('/realtime-fib/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source: src, limit: limit, timeframe: tf })
+                });
+                const data = await resp.json();
+                if (!data.success) {
+                    showStatus('扫描失败: ' + (data.error || '未知错误'), 'error');
+                    return;
+                }
+                renderRealtimeFibList(data.rows, data.source, data.timeframe);
+                showStatus(`扫描完成，共 ${data.total} 条`, 'success');
+            } catch (e) {
+                console.error('扫描失败', e);
+                showStatus('扫描失败: ' + e.message, 'error');
+            }
+        }
+
+        function renderRealtimeFibList(rows, source, timeframe) {
+            const el = document.getElementById('realtimeFibList');
+            if (!rows || rows.length === 0) {
+                el.innerHTML = '<p>暂无数据</p>';
+                return;
+            }
+            let html = `
+                <table class="results-table">
+                  <thead>
+                    <tr>
+                      <th>交易对</th>
+                      <th>趋势</th>
+                      <th>当前价格</th>
+                      <th>最近低点</th>
+                      <th>最近高点</th>
+                      <th>斐波比例</th>
+                      <th>最近位点</th>
+                      <th>位点价格</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+            `;
+            for (const r of rows.slice(0, 1000)) {
+                const ratio = (r.ratio !== null && r.ratio !== undefined) ? Number(r.ratio).toFixed(3) : '-';
+                const near = (r.nearest_level !== null && r.nearest_level !== undefined) ? Number(r.nearest_level).toFixed(3) : '-';
+                const nearPrice = (r.nearest_price !== null && r.nearest_price !== undefined) ? Number(r.nearest_price).toFixed(6) : '-';
+                html += `
+                  <tr>
+                    <td>${r.symbol}</td>
+                    <td>${r.trend || '-'}</td>
+                    <td>${Number(r.current_price).toFixed(6)}</td>
+                    <td>${Number(r.recent_low).toFixed(6)}</td>
+                    <td>${Number(r.recent_high).toFixed(6)}</td>
+                    <td>${ratio}</td>
+                    <td>${near}</td>
+                    <td>${nearPrice}</td>
+                  </tr>`;
+            }
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        }
         
         function toggleVideoBackground() {
             showStatus('切换背景模式', 'info');
@@ -4206,50 +4273,49 @@
         <div id="realtimeFib" class="tab-content">
             <h3>⚡ 实时斐波分析</h3>
             <div class="form-group">
-                <p>实时判断币种是否在斐波扩展阶段，定位当前点位，分析阻力支撑概率</p>
-                
-                <div class="info-box">
-                    <h4>分析功能：</h4>
-                    <ul>
-                        <li><strong>实时判断</strong>：是否在斐波扩展阶段</li>
-                        <li><strong>点位定位</strong>：当前价格在斐波位点中的位置</li>
-                        <li><strong>关键位点</strong>：上方和下方的关键阻力/支撑位</li>
-                        <li><strong>概率分析</strong>：阻力vs支撑的概率预测</li>
-                        <li><strong>近期变化</strong>：2-4小时价格和量能变化分析</li>
-                        <li><strong>多空强度</strong>：基于变化速度的多空强度计算</li>
-                    </ul>
-                </div>
-
-                <div class="form-group">
-                    <label for="realtimeSymbol">选择标的：</label>
-                    <select id="realtimeSymbol" class="form-control">
-                        <option value="H">$H</option>
-                        <option value="KGEN">$KGEN</option>
-                        <option value="BANK">$BANK</option>
-                        <option value="LA">$LA</option>
-                        <option value="F">$F</option>
-                        <option value="LIGHT">$LIGHT</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="realtimeTimeframe">时间周期：</label>
-                    <select id="realtimeTimeframe" class="form-control">
-                        <option value="1h" selected>1小时</option>
-                        <option value="4h">4小时</option>
-                        <option value="15m">15分钟</option>
-                        <option value="5m">5分钟</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <button class="btn btn-primary" onclick="runRealtimeFibonacciAnalysis()">⚡ 开始实时分析</button>
-                    <button class="btn btn-secondary" onclick="startRealtimeMonitoring()">🔄 开启实时监控</button>
-                </div>
-
-                <div id="realtimeFibResults" class="results-container"></div>
-                <div id="realtimeFibChart" style="width: 100%; height: 600px; margin-top: 20px;"></div>
+                <label for="realtimeSymbol">币种：</label>
+                <input type="text" class="form-control" id="realtimeSymbol" placeholder="例如: BTCUSDT" value="BTCUSDT">
+                <label for="realtimeTimeframe">时间框架：</label>
+                <select class="form-control" id="realtimeTimeframe">
+                    <option value="1h">1小时</option>
+                    <option value="4h">4小时</option>
+                    <option value="1d" selected>1天</option>
+                </select>
+                <button class="btn btn-primary" onclick="runRealtimeFibonacciAnalysis()">开始分析</button>
+                <button class="btn btn-secondary" onclick="startRealtimeMonitoring()">开启/停止实时监控</button>
             </div>
+
+            <div class="form-group" style="margin-top: 16px;">
+                <h4>📋 扫描列表</h4>
+                <div class="stats-grid">
+                    <div>
+                        <label>数据源：</label>
+                        <select id="realtimeFibSource" class="form-control" style="width: 140px; display: inline-block;">
+                            <option value="gate" selected>Gate.io</option>
+                            <option value="bybit">Bybit</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>扫描数量：</label>
+                        <input id="realtimeFibLimit" type="number" class="form-control" value="1000" min="10" max="1000" style="width: 120px; display: inline-block;">
+                    </div>
+                    <div>
+                        <label>时间框架：</label>
+                        <select id="realtimeFibScanTf" class="form-control" style="width: 120px; display: inline-block;">
+                            <option value="1d" selected>1天</option>
+                            <option value="4h">4小时</option>
+                            <option value="1h">1小时</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" onclick="scanRealtimeFibList()">🔍 扫描并生成列表</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="realtimeFibResults" class="results-container"></div>
+            <div id="realtimeFibList" class="results-container" style="margin-top: 10px;"></div>
+            <div id="realtimeFibChart" style="width: 100%; height: 600px; margin-top: 20px;"></div>
         </div>
 
         
