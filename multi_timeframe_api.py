@@ -370,13 +370,21 @@ def get_top_symbols():
 
 @multi_timeframe_bp.route('/get_strategy_info', methods=['GET'])
 def get_strategy_info():
-    """Returns information about the strategy configuration."""
+    """Returns information about the strategy configuration.
+
+    Note: choose an available strategy instance (prefer original).
+    """
+    # Pick an available strategy instance
+    strategy_ref = original_strategy or modified_strategy
+    if strategy_ref is None:
+        return jsonify({'error': 'Strategy service is not available.'}), 503
+
     return jsonify({
         'success': True,
         'strategy_name': 'Multi-Timeframe EMA Pullback Strategy',
-        'timeframes': strategy.timeframes,
-        'ema_periods': strategy.ema_periods,
-        'take_profit_mapping': strategy.take_profit_timeframes,
+        'timeframes': strategy_ref.timeframes,
+        'ema_periods': strategy_ref.ema_periods,
+        'take_profit_mapping': strategy_ref.take_profit_timeframes,
         'description': {
             'trend_detection': 'EMA144 > EMA233 for bullish trend, and vice-versa for bearish.',
             'entry_condition': 'Price pulls back to one of the key EMA levels (144, 233, 377, 610) with volume confirmation.',
@@ -386,7 +394,10 @@ def get_strategy_info():
 
 @multi_timeframe_bp.route('/validate_symbol', methods=['POST'])
 def validate_symbol_endpoint():
-    """Validates if a symbol exists and has data."""
+    """Validates if a symbol exists and has data.
+
+    Uses the original strategy by default; falls back to modified if needed.
+    """
     try:
         data = request.get_json()
         if not data or 'symbol' not in data:
@@ -396,7 +407,11 @@ def validate_symbol_endpoint():
         if not symbol:
             return jsonify({'error': 'Symbol cannot be empty.'}), 400
 
-        is_valid = strategy.validate_symbol(symbol)
+        strategy_ref = original_strategy or modified_strategy
+        if strategy_ref is None:
+            return jsonify({'error': 'Strategy service is not available.'}), 503
+
+        is_valid = strategy_ref.validate_symbol(symbol)
         
         return jsonify({
             'success': True,
@@ -412,17 +427,21 @@ def validate_symbol_endpoint():
 @multi_timeframe_bp.route('/clear_ema_usage', methods=['POST'])
 def clear_ema_usage():
     """
-    Clears the in-memory EMA usage record.
+    Clears the in-memory EMA usage record for available strategies.
     Note: This is not effective in a multi-worker production environment.
     """
     try:
-        strategy.ema_usage = {}
-        logger.info("In-memory EMA usage record has been cleared.")
+        cleared = []
+        for s_name, s in [('original', original_strategy), ('modified', modified_strategy)]:
+            if s is not None:
+                s.ema_usage = {}
+                cleared.append(s_name)
+        logger.info(f"In-memory EMA usage record has been cleared for: {cleared}")
         return jsonify({
             'success': True,
-            'message': 'EMA usage record has been cleared for this worker process.'
+            'cleared': cleared,
+            'message': 'EMA usage record has been cleared for available strategy instances.'
         })
     except Exception as e:
         logger.error(f"Failed to clear EMA usage record: {e}", exc_info=True)
         return jsonify({'error': 'An internal server error occurred.', 'details': str(e)}), 500
-
