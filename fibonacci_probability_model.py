@@ -43,13 +43,14 @@ class FibonacciProbabilityModel:
             '1d': 1
         }
         # 概率权重（可被评测脚本覆盖）
+        # 初始调优基线权重（可被评测脚本覆盖）
         self.base_weights = {
-            'velocity_factor': 0.2,
-            'volume_factor': 0.2,
-            'consolidation_factor': 0.15,
-            'fake_breakout_factor': 0.15,
-            'distance_factor': 0.15,
-            'trend_alignment_factor': 0.15,
+            'velocity_factor': 0.18,
+            'volume_factor': 0.16,
+            'consolidation_factor': 0.14,
+            'fake_breakout_factor': 0.12,
+            'distance_factor': 0.20,
+            'trend_alignment_factor': 0.20,
         }
     
     def _get_bars_per_day(self, timeframe: str) -> int:

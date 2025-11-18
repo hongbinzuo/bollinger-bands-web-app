@@ -1275,6 +1275,7 @@
 
         // 斐波概率预测相关函数
         let fibonacciProbChart = null;
+        let fibonacciProbChartDown = null;
 
         // 斐波概率分析主函数
         async function runFibonacciProbabilityAnalysis() {
@@ -1302,6 +1303,9 @@
                 if (data.success) {
                     displayFibonacciProbabilityResults(data.result);
                     drawFibonacciProbabilityChart(data.result);
+                    if (data.result && data.result.down_probabilities) {
+                        drawFibonacciDownProbabilityChart(data.result);
+                    }
                     showStatus(`斐波概率分析完成`, 'success');
                 } else {
                     showStatus(`分析失败: ${data.error}`, 'error');
@@ -1496,6 +1500,47 @@
             html += `
                     </div>
                 </div>
+                
+                <div class="fibonacci-levels-container">
+                    <h4>📉 下行斐波扩展位概率分析</h4>
+                    <div class="fib-levels-grid">
+            `;
+
+            if (result.down_probabilities) {
+                for (const [level, probData] of Object.entries(result.down_probabilities)) {
+                    const probability = probData.probability;
+                    const price = probData.price;
+                    const factors = probData.factors || {};
+                    let probClass = 'low';
+                    let probText = '低概率';
+                    if (probability > 0.7) { probClass = 'high'; probText = '高概率'; }
+                    else if (probability > 0.4) { probClass = 'medium'; probText = '中概率'; }
+                    html += `
+                        <div class="fib-level-item ${probClass}">
+                            <div class="fib-level-header">
+                                <strong>${level}x 下行斐波位</strong>
+                                <span class="probability-badge">${(probability * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="fib-level-details">
+                                <div class="fib-price">价格: ${price.toFixed(6)}</div>
+                                <div class="fib-probability">概率: ${probText}</div>
+                            </div>
+                            <div class="fib-factors">
+                                <div class="factor-item"><span>速度因子:</span><span>${((factors.velocity_factor||0) * 100).toFixed(1)}%</span></div>
+                                <div class="factor-item"><span>量能因子:</span><span>${((factors.volume_factor||0) * 100).toFixed(1)}%</span></div>
+                                <div class="factor-item"><span>盘整因子:</span><span>${((factors.consolidation_factor||0) * 100).toFixed(1)}%</span></div>
+                                <div class="factor-item"><span>假突破因子:</span><span>${((factors.fake_breakout_factor||0) * 100).toFixed(1)}%</span></div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } else {
+                html += `<div class="info-box">无下行扩展位数据</div>`;
+            }
+
+            html += `
+                    </div>
+                </div>
             `;
 
             resultsDiv.innerHTML = html;
@@ -1607,6 +1652,51 @@
                                 text: '斐波那契扩展位'
                             }
                         }
+                    }
+                }
+            });
+        }
+
+        // 绘制下行斐波概率图表
+        function drawFibonacciDownProbabilityChart(result) {
+            const container = document.getElementById('fibonacciProbChartDown');
+            if (!container) return;
+            const ctx = container.getContext('2d');
+            if (fibonacciProbChartDown) {
+                fibonacciProbChartDown.destroy();
+            }
+            if (!result.down_probabilities) return;
+            const levels = Object.keys(result.down_probabilities);
+            const probabilities = Object.values(result.down_probabilities).map(p => p.probability * 100);
+            fibonacciProbChartDown = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: levels.map(l => `${l}x`),
+                    datasets: [{
+                        label: '向下突破概率 (%)',
+                        data: probabilities,
+                        backgroundColor: probabilities.map(p => {
+                            if (p > 70) return 'rgba(76, 175, 80, 0.8)';
+                            if (p > 40) return 'rgba(255, 193, 7, 0.8)';
+                            return 'rgba(244, 67, 54, 0.8)';
+                        }),
+                        borderColor: probabilities.map(p => {
+                            if (p > 70) return 'rgb(76, 175, 80)';
+                            if (p > 40) return 'rgb(255, 193, 7)';
+                            return 'rgb(244, 67, 54)';
+                        }),
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: `${result.symbol} 下行斐波扩展位突破概率` },
+                        legend: { display: true }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, max: 100, title: { display: true, text: '突破概率 (%)' } },
+                        x: { title: { display: true, text: '下行斐波扩展位' } }
                     }
                 }
             });
@@ -4339,7 +4429,8 @@
                 </div>
 
                 <div id="fibonacciProbResults" class="results-container"></div>
-                <div id="fibonacciProbChart" style="width: 100%; height: 600px; margin-top: 20px;"></div>
+                <canvas id="fibonacciProbChart" style="width: 100%; height: 600px; margin-top: 20px;"></canvas>
+                <canvas id="fibonacciProbChartDown" style="width: 100%; height: 600px; margin-top: 20px;"></canvas>
             </div>
         </div>
 
