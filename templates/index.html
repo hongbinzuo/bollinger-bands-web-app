@@ -1380,6 +1380,29 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="info-box">
+                    <h4>📈 指标快照（ATR / RSI / ADX / +DI / -DI）</h4>
+                    <div class="stats-grid">
+                        ${(() => {
+                            const ind = (result.analysis_results && result.analysis_results.indicators) ? result.analysis_results.indicators : {};
+                            const atr = (ind.atr_last ?? 0).toFixed(6);
+                            const rsi = (ind.rsi_last ?? 50).toFixed(1);
+                            const adx = (ind.adx_last ?? 0).toFixed(1);
+                            const pdi = (ind.pdi_last ?? 0).toFixed(1);
+                            const mdi = (ind.mdi_last ?? 0).toFixed(1);
+                            const trend = (parseFloat(pdi) >= parseFloat(mdi)) ? '上行动能占优' : '下行动能占优';
+                            return `
+                                <div class="stat-item"><strong>ATR:</strong> ${atr}</div>
+                                <div class="stat-item"><strong>RSI:</strong> ${rsi}</div>
+                                <div class="stat-item"><strong>ADX:</strong> ${adx}</div>
+                                <div class="stat-item"><strong>+DI:</strong> ${pdi}</div>
+                                <div class="stat-item"><strong>-DI:</strong> ${mdi}</div>
+                                <div class="stat-item"><strong>趋势判断:</strong> ${trend}</div>
+                            `;
+                        })()}
+                    </div>
+                </div>
                 
                 <div class="fibonacci-levels-info">
                     <h4>📊 斐波那契扩展位详情</h4>
