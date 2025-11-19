@@ -7,6 +7,8 @@
     <!-- Chart.js 图表库 - 主页面使用 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js" onerror="console.error('Chart.js加载失败')"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" onerror="console.error('Chart.js适配器加载失败')"></script>
+    <!-- Favicon to avoid 404 noise -->
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <!-- Lightweight Charts 本地静态库（用于K线绘制Tab） -->
     <script src="/static/vendor/lightweight-charts/lightweight-charts.standalone.production.min.js"></script>
     
@@ -371,48 +373,39 @@
             startHeartbeat();
         }
         
-        // 全局错误处理
+        // 全局错误处理（过滤第三方脚本噪音/空错误）
         window.addEventListener('error', function(event) {
-            console.error('Global error:', event.error);
-            if (event.error && event.error.message && 
-                (event.error.message.includes('port closed') ||
-                 event.error.message.includes('runtime.lastError') ||
-                 event.error.message.includes('message port closed'))) {
-                
+            const src = String((event && (event.filename || (event.error && event.error.stack) || '')) || '');
+            const msg = String((event && (event.message || (event.error && event.error.message))) || '');
+            // 忽略未知/空错误与第三方注入脚本（如 qk-content.js/lockdown）
+            if (!msg || /(qk-content\.js|lockdown-install\.js|SES_UNCAUGHT_EXCEPTION)/.test(src + ' ' + msg)) {
+                return;
+            }
+            console.error('Global error:', event.error || msg);
+            if (msg.includes('port closed') || msg.includes('runtime.lastError') || msg.includes('message port closed')) {
                 connectionStatus = 'error';
                 showStatus('检测到连接问题，正在尝试自动恢复...', 'warning');
-                
-                // 尝试自动恢复
                 setTimeout(async () => {
                     const recovered = await checkConnection();
-                    if (recovered) {
-                        showStatus('连接已恢复', 'success');
-                    } else {
-                        showStatus('连接恢复失败，请刷新页面', 'error');
-                    }
+                    showStatus(recovered ? '连接已恢复' : '连接恢复失败，请刷新页面', recovered ? 'success' : 'error');
                 }, 2000);
             }
         });
         
-        // 处理未捕获的Promise错误
+        // 处理未捕获的Promise错误（过滤第三方/空错误）
         window.addEventListener('unhandledrejection', function(event) {
-            console.error('Unhandled promise rejection:', event.reason);
-            if (event.reason && event.reason.message && 
-                (event.reason.message.includes('port closed') ||
-                 event.reason.message.includes('runtime.lastError') ||
-                 event.reason.message.includes('message port closed'))) {
-                
+            const reason = event && event.reason;
+            const msg = String((reason && (reason.message || reason)) || '');
+            if (!msg || /(qk-content\.js|lockdown-install\.js|SES_UNCAUGHT_EXCEPTION)/.test(msg)) {
+                return;
+            }
+            console.error('Unhandled promise rejection:', reason);
+            if (msg.includes('port closed') || msg.includes('runtime.lastError') || msg.includes('message port closed')) {
                 connectionStatus = 'error';
                 showStatus('检测到连接问题，正在尝试自动恢复...', 'warning');
-                
-                // 尝试自动恢复
                 setTimeout(async () => {
                     const recovered = await checkConnection();
-                    if (recovered) {
-                        showStatus('连接已恢复', 'success');
-                    } else {
-                        showStatus('连接恢复失败，请刷新页面', 'error');
-                    }
+                    showStatus(recovered ? '连接已恢复' : '连接恢复失败，请刷新页面', recovered ? 'success' : 'error');
                 }, 2000);
             }
         });
@@ -7632,15 +7625,25 @@
         
         // 全局错误处理
         window.addEventListener('unhandledrejection', function(event) {
-            console.error('未处理的Promise错误:', event.reason);
-            showStatus(`系统错误: ${event.reason.message || event.reason}`, 'error');
+            const reason = event && event.reason;
+            const msg = String((reason && (reason.message || reason)) || '');
+            if (!msg || /(qk-content\.js|lockdown-install\.js|SES_UNCAUGHT_EXCEPTION)/.test(msg)) {
+                return; // 忽略第三方脚本/空错误
+            }
+            console.error('未处理的Promise错误:', reason);
+            showStatus(`系统错误: ${msg}`, 'error');
             event.preventDefault(); // 阻止默认的错误处理
         });
         
         window.addEventListener('error', function(event) {
-            console.error('JavaScript错误:', event.error);
-            if (event.error && event.error.message) {
-                showStatus(`JavaScript错误: ${event.error.message}`, 'error');
+            const src = String((event && (event.filename || (event.error && event.error.stack) || '')) || '');
+            const msg = String((event && (event.message || (event.error && event.error.message))) || '');
+            if (!msg || /(qk-content\.js|lockdown-install\.js|SES_UNCAUGHT_EXCEPTION)/.test(src + ' ' + msg)) {
+                return; // 忽略第三方脚本/空错误
+            }
+            console.error('JavaScript错误:', event.error || msg);
+            if (msg) {
+                showStatus(`JavaScript错误: ${msg}`, 'error');
             }
         });
 
