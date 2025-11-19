@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K线绘制（Lightweight Charts）</title>
+  <link rel="stylesheet" href="/static/style.css" onerror="this.remove()">
+  <style>
+    body { font-family: Arial, sans-serif; background: #0f111a; color: #e5e5e5; margin: 0; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 16px; }
+    .grid { display: grid; grid-template-columns: 1.1fr 2fr; gap: 16px; }
+    .card { background: #151826; border-radius: 8px; padding: 12px 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+    .card h3 { margin: 4px 0 12px; font-size: 16px; }
+    textarea, input, select { width: 100%; background: #0f1320; color: #e5e5e5; border: 1px solid #2a2f45; border-radius: 6px; padding: 8px; }
+    label { display: block; margin: 8px 0 4px; font-size: 13px; color: #aab; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row > * { flex: 1; }
+    .btn { background: #3b82f6; border: none; border-radius: 6px; color: white; padding: 8px 12px; cursor: pointer; }
+    .btn.secondary { background: #64748b; }
+    .btn.warn { background: #f59e0b; }
+    .btn.danger { background: #ef4444; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .levels { max-height: 160px; overflow: auto; border: 1px dashed #2a2f45; padding: 6px; border-radius: 6px; }
+    .level-item { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .level-item input { flex: 1; }
+    #chart { height: 540px; }
+    .muted { color: #9aa1b2; font-size: 12px; }
+  </style>
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h2>专业K线绘制（TradingView Lightweight Charts）</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>自然语言描述</h3>
+        <textarea id="nlpInput" rows="6" placeholder="例：币种 $BTC，时间周期 4小时；支撑位：61200, 60000；阻力位：63500；备注：突破阻力加仓，回踩支撑减仓"></textarea>
+        <div class="row" style="margin-top:8px;">
+          <button class="btn" onclick="parseInput()">解析</button>
+          <button class="btn secondary" onclick="clearAll()">清空</button>
+        </div>
+
+        <h3 style="margin-top:18px;">解析结果与调整</h3>
+        <label>币种（现货，例如 BTCUSDT）：</label>
+        <input id="symbolInput" value="BTCUSDT">
+        <div class="split">
+          <div>
+            <label>时间周期</label>
+            <select id="timeframeSelect">
+              <option value="1d">1天</option>
+              <option value="4h" selected>4小时</option>
+              <option value="1h">1小时</option>
+            </select>
+          </div>
+          <div>
+            <label>数据源</label>
+            <select id="sourceSelect">
+              <option value="gate" selected>Gate.io</option>
+              <option value="bybit">Bybit</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="split" style="margin-top:8px;">
+          <div>
+            <label>支撑位（可编辑）</label>
+            <div id="supportLevels" class="levels"></div>
+            <div class="row">
+              <input id="supportAdd" placeholder="输入价格后添加，如 61200">
+              <button class="btn" onclick="addLevel('support')">添加支撑</button>
+            </div>
+          </div>
+          <div>
+            <label>阻力位（可编辑）</label>
+            <div id="resistanceLevels" class="levels"></div>
+            <div class="row">
+              <input id="resistanceAdd" placeholder="输入价格后添加，如 63500">
+              <button class="btn" onclick="addLevel('resistance')">添加阻力</button>
+            </div>
+          </div>
+        </div>
+
+        <label style="margin-top:8px;">备注</label>
+        <input id="remarksInput" placeholder="示例：突破阻力加仓，回踩支撑减仓">
+
+        <div class="row" style="margin-top:10px;">
+          <button class="btn" onclick="drawChart()">绘制图表</button>
+          <button class="btn warn" onclick="applyLevels()">应用水平线</button>
+          <button class="btn secondary" onclick="toggleAutoRefresh()" id="autoBtn">开启自动刷新</button>
+        </div>
+        <div class="row">
+          <label>刷新秒数</label>
+          <input id="refreshSec" type="number" min="5" max="300" value="30">
+          <div class="muted">自动刷新仅更新K线数据，不修改已绘制的水平线</div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <label>点击添加：</label>
+          <select id="clickMode">
+            <option value="none" selected>关闭</option>
+            <option value="support">支撑</option>
+            <option value="resistance">阻力</option>
+          </select>
+          <div class="muted">在图表上点击可添加对应价位</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>实时图表</h3>
+        <div id="chart"></div>
+        <div class="muted" id="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let chart, candleSeries;
+    let supportLines = [];
+    let resistanceLines = [];
+    let autoTimer = null;
+
+    function setStatus(msg, type='info') {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.style.color = type === 'error' ? '#ef4444' : (type === 'warn' ? '#f59e0b' : '#9aa1b2');
+    }
+
+    function initChart() {
+      if (chart) return;
+      chart = LightweightCharts.createChart(document.getElementById('chart'), {
+        layout: { background: { color: '#0f111a' }, textColor: '#e5e5e5' },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        rightPriceScale: { borderVisible: false },
+        timeScale: { borderVisible: false },
+        grid: { vertLines: { color: '#1f2335' }, horzLines: { color: '#1f2335' } },
+      });
+      candleSeries = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', wickUpColor: '#26a69a', wickDownColor: '#ef5350', borderVisible: false });
+
+      chart.subscribeClick(param => {
+        const mode = document.getElementById('clickMode').value;
+        if (!param || !param.point || mode === 'none') return;
+        const price = candleSeries.coordinateToPrice(param.point.y);
+        if (!price || isNaN(price)) return;
+        if (mode === 'support') {
+          pushLevel('support', price);
+        } else if (mode === 'resistance') {
+          pushLevel('resistance', price);
+        }
+      });
+    }
+
+    function msToLwc(rows) {
+      return rows.map(r => ({ time: Math.floor((r.t || r.timestamp) / 1000), open: r.open, high: r.high, low: r.low, close: r.close }));
+    }
+
+    async function loadSeries(symbol, timeframe, source) {
+      try {
+        setStatus(`加载 ${symbol} ${timeframe} (${source})...`);
+        const resp = await fetch('/realtime-fib/api/analyze', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, timeframe, source, include_series: true })
+        });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || '加载失败');
+        const series = data.result.series || [];
+        candleSeries.setData(msToLwc(series));
+        setStatus(`已加载：${data.result.symbol} / ${data.result.timeframe} / 源 ${data.result.source}`);
+      } catch (e) {
+        console.error(e);
+        setStatus(`加载失败：${e.message}`, 'error');
+      }
+    }
+
+    function renderLevels(containerId, kind, arr) {
+      const el = document.getElementById(containerId);
+      el.innerHTML = '';
+      arr.forEach((v, idx) => {
+        const item = document.createElement('div');
+        item.className = 'level-item';
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.step = '0.00000001';
+        inp.value = Number(v).toFixed(8).replace(/0+$/,'').replace(/\.$/,'');
+        inp.onchange = () => { arr[idx] = parseFloat(inp.value); };
+        const del = document.createElement('button');
+        del.className = 'btn danger';
+        del.textContent = '删除';
+        del.onclick = () => { arr.splice(idx,1); renderLevels(containerId, kind, arr); applyLevels(); };
+        item.appendChild(inp);
+        item.appendChild(del);
+        el.appendChild(item);
+      });
+    }
+
+    function pushLevel(kind, price) {
+      const p = parseFloat(price);
+      if (!p || isNaN(p)) return;
+      if (kind === 'support') {
+        supports.push(p);
+        supports.sort((a,b)=>a-b);
+        renderLevels('supportLevels','support',supports);
+      } else {
+        resistances.push(p);
+        resistances.sort((a,b)=>a-b);
+        renderLevels('resistanceLevels','resistance',resistances);
+      }
+      applyLevels();
+    }
+
+    function addLevel(kind) {
+      const id = kind === 'support' ? 'supportAdd' : 'resistanceAdd';
+      const val = parseFloat(document.getElementById(id).value);
+      if (!val || isNaN(val)) return;
+      pushLevel(kind, val);
+      document.getElementById(id).value = '';
+    }
+
+    function clearPriceLines(lines) {
+      if (!lines) return;
+      lines.forEach(l => { try { candleSeries.removePriceLine(l); } catch(_){} });
+      lines.length = 0;
+    }
+
+    function applyLevels() {
+      initChart();
+      clearPriceLines(supportLines);
+      clearPriceLines(resistanceLines);
+      // 绘制支撑（绿色）
+      supports.forEach(p => {
+        const line = candleSeries.createPriceLine({ price: p, color: '#10b981', lineWidth: 2, lineStyle: 2, title: `S ${p}` });
+        supportLines.push(line);
+      });
+      // 绘制阻力（红色）
+      resistances.forEach(p => {
+        const line = candleSeries.createPriceLine({ price: p, color: '#ef4444', lineWidth: 2, lineStyle: 2, title: `R ${p}` });
+        resistanceLines.push(line);
+      });
+    }
+
+    function drawChart() {
+      initChart();
+      const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
+      const timeframe = document.getElementById('timeframeSelect').value;
+      const source = document.getElementById('sourceSelect').value;
+      loadSeries(symbol, timeframe, source);
+      applyLevels();
+    }
+
+    function parseNumbers(str) {
+      if (!str) return [];
+      return (str.match(/[-+]?[0-9]*\.?[0-9]+/g) || []).map(x => parseFloat(x)).filter(x => !isNaN(x));
+    }
+
+    function parseInput() {
+      const text = document.getElementById('nlpInput').value.trim();
+      if (!text) return;
+      // 币种：$BTC / 币种 BTC / 币种: BTCUSDT / 直接出现 BTCUSDT
+      let sym = null;
+      const m1 = text.match(/\$([A-Za-z]{2,10})/);
+      if (m1) sym = m1[1] + (m1[1].endsWith('USDT') ? '' : 'USDT');
+      const m2 = text.match(/币种[：: ]*([A-Za-z]{2,15})/);
+      if (!sym && m2) {
+        const raw = m2[1].toUpperCase();
+        sym = raw.endsWith('USDT') ? raw : (raw + 'USDT');
+      }
+      const m3 = text.match(/([A-Z]{2,15}USDT)/);
+      if (!sym && m3) sym = m3[1].toUpperCase();
+      if (!sym) sym = 'BTCUSDT';
+      document.getElementById('symbolInput').value = sym;
+
+      // 时间周期
+      let tf = '4h';
+      if (/1\s*天|日线|\b1d\b/i.test(text)) tf = '1d';
+      else if (/4\s*小时|\b4h\b/i.test(text)) tf = '4h';
+      else if (/1\s*小时|\b1h\b/i.test(text)) tf = '1h';
+      document.getElementById('timeframeSelect').value = tf;
+
+      // 支撑/阻力
+      const sMatch = text.match(/支撑位[：:]?([^；。\n]*)/);
+      const rMatch = text.match(/阻力位[：:]?([^；。\n]*)/);
+      supports = parseNumbers(sMatch ? sMatch[1] : '').sort((a,b)=>a-b);
+      resistances = parseNumbers(rMatch ? rMatch[1] : '').sort((a,b)=>a-b);
+      renderLevels('supportLevels','support',supports);
+      renderLevels('resistanceLevels','resistance',resistances);
+
+      // 备注
+      const note = (text.match(/备注[：:](.*)$/) || [])[1] || '';
+      document.getElementById('remarksInput').value = note.trim();
+    }
+
+    function toggleAutoRefresh() {
+      const btn = document.getElementById('autoBtn');
+      if (autoTimer) {
+        clearInterval(autoTimer); autoTimer = null; btn.textContent = '开启自动刷新'; setStatus('自动刷新关闭'); return;
+      }
+      const sec = Math.max(5, parseInt(document.getElementById('refreshSec').value || '30', 10));
+      const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
+      const timeframe = document.getElementById('timeframeSelect').value;
+      const source = document.getElementById('sourceSelect').value;
+      autoTimer = setInterval(() => loadSeries(symbol, timeframe, source), sec * 1000);
+      btn.textContent = '关闭自动刷新';
+      setStatus(`自动刷新中，每 ${sec}s 更新一次`);
+    }
+
+    function clearAll() {
+      document.getElementById('nlpInput').value = '';
+      supports = []; resistances = [];
+      renderLevels('supportLevels','support',supports);
+      renderLevels('resistanceLevels','resistance',resistances);
+      applyLevels();
+      setStatus('');
+    }
+
+    // 内部状态：水平线集合
+    let supports = [];
+    let resistances = [];
+
+    window.addEventListener('load', () => {
+      initChart();
+      // 默认加载 BTC 4h Gate
+      drawChart();
+    });
+  </script>
+</body>
+</html>
+

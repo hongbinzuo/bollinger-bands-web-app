@@ -574,6 +574,11 @@ def fibonacci_research():
     """斐波规律研究页面"""
     return render_template('fibonacci_research.html')
 
+@app.route('/kline-draw')
+def kline_draw_page():
+    """K线绘制（Lightweight Charts）与自然语言输入解析页"""
+    return render_template('kline_draw.html')
+
 @app.route('/fibonacci/api/light-data', methods=['GET'])
 def fibonacci_api_light_data():
     """斐波规律研究API - 重定向到fibonacci蓝图"""
