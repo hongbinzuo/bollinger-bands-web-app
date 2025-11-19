@@ -5,12 +5,9 @@ import time
 import requests
 import pandas as pd
 import numpy as np
-import time
 import logging
 from datetime import datetime, date
 from typing import List, Dict
-import json
-import os
 from io import StringIO, BytesIO
 import pickle
 import csv
@@ -46,9 +43,7 @@ app.register_blueprint(fibonacci_prob_bp)
 app.register_blueprint(realtime_fib_bp)
 
 # 设置日志
-import logging
 from logging.handlers import RotatingFileHandler
-import os
 
 # 创建logs目录
 if not os.path.exists('logs'):
