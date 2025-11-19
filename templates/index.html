@@ -7,6 +7,8 @@
     <!-- Chart.js 图表库 - 主页面使用 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js" onerror="console.error('Chart.js加载失败')"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" onerror="console.error('Chart.js适配器加载失败')"></script>
+    <!-- Lightweight Charts 本地静态库（用于K线绘制Tab） -->
+    <script src="/static/vendor/lightweight-charts/lightweight-charts.standalone.production.min.js"></script>
     
     <script>
         // 显示Tab函数 - 需要在HTML之前定义
@@ -29,6 +31,12 @@
             if (event && event.target) {
                 event.target.classList.add('active');
             }
+            // 如果切到K线绘制，初始化一次
+            try {
+                if (tabName === 'klineDraw' && window.KLINE && typeof KLINE.init === 'function') {
+                    KLINE.init();
+                }
+            } catch (e) { console.warn('KLINE init error', e); }
         }
         
         // 显示交叉点Tab函数
@@ -1080,8 +1088,55 @@
                             <strong>空头信号:</strong> ${stats.sellSignals}
                         </div>
                     </div>
-                </div>
-                
+</div>
+
+<script>
+// K线绘制（内嵌）逻辑，封装到 KLINE 命名空间，避免与现有脚本冲突
+window.KLINE = (function(){
+  let chart, series;
+  let supports = [], resistances = [], sLabels = [], rLabels = [];
+  let linesS = [], linesR = [];
+  let autoTimer = null;
+  let drag = { on:false, kind:null, idx:-1, last:0 };
+  let dragTip;
+
+  function el(id){ return document.getElementById(id); }
+  function status(msg, type){ const s = el('kd_status'); if(!s) return; s.textContent = msg; s.style.color = (type==='error'?'#ef4444':'#9aa1b2'); }
+  function fmt(v){ v=Number(v); if(!isFinite(v)) return ''; if(v>=100) return v.toFixed(2); if(v>=1) return v.toFixed(4); if(v>=0.01) return v.toFixed(6); return v.toFixed(8); }
+  function snap(v){ const x=Math.abs(v); let step=0.0001; if(x>=10000) step=5; else if(x>=1000) step=1; else if(x>=100) step=0.5; else if(x>=10) step=0.1; else if(x>=1) step=0.01; else if(x>=0.1) step=0.001; return Math.round(v/step)*step; }
+  function sortDedup(kind){ const eps=1e-8; if(kind==='support'){ let pairs=supports.map((p,i)=>({p,label:sLabels[i]||''})).sort((a,b)=>a.p-b.p); const out=[],labs=[]; pairs.forEach(it=>{ if(out.length===0||Math.abs(it.p-out[out.length-1])>eps){ out.push(it.p); labs.push(it.label);} }); supports=out; sLabels=labs; } else { let pairs=resistances.map((p,i)=>({p,label:rLabels[i]||''})).sort((a,b)=>a.p-b.p); const out=[],labs=[]; pairs.forEach(it=>{ if(out.length===0||Math.abs(it.p-out[out.length-1])>eps){ out.push(it.p); labs.push(it.label);} }); resistances=out; rLabels=labs; } }
+
+  function ensureChart(){ if(chart) return; if(!window.LightweightCharts){ status('K线库未加载', 'error'); return; } const box=el('kd_chart'); chart = LightweightCharts.createChart(box,{ layout:{background:{color:'#0f111a'},textColor:'#e5e5e5'}, crosshair:{mode:LightweightCharts.CrosshairMode.Normal}, rightPriceScale:{borderVisible:false}, timeScale:{borderVisible:false}, grid:{ vertLines:{color:'#1f2335'}, horzLines:{color:'#1f2335'} } }); series = chart.addCandlestickSeries({ upColor:'#26a69a', downColor:'#ef5350', wickUpColor:'#26a69a', wickDownColor:'#ef5350', borderVisible:false }); setTimeout(resize,0); if(window.ResizeObserver){ new ResizeObserver(resize).observe(box);} else { window.addEventListener('resize',resize);} chart.subscribeClick(param=>{ if(!param||!param.point) return; const mode=el('kd_clickMode').value; if(mode==='none') return; const price = series.coordinateToPrice(param.point.y); if(!price||isNaN(price)) return; addLevel(mode, price); }); dragTip = document.createElement('div'); dragTip.style.cssText='position:absolute;right:8px;padding:2px 6px;background:rgba(0,0,0,0.7);color:#fff;border-radius:4px;font-size:12px;pointer-events:none;display:none;'; box.appendChild(dragTip); // 拖拽
+    box.addEventListener('mousedown', (e)=>{ const y=e.clientY-box.getBoundingClientRect().top; const hit=hitTest(y); if(hit){ drag.on=true; drag.kind=hit.kind; drag.idx=hit.idx; e.preventDefault(); dragTip.style.display='block'; dragTip.style.top=(y-10)+'px'; }});
+    window.addEventListener('mousemove', (e)=>{ if(!drag.on) return; const now=performance.now(); if(now-drag.last<25) return; drag.last=now; const y=e.clientY-box.getBoundingClientRect().top; const p=series.coordinateToPrice(y); if(!p||isNaN(p)||p<=0) return; const v=snap(p); updateLine(drag.kind,drag.idx,v); dragTip.textContent=fmt(v); dragTip.style.top=(y-10)+'px'; });
+    window.addEventListener('mouseup', ()=>{ if(!drag.on) return; drag.on=false; sortDedup('support'); sortDedup('resistance'); renderLists(); applyLines(); dragTip.style.display='none'; });
+  }
+  function resize(){ try{ if(!chart) return; const box=el('kd_chart'); const r=box.getBoundingClientRect(); const w=Math.max(300,Math.floor(r.width||box.clientWidth||0)); const h=Math.max(300,Math.floor(r.height||540)); chart.resize(w,h);}catch(_){}}
+  function hitTest(y){ const tol=6; let best=null; supports.forEach((p,i)=>{ const py=series.priceToCoordinate(p); if(py==null) return; const d=Math.abs(py-y); if(d<=tol && (!best||d<best.d)) best={kind:'support',idx:i,d}; }); resistances.forEach((p,i)=>{ const py=series.priceToCoordinate(p); if(py==null) return; const d=Math.abs(py-y); if(d<=tol && (!best||d<best.d)) best={kind:'resistance',idx:i,d}; }); return best; }
+  function clearLines(arr){ if(!series) return; arr.forEach(l=>{ try{ series.removePriceLine(l);}catch(_){}}); arr.length=0; }
+  function applyLines(){ ensureChart(); if(!series) return; clearLines(linesS); clearLines(linesR); supports.forEach((p,i)=>{ const lab=(sLabels[i]&&sLabels[i].trim())||`S${i+1}`; const l=series.createPriceLine({price:p,color:'#10b981',lineWidth:2,lineStyle:2,title:`${lab} ${fmt(p)}`}); linesS.push(l); }); resistances.forEach((p,i)=>{ const lab=(rLabels[i]&&rLabels[i].trim())||`R${i+1}`; const l=series.createPriceLine({price:p,color:'#ef4444',lineWidth:2,lineStyle:2,title:`${lab} ${fmt(p)}`}); linesR.push(l); }); }
+  function updateLine(kind, idx, v){ if(kind==='support'){ supports[idx]=v; if(linesS[idx]){ try{ series.removePriceLine(linesS[idx]); }catch(_){}} const lab=(sLabels[idx]&&sLabels[idx].trim())||`S${idx+1}`; linesS[idx]=series.createPriceLine({price:v,color:'#10b981',lineWidth:2,lineStyle:2,title:`${lab} ${fmt(v)}`}); } else { resistances[idx]=v; if(linesR[idx]){ try{ series.removePriceLine(linesR[idx]); }catch(_){}} const lab=(rLabels[idx]&&rLabels[idx].trim())||`R${idx+1}`; linesR[idx]=series.createPriceLine({price:v,color:'#ef4444',lineWidth:2,lineStyle:2,title:`${lab} ${fmt(v)}`}); } }
+  function renderLists(){ const boxS=el('kd_supportLevels'); const boxR=el('kd_resistanceLevels'); if(!boxS||!boxR) return; boxS.innerHTML=''; supports.forEach((v,i)=>{ const row=document.createElement('div'); row.style.display='flex'; row.style.gap='6px'; const lab=document.createElement('input'); lab.className='form-control'; lab.placeholder=`S${i+1}`; lab.value=sLabels[i]||''; lab.onchange=()=>{ sLabels[i]=lab.value.trim(); applyLines(); }; const inp=document.createElement('input'); inp.type='number'; inp.className='form-control'; inp.step='0.00000001'; inp.value=fmt(v).replace(/0+$/,'').replace(/\.$/,''); inp.onchange=()=>{ supports[i]=parseFloat(inp.value); applyLines(); }; const del=document.createElement('button'); del.className='btn'; del.textContent='删除'; del.onclick=()=>{ supports.splice(i,1); sLabels.splice(i,1); renderLists(); applyLines(); }; row.appendChild(lab); row.appendChild(inp); row.appendChild(del); boxS.appendChild(row); }); boxR.innerHTML=''; resistances.forEach((v,i)=>{ const row=document.createElement('div'); row.style.display='flex'; row.style.gap='6px'; const lab=document.createElement('input'); lab.className='form-control'; lab.placeholder=`R${i+1}`; lab.value=rLabels[i]||''; lab.onchange=()=>{ rLabels[i]=lab.value.trim(); applyLines(); }; const inp=document.createElement('input'); inp.type='number'; inp.className='form-control'; inp.step='0.00000001'; inp.value=fmt(v).replace(/0+$/,'').replace(/\.$/,''); inp.onchange=()=>{ resistances[i]=parseFloat(inp.value); applyLines(); }; const del=document.createElement('button'); del.className='btn'; del.textContent='删除'; del.onclick=()=>{ resistances.splice(i,1); rLabels.splice(i,1); renderLists(); applyLines(); }; row.appendChild(lab); row.appendChild(inp); row.appendChild(del); boxR.appendChild(row); }); }
+
+  async function loadSeries(symbol, timeframe, source){ try{ status(`加载 ${symbol} ${timeframe} (${source})...`); const resp=await fetch('/realtime-fib/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol,timeframe,source,include_series:true})}); const data=await resp.json(); if(!data.success) throw new Error(data.error||'加载失败'); const arr=(data.result.series||[]).map(r=>({ time: Math.floor((r.t||r.timestamp)/1000), open:r.open, high:r.high, low:r.low, close:r.close })); ensureChart(); if(!series) { status('图表未初始化','error'); return; } series.setData(arr); status(`已加载：${data.result.symbol} / ${data.result.timeframe} / 源 ${data.result.source}`); } catch(e){ console.error(e); status(`加载失败：${e.message}`,'error'); } }
+  function addLevel(kind, price){ const p=parseFloat(price); if(!p||isNaN(p)) return; if(kind==='support'){ supports.push(snap(p)); sLabels.push(''); sortDedup('support'); renderLists(); } else { resistances.push(snap(p)); rLabels.push(''); sortDedup('resistance'); renderLists(); } applyLines(); }
+
+  return {
+    init(){ ensureChart(); renderLists(); },
+    parse(){ const txt=(el('kd_nlp').value||'').trim(); if(!txt) return; let sym=null; const m1=txt.match(/\$([A-Za-z]{2,10})/); if(m1) sym=m1[1]+(m1[1].endsWith('USDT')?'':'USDT'); const m2=txt.match(/币种[：: ]*([A-Za-z]{2,15})/); if(!sym && m2){ const raw=m2[1].toUpperCase(); sym=raw.endsWith('USDT')?raw:(raw+'USDT'); } const m3=txt.match(/([A-Z]{2,15}USDT)/); if(!sym && m3) sym=m3[1].toUpperCase(); if(!sym) sym='BTCUSDT'; el('kd_symbol').value=sym; let tf='4h'; if(/1\s*天|日线|\b1d\b/i.test(txt)) tf='1d'; else if(/4\s*小时|\b4h\b/i.test(txt)) tf='4h'; else if(/1\s*小时|\b1h\b/i.test(txt)) tf='1h'; el('kd_timeframe').value=tf; const sMatch=txt.match(/支撑位[：:]?([^；。\n]*)/); const rMatch=txt.match(/阻力位[：:]?([^；。\n]*)/); const nums = s=> (s.match(/[-+]?[0-9]*\.?[0-9]+/g)||[]).map(x=>parseFloat(x)).filter(x=>!isNaN(x)); supports=nums(sMatch?sMatch[1]:'').sort((a,b)=>a-b); resistances=nums(rMatch?rMatch[1]:'').sort((a,b)=>a-b); sLabels=new Array(supports.length).fill(''); rLabels=new Array(resistances.length).fill(''); renderLists(); el('kd_remarks').value=((txt.match(/备注[：:](.*)$/)||[])[1]||'').trim(); },
+    addLevel(kind){ const id = (kind==='support')?'kd_supportAdd':'kd_resistanceAdd'; const val=parseFloat(el(id).value); if(!val||isNaN(val)) return; addLevel(kind, val); el(id).value=''; },
+    applyLevels(){ applyLines(); },
+    drawChart(){ ensureChart(); const sym=el('kd_symbol').value.trim().toUpperCase(); const tf=el('kd_timeframe').value; const src=el('kd_source').value; resize(); loadSeries(sym, tf, src); applyLines(); },
+    toggleAutoRefresh(){ const btn=el('kd_autoBtn'); if(autoTimer){ clearInterval(autoTimer); autoTimer=null; btn.textContent='开启自动刷新'; status('自动刷新关闭'); return; } const sym=el('kd_symbol').value.trim().toUpperCase(); const tf=el('kd_timeframe').value; const src=el('kd_source').value; autoTimer=setInterval(()=>loadSeries(sym,tf,src), 30000); btn.textContent='关闭自动刷新'; status('自动刷新中，每 30s 更新一次'); },
+    exportPNG(){ try{ ensureChart(); if(!chart){ status('图表未初始化','error'); return; } const sym=(el('kd_symbol').value||'SYMBOL').toUpperCase(); const tf=el('kd_timeframe').value||'tf'; const ts=new Date().toISOString().replace(/[:.]/g,'-'); const name=`kline_${sym}_${tf}_${ts}.png`; if(typeof chart.takeScreenshot==='function'){ const cnv=chart.takeScreenshot(); const url=cnv.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); document.body.removeChild(a); status('已导出图表 PNG'); return; } const box=el('kd_chart'); const cvs=box.querySelectorAll('canvas'); if(!cvs||cvs.length===0) throw new Error('未找到画布'); const w=cvs[0].width, h=cvs[0].height; const off=document.createElement('canvas'); off.width=w; off.height=h; const ctx=off.getContext('2d'); cvs.forEach(c=>{ try{ ctx.drawImage(c,0,0); }catch(_){}}); const url=off.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); document.body.removeChild(a); status('已导出图表 PNG'); }catch(e){ console.error(e); status('导出失败:'+e.message,'error'); } },
+    saveConfig: async function(){ try{ const payload={ name: el('kd_saveName').value.trim(), symbol: el('kd_symbol').value.trim().toUpperCase(), timeframe: el('kd_timeframe').value, source: el('kd_source').value, supports, resistances, supports_labels: sLabels, resistances_labels: rLabels, remarks: el('kd_remarks').value.trim() }; const resp=await fetch('/kline-draw/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const data=await resp.json(); if(!data.success) throw new Error(data.error||'保存失败'); status('已保存:'+data.id); this.loadSavedList(); }catch(e){ status('保存失败:'+e.message,'error'); } },
+    loadSavedList: async function(){ try{ const sym=el('kd_symbol').value.trim().toUpperCase(); const resp=await fetch('/kline-draw/api/list?symbol='+encodeURIComponent(sym)); const data=await resp.json(); if(!data.success) throw new Error(data.error||'加载失败'); const list=data.items||[]; const box=el('kd_savedList'); box.innerHTML=''; list.forEach(item=>{ const row=document.createElement('div'); row.style.display='flex'; row.style.gap='8px'; row.style.alignItems='center'; const txt=document.createElement('div'); txt.textContent=`${item.name||'(未命名)'} · ${item.symbol} ${item.timeframe} · ${new Date(item.created_at).toLocaleString()}`; const load=document.createElement('button'); load.className='btn'; load.textContent='载入'; load.onclick=()=>{ el('kd_symbol').value=item.symbol||'BTCUSDT'; el('kd_timeframe').value=item.timeframe||'4h'; el('kd_source').value=item.source||'gate'; el('kd_remarks').value=item.remarks||''; supports=(item.supports||[]).slice(); resistances=(item.resistances||[]).slice(); sLabels=(item.supports_labels||new Array(supports.length).fill('')).slice(); rLabels=(item.resistances_labels||new Array(resistances.length).fill('')).slice(); sortDedup('support'); sortDedup('resistance'); renderLists(); KLINE.drawChart(); }; const del=document.createElement('button'); del.className='btn'; del.textContent='删除'; del.onclick=async ()=>{ const r=await fetch('/kline-draw/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:item.id})}); const j=await r.json(); if(j.success){ KLINE.loadSavedList(); } }; row.appendChild(txt); row.appendChild(load); row.appendChild(del); box.appendChild(row); }); status(`已加载保存项：${list.length} 条`); }catch(e){ status('加载保存列表失败:'+e.message,'error'); } },
+    exportJSON(){ const obj={ symbol: el('kd_symbol').value.trim().toUpperCase(), timeframe: el('kd_timeframe').value, source: el('kd_source').value, supports, resistances, supports_labels: sLabels, resistances_labels: rLabels, remarks: el('kd_remarks').value.trim() }; const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); const ts=new Date().toISOString().replace(/[:.]/g,'-'); a.download=`kline_config_${obj.symbol}_${obj.timeframe}_${ts}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); status('已导出配置 JSON'); },
+    exportCSV(){ const lines=['kind,label,price']; supports.forEach((p,i)=>lines.push(`support,${(sLabels[i]||'')},${p}`)); resistances.forEach((p,i)=>lines.push(`resistance,${(rLabels[i]||'')},${p}`)); const blob=new Blob(['\uFEFF'+lines.join('\n')],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='levels.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); status('已导出水平线 CSV'); },
+    importJSON(input){ const file=input.files&&input.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ try{ const obj=JSON.parse(reader.result); el('kd_symbol').value=obj.symbol||'BTCUSDT'; el('kd_timeframe').value=obj.timeframe||'4h'; el('kd_source').value=obj.source||'gate'; el('kd_remarks').value=obj.remarks||''; supports=(obj.supports||[]).slice(); resistances=(obj.resistances||[]).slice(); sLabels=(obj.supports_labels||new Array(supports.length).fill('')).slice(); rLabels=(obj.resistances_labels||new Array(resistances.length).fill('')).slice(); sortDedup('support'); sortDedup('resistance'); renderLists(); KLINE.drawChart(); status('已导入配置'); }catch(e){ status('导入失败:'+e.message,'error'); } }; reader.readAsText(file); input.value=''; }
+  };
+})();
+</script>
                 <div class="signals-container">
                     <h4>交易信号</h4>
                     <div class="signals-list">
@@ -4464,11 +4519,95 @@
             </div>
         </div>
 
-        <!-- K线绘制（嵌入新页） -->
+        <!-- K线绘制（内嵌版） -->
         <div id="klineDraw" class="tab-content">
             <h3>📉 专业K线绘制</h3>
-            <p class="muted">基于 TradingView Lightweight Charts；支持自然语言解析支撑/阻力/备注、点击加线、保存/导出/导入。</p>
-            <iframe src="/kline-draw" style="width: 100%; height: 920px; border: 0; background: #0f111a;"></iframe>
+            <p class="muted">基于 TradingView Lightweight Charts；支持自然语言解析支撑/阻力/备注、点击加线、拖拽、保存/导入/导出、导出图表PNG。</p>
+
+            <div class="form-group">
+                <label>自然语言描述</label>
+                <textarea id="kd_nlp" class="form-control" rows="3" placeholder="例：币种 $BTC，时间周期 4小时；支撑位：61200, 60000；阻力位：63500；备注：突破阻力加仓"></textarea>
+                <div style="margin-top:8px;">
+                    <button class="btn btn-primary" onclick="KLINE.parse()">解析</button>
+                    <button class="btn" onclick="KLINE.clearAll()">清空</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:220px;">
+                        <label>币种（现货，如 BTCUSDT）</label>
+                        <input id="kd_symbol" class="form-control" value="BTCUSDT">
+                    </div>
+                    <div>
+                        <label>时间周期</label>
+                        <select id="kd_timeframe" class="form-control">
+                            <option value="1d">1天</option>
+                            <option value="4h" selected>4小时</option>
+                            <option value="1h">1小时</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>数据源</label>
+                        <select id="kd_source" class="form-control">
+                            <option value="gate" selected>Gate.io</option>
+                            <option value="bybit">Bybit</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>点击添加</label>
+                        <select id="kd_clickMode" class="form-control">
+                            <option value="none" selected>关闭</option>
+                            <option value="support">支撑</option>
+                            <option value="resistance">阻力</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 12px; align-items:start;">
+                <div>
+                    <div class="form-group">
+                        <label>支撑位</label>
+                        <div id="kd_supportLevels" class="results-container" style="max-height:180px; overflow:auto;"></div>
+                        <div style="display:flex; gap:8px; margin-top:6px;">
+                            <input id="kd_supportAdd" class="form-control" placeholder="输入价格">
+                            <button class="btn" onclick="KLINE.addLevel('support')">添加支撑</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>阻力位</label>
+                        <div id="kd_resistanceLevels" class="results-container" style="max-height:180px; overflow:auto;"></div>
+                        <div style="display:flex; gap:8px; margin-top:6px;">
+                            <input id="kd_resistanceAdd" class="form-control" placeholder="输入价格">
+                            <button class="btn" onclick="KLINE.addLevel('resistance')">添加阻力</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>备注</label>
+                        <input id="kd_remarks" class="form-control" placeholder="示例：突破阻力加仓，回踩支撑减仓">
+                    </div>
+                    <div class="form-group" style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="KLINE.drawChart()">绘制图表</button>
+                        <button class="btn" onclick="KLINE.applyLevels()">应用水平线</button>
+                        <button class="btn" id="kd_autoBtn" onclick="KLINE.toggleAutoRefresh()">开启自动刷新</button>
+                        <button class="btn" onclick="KLINE.exportPNG()">导出图表PNG</button>
+                    </div>
+                    <div class="form-group" style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <input id="kd_saveName" class="form-control" placeholder="保存名称（可选）">
+                        <button class="btn" onclick="KLINE.saveConfig()">保存到服务器</button>
+                        <button class="btn" onclick="KLINE.loadSavedList()">加载保存列表</button>
+                        <button class="btn" onclick="KLINE.exportJSON()">导出配置JSON</button>
+                        <button class="btn" onclick="KLINE.exportCSV()">导出水平线CSV</button>
+                        <input type="file" id="kd_importFile" accept="application/json" onchange="KLINE.importJSON(this)">
+                    </div>
+                    <div id="kd_savedList" class="results-container" style="max-height:200px; overflow:auto;"></div>
+                    <div id="kd_status" class="muted" style="margin-top:6px;"></div>
+                </div>
+                <div>
+                    <div id="kd_chart" style="height:620px; position:relative; background:#0f111a;"></div>
+                </div>
+            </div>
         </div>
 
         <!-- 系统管理Tab -->
