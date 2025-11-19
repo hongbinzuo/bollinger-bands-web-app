@@ -52,6 +52,44 @@ class FibonacciProbabilityModel:
             'distance_factor': 0.20,
             'trend_alignment_factor': 0.20,
         }
+
+    @staticmethod
+    def _json_sanitize(value):
+        """Recursively convert NaN/Inf and numpy types to JSON‑safe values.
+
+        - float NaN/Inf -> None
+        - numpy scalars -> native python types
+        - pandas/np datetime -> ISO string
+        - dict/list -> walk recursively
+        """
+        import math
+        import numpy as _np
+        import pandas as _pd
+
+        # dict
+        if isinstance(value, dict):
+            return {str(k): FibonacciProbabilityModel._json_sanitize(v) for k, v in value.items()}
+        # list/tuple
+        if isinstance(value, (list, tuple)):
+            return [FibonacciProbabilityModel._json_sanitize(v) for v in value]
+        # numpy scalar -> python
+        if isinstance(value, (_np.floating, _np.integer)):
+            value = value.item()
+        # datetime like -> ISO
+        if isinstance(value, (_pd.Timestamp,)):
+            return value.isoformat()
+        # numpy datetime64 -> convert via pandas
+        if isinstance(value, (_np.datetime64,)):
+            return _pd.Timestamp(value).isoformat()
+        # float NaN/Inf -> None
+        if isinstance(value, float):
+            if math.isnan(value) or math.isinf(value):
+                return None
+            return float(value)
+        # ints
+        if isinstance(value, int):
+            return int(value)
+        return value
     
     def _get_bars_per_day(self, timeframe: str) -> int:
         return self._bars_per_day.get(timeframe, 24)
@@ -369,12 +407,18 @@ class FibonacciProbabilityModel:
         pdi_last = float(pdi[~np.isnan(pdi)][-1]) if np.any(~np.isnan(pdi)) else 0.0
         mdi_last = float(mdi[~np.isnan(mdi)][-1]) if np.any(~np.isnan(mdi)) else 0.0
 
+        # 清理数组中的 NaN/Inf，避免前端 JSON.parse 报错
         return {
-            'atr': atr.tolist(), 'atr_last': float(atr_last),
-            'rsi': rsi.tolist(), 'rsi_last': float(rsi_last),
-            'adx': adx.tolist(), 'adx_last': float(adx_last),
-            'pdi': pdi.tolist(), 'mdi': mdi.tolist(),
-            'pdi_last': float(pdi_last), 'mdi_last': float(mdi_last),
+            'atr': self._json_sanitize(atr.tolist()),
+            'atr_last': float(atr_last),
+            'rsi': self._json_sanitize(rsi.tolist()),
+            'rsi_last': float(rsi_last),
+            'adx': self._json_sanitize(adx.tolist()),
+            'adx_last': float(adx_last),
+            'pdi': self._json_sanitize(pdi.tolist()),
+            'mdi': self._json_sanitize(mdi.tolist()),
+            'pdi_last': float(pdi_last),
+            'mdi_last': float(mdi_last),
         }
     
     def analyze_consolidation_strength(self, price_data, start_idx, end_idx):
@@ -742,9 +786,11 @@ def analyze_fibonacci_probability():
         result = model.analyze_symbol_behavior(symbol, timeframe, days)
         
         if result:
+            # 清理 NaN/Inf，确保 JSON 对前端可解析
+            safe_result = model._json_sanitize(result)
             return jsonify({
                 'success': True,
-                'result': result
+                'result': safe_result
             })
         else:
             return jsonify({
@@ -776,10 +822,12 @@ def batch_analyze_symbols():
                 results.append(result)
             time.sleep(0.1)  # 避免API限制
         
+        # 对批量结果进行 JSON 安全清理
+        safe_results = [model._json_sanitize(r) for r in results]
         return jsonify({
             'success': True,
-            'results': results,
-            'count': len(results)
+            'results': safe_results,
+            'count': len(safe_results)
         })
         
     except Exception as e:
