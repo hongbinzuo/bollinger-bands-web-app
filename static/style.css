@@ -1,0 +1,4 @@
+/* Minimal fallback stylesheet to avoid 404 and keep consistent base styles */
+html, body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; }
+body { background-color: #0f111a; color: #e5e5e5; }
+.btn { cursor: pointer; }
