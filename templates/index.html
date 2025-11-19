@@ -3733,6 +3733,7 @@
             <button class="tab" onclick="showTab('fibonacci', event)">📐 斐波规律研究</button>
             <button class="tab" onclick="showTab('momentumField', event)">⚡ 多空势能场模型</button>
             <button class="tab" onclick="showTab('fibonacciProb', event)">🎯 斐波概率预测</button>
+            <button class="tab" onclick="showTab('klineDraw', event)">📉 K线绘制</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
         </div>
@@ -4461,6 +4462,13 @@
                 <canvas id="fibonacciProbChart" style="width: 100%; height: 600px; margin-top: 20px;"></canvas>
                 <canvas id="fibonacciProbChartDown" style="width: 100%; height: 600px; margin-top: 20px;"></canvas>
             </div>
+        </div>
+
+        <!-- K线绘制（嵌入新页） -->
+        <div id="klineDraw" class="tab-content">
+            <h3>📉 专业K线绘制</h3>
+            <p class="muted">基于 TradingView Lightweight Charts；支持自然语言解析支撑/阻力/备注、点击加线、保存/导出/导入。</p>
+            <iframe src="/kline-draw" style="width: 100%; height: 920px; border: 0; background: #0f111a;"></iframe>
         </div>
 
         <!-- 系统管理Tab -->
