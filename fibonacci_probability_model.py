@@ -184,6 +184,105 @@ class FibonacciProbabilityModel:
                 'volume': float(kline[5])
             })
         return converted_data
+
+    def get_gate_klines(self, symbol: str, interval: str, limit: int):
+        """从Gate.io获取现货K线，返回list[dict]或None。"""
+        try:
+            # Gate 需要 BTC_USDT 格式
+            cp = symbol
+            if symbol.endswith('USDT') and '_' not in symbol:
+                cp = f"{symbol[:-4]}_USDT"
+            interval_map = {
+                '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1d': '1d'
+            }
+            gate_interval = interval_map.get(interval, '1h')
+            url = 'https://api.gateio.ws/api/v4/spot/candlesticks'
+            params = {'currency_pair': cp, 'interval': gate_interval, 'limit': min(int(limit), 1000)}
+            r = requests.get(url, params=params, timeout=12)
+            r.raise_for_status()
+            rows = r.json() or []  # row: [t, vol, close, high, low, open, ...]
+            if not rows:
+                return None
+            out = []
+            # Gate 返回通常是逆序，统一按时间升序
+            for row in rows:
+                # 容错行长度
+                t_sec = int(float(row[0]))
+                open_p = float(row[5])
+                high_p = float(row[3])
+                low_p = float(row[4])
+                close_p = float(row[2])
+                vol = float(row[1])
+                out.append({
+                    'timestamp': t_sec * 1000,
+                    'open': open_p,
+                    'high': high_p,
+                    'low': low_p,
+                    'close': close_p,
+                    'volume': vol
+                })
+            out.sort(key=lambda x: x['timestamp'])
+            return out
+        except Exception as e:
+            logger.warning(f"Gate.io 获取 {symbol} {interval} 失败: {e}")
+            return None
+
+    def get_bitget_klines(self, symbol: str, interval: str, limit: int):
+        """从Bitget获取现货K线，返回list[dict]或None。"""
+        try:
+            # Bitget 使用 BTCUSDT 格式
+            granularity_map = {
+                '5m': '5min', '15m': '15min', '1h': '1H', '4h': '4H', '1d': '1D'
+            }
+            gran = granularity_map.get(interval, '1H')
+            url = 'https://api.bitget.com/api/spot/v1/market/candles'
+            params = {'symbol': symbol if symbol.endswith('USDT') else f"{symbol}USDT", 'granularity': gran, 'limit': min(int(limit), 1000)}
+            r = requests.get(url, params=params, timeout=12)
+            r.raise_for_status()
+            data = r.json()
+            if data.get('code') != '00000':
+                return None
+            rows = data.get('data') or []  # [ts, open, high, low, close, volume, quote_volume]
+            if not rows:
+                return None
+            out = []
+            for row in rows:
+                ts = int(row[0])  # ms
+                out.append({
+                    'timestamp': ts,
+                    'open': float(row[1]),
+                    'high': float(row[2]),
+                    'low': float(row[3]),
+                    'close': float(row[4]),
+                    'volume': float(row[5])
+                })
+            out.sort(key=lambda x: x['timestamp'])
+            return out
+        except Exception as e:
+            logger.warning(f"Bitget 获取 {symbol} {interval} 失败: {e}")
+            return None
+
+    def fetch_market_data_best_effort(self, symbol: str, interval: str, limit: int):
+        """多交易所尽力获取（Bybit spot/linear -> Gate.io -> Bitget）。
+
+        返回: (list[dict] or None, data_source_str, used_symbol_str)
+        """
+        # 先试 Bybit（现货/永续灵活切换）
+        data, src, used = self.fetch_bybit_best_effort(symbol, interval, limit)
+        if data:
+            return data, src, used
+        # 再试 Gate.io（现货）
+        data = self.get_gate_klines(symbol, interval, limit)
+        if data:
+            # 标准化 used 符号显示
+            used_symbol = symbol if symbol.endswith('USDT') else f"{symbol}USDT"
+            return data, 'Gate.io', used_symbol
+        # 再试 Bitget（现货）
+        data = self.get_bitget_klines(symbol, interval, limit)
+        if data:
+            used_symbol = symbol if symbol.endswith('USDT') else f"{symbol}USDT"
+            return data, 'Bitget', used_symbol
+        return None, 'None', symbol
     
     def calculate_fibonacci_extension_levels(self, base_price, target_price):
         """计算斐波那契扩展位"""
@@ -708,15 +807,14 @@ class FibonacciProbabilityModel:
         try:
             logger.info(f"开始分析 {symbol} 的行为模式...")
             
-            # 获取数据
+            # 获取数据（多交易所，严格不使用 Mock）
             limit = min(1000, int(days * self._get_bars_per_day(timeframe)))
-            price_data, data_source, used_symbol = self.fetch_bybit_best_effort(symbol, timeframe, limit)
-            
+            price_data, data_source, used_symbol = self.fetch_market_data_best_effort(symbol, timeframe, limit)
+
+            # 严格模式：不再使用任何 Mock 数据，拿不到就直接返回 None
             if not price_data:
-                logger.warning(f"无法获取 {symbol} 数据，使用模拟数据")
-                price_data = self.generate_mock_data(symbol, timeframe, limit)
-                data_source = 'Mock'
-                used_symbol = symbol
+                logger.warning(f"无法获取 {symbol} 的真实K线数据（Bybit spot/linear 均无），放弃分析")
+                return None
             
             # 识别历史高点和低点
             historical_data = self.identify_historical_high_low(price_data, timeframe=timeframe)
