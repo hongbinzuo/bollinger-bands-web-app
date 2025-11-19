@@ -2489,13 +2489,15 @@
       function clearLines(arr){ if(!series) return; arr.forEach(l=>{ try{ series.removePriceLine(l);}catch(_){}}); arr.length=0; }
       function applyLines(){ ensureChart(); if(!series) return; clearLines(linesS); clearLines(linesR); supports.forEach((p,i)=>{ const lab=(sLabels[i]&&sLabels[i].trim())||`S${i+1}`; const l=series.createPriceLine({price:p,color:'#10b981',lineWidth:2,lineStyle:2,title:`${lab} ${fmt(p)}`}); linesS.push(l); }); resistances.forEach((p,i)=>{ const lab=(rLabels[i]&&rLabels[i].trim())||`R${i+1}`; const l=series.createPriceLine({price:p,color:'#ef4444',lineWidth:2,lineStyle:2,title:`${lab} ${fmt(p)}`}); linesR.push(l); }); }
       function updateLine(kind, idx, v){ if(kind==='support'){ supports[idx]=v; if(linesS[idx]){ try{ series.removePriceLine(linesS[idx]); }catch(_){}} const lab=(sLabels[idx]&&sLabels[idx].trim())||`S${idx+1}`; linesS[idx]=series.createPriceLine({price:v,color:'#10b981',lineWidth:2,lineStyle:2,title:`${lab} ${fmt(v)}`}); } else { resistances[idx]=v; if(linesR[idx]){ try{ series.removePriceLine(linesR[idx]); }catch(_){}} const lab=(rLabels[idx]&&rLabels[idx].trim())||`R${idx+1}`; linesR[idx]=series.createPriceLine({price:v,color:'#ef4444',lineWidth:2,lineStyle:2,title:`${lab} ${fmt(v)}`}); } }
-      function renderLists(){ const boxS=el('kd_supportLevels'); const boxR=el('kd_resistanceLevels'); if(!boxS||!boxR) return; boxS.innerHTML=''; supports.forEach((v,i)=>{ const row=document.createElement('div'); row.style.display='flex'; row.style.gap='6px'; const lab=document.createElement('input'); lab.className='form-control'; lab.placeholder=`S${i+1}`; lab.value=sLabels[i]||''; lab.onchange=()=>{ sLabels[i]=lab.value.trim(); applyLines(); }; const inp=document.createElement('input'); inp.type='number'; inp.className='form-control'; inp.step='0.00000001'; inp.value=fmt(v).replace(/0+$/,'').replace(/\.$/,''); inp.onchange=()=>{ supports[i]=parseFloat(inp.value); applyLines(); }; const del=document.createElement('button'); del.className='btn'; del.textContent='删除'; del.onclick=()=>{ supports.splice(i,1); sLabels.splice(i,1); renderLists(); applyLines(); }; row.appendChild(lab); row.appendChild(inp); row.appendChild(del); boxS.appendChild(row); }); boxR.innerHTML=''; resistances.forEach((v,i)=>{ const row=document.createElement('div'); row.style.display='flex'; row.style.gap='6px'; const lab=document.createElement('input'); lab.className='form-control'; lab.placeholder=`R${i+1}`; lab.value=rLabels[i]||''; lab.onchange=()=>{ rLabels[i]=lab.value.trim(); applyLines(); }; const inp=document.createElement('input'); inp.type='number'; inp.className='form-control'; inp.step='0.00000001'; inp.value=fmt(v).replace(/0+$/,'').replace(/\.$/,''); inp.onchange=()=>{ resistances[i]=parseFloat(inp.value); applyLines(); }; const del=document.createElement('button'); del.className='btn'; del.textContent='删除'; del.onclick=()=>{ resistances.splice(i,1); rLabels.splice(i,1); renderLists(); applyLines(); }; row.appendChild(lab); row.appendChild(inp); row.appendChild(del); boxR.appendChild(row); }); }
+      function renderLists(){ const boxS=el('kd_supportLevels'); const boxR=el('kd_resistanceLevels'); if(!boxS||!boxR) return; boxS.innerHTML=''; supports.forEach((v,i)=>{ const row=document.createElement('div'); row.style.display='flex'; row.style.gap='6px'; const lab=document.createElement('input'); lab.className='form-control'; lab.placeholder=`S${i+1}`; lab.value=sLabels[i]||''; lab.onchange=()=>{ sLabels[i]=lab.value.trim(); applyLines(); updateTemplateText(); }; const inp=document.createElement('input'); inp.type='number'; inp.className='form-control'; inp.step='0.00000001'; inp.value=fmt(v).replace(/0+$/,'').replace(/\.$/,''); inp.onchange=()=>{ supports[i]=parseFloat(inp.value); applyLines(); updateTemplateText(); }; const del=document.createElement('button'); del.className='btn'; del.textContent='删除'; del.onclick=()=>{ supports.splice(i,1); sLabels.splice(i,1); renderLists(); applyLines(); updateTemplateText(); }; row.appendChild(lab); row.appendChild(inp); row.appendChild(del); boxS.appendChild(row); }); boxR.innerHTML=''; resistances.forEach((v,i)=>{ const row=document.createElement('div'); row.style.display='flex'; row.style.gap='6px'; const lab=document.createElement('input'); lab.className='form-control'; lab.placeholder=`R${i+1}`; lab.value=rLabels[i]||''; lab.onchange=()=>{ rLabels[i]=lab.value.trim(); applyLines(); updateTemplateText(); }; const inp=document.createElement('input'); inp.type='number'; inp.className='form-control'; inp.step='0.00000001'; inp.value=fmt(v).replace(/0+$/,'').replace(/\.$/,''); inp.onchange=()=>{ resistances[i]=parseFloat(inp.value); applyLines(); updateTemplateText(); }; const del=document.createElement('button'); del.className='btn'; del.textContent='删除'; del.onclick=()=>{ resistances.splice(i,1); rLabels.splice(i,1); renderLists(); applyLines(); updateTemplateText(); }; row.appendChild(lab); row.appendChild(inp); row.appendChild(del); boxR.appendChild(row); }); }
+
+      function updateTemplateText(){ try{ const sym=(el('kd_symbol').value||'BTCUSDT').toUpperCase(); const tf=el('kd_timeframe').value||'4h'; const note=(el('kd_remarks').value||'').trim(); const supTxt = supports.length? supports.map(v=>fmt(v).replace(/0+$/,'').replace(/\.$/,'')).join(', ') : ''; const resTxt = resistances.length? resistances.map(v=>fmt(v).replace(/0+$/,'').replace(/\.$/,'')).join(', ') : ''; let tpl = `币种 $${sym}，时间周期 ${tf}`; if(supTxt) tpl += `；支撑：${supTxt}`; if(resTxt) tpl += `；阻力：${resTxt}`; if(note) tpl += `；备注：${note}`; el('kd_nlp').value = tpl; }catch(_){}}
 
       async function loadSeries(symbol, timeframe, source){ try{ status(`加载 ${symbol} ${timeframe} (${source})...`); const resp=await fetch('/realtime-fib/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol,timeframe,source,include_series:true})}); const data=await resp.json(); if(!data.success) throw new Error(data.error||'加载失败'); const arr=(data.result.series||[]).map(r=>({ time: Math.floor((r.t||r.timestamp)/1000), open:r.open, high:r.high, low:r.low, close:r.close })); ensureChart(); if(!series) { status('图表未初始化','error'); return; } series.setData(arr); status(`已加载：${data.result.symbol} / ${data.result.timeframe} / 源 ${data.result.source}`); } catch(e){ console.error(e); status(`加载失败：${e.message}`,'error'); } }
-      function addLevel(kind, price){ const p=parseFloat(price); if(!p||isNaN(p)) return; if(kind==='support'){ supports.push(snap(p)); sLabels.push(''); sortDedup('support'); renderLists(); } else { resistances.push(snap(p)); rLabels.push(''); sortDedup('resistance'); renderLists(); } applyLines(); }
+      function addLevel(kind, price){ const p=parseFloat(price); if(!p||isNaN(p)) return; if(kind==='support'){ supports.push(snap(p)); sLabels.push(''); sortDedup('support'); renderLists(); } else { resistances.push(snap(p)); rLabels.push(''); sortDedup('resistance'); renderLists(); } applyLines(); updateTemplateText(); }
 
       return {
-        init(){ ensureChart(); renderLists(); },
+        init(){ ensureChart(); renderLists(); updateTemplateText(); try{ el('kd_symbol').addEventListener('change', updateTemplateText); el('kd_timeframe').addEventListener('change', updateTemplateText); el('kd_remarks').addEventListener('input', ()=>{ updateTemplateText(); updateNoteAnchor(); }); }catch(_){ } },
         parse(){
           const txt=(el('kd_nlp').value||'').trim(); if(!txt) return;
           // 币种解析：$BTC / 币种: BTCUSDT / 直接出现 BTCUSDT
@@ -2505,16 +2507,17 @@
           // 时间周期解析
           let tf='4h'; if(/1\s*天|日线|\b1d\b/i.test(txt)) tf='1d'; else if(/4\s*小时|\b4h\b/i.test(txt)) tf='4h'; else if(/1\s*小时|\b1h\b/i.test(txt)) tf='1h'; el('kd_timeframe').value=tf;
           // 解析‘支撑位’/‘阻力位’块，严格截取到下一个关键词前
-          function blockBetween(keyword){
-            const i = txt.indexOf(keyword); if(i<0) return '';
-            let s = txt.slice(i + keyword.length);
+          const supportKeys = ['支撑位','支撑价','支撑区间','支撑','support'];
+          const resistKeys  = ['阻力位','阻力价','阻力区间','阻力','resistance'];
+          const nextLabels  = [...supportKeys, ...resistKeys, '备注','币种','symbol','时间周期','时间','周期'];
+          function firstIndexOf(text, keys){ let best={idx:-1,key:null}; keys.forEach(k=>{ const i=text.indexOf(k); if(i>=0 && (best.idx<0 || i<best.idx)) best={idx:i,key:k}; }); return best; }
+          function blockBetween(keys){
+            const hit = firstIndexOf(txt, keys); if(hit.idx<0) return '';
+            let s = txt.slice(hit.idx + hit.key.length);
             if (s[0] && /[\s:：]/.test(s[0])) s = s.slice(1);
-            const nextLabels = ['阻力位','阻力','备注','币种','时间周期','时间','周期','支撑位','支撑'];
             let end = s.length;
-            for (const lab of nextLabels){ const k=s.indexOf(lab); if(k>=0 && k<end) end=k; }
-            // 也在句号/分号/换行处截断
-            const punct = [/。/,'；',';','\n'];
-            for (const p of punct){ const re = (p instanceof RegExp)?p:new RegExp(p); const m = s.search(re); if(m>=0 && m<end) end=m; }
+            nextLabels.forEach(lab=>{ const k=s.indexOf(lab); if(k>=0 && k<end) end=k; });
+            ['。','；',';','\n','，',','].forEach(p=>{ const k=s.indexOf(p); if(k>=0 && k<end) end=k; });
             return s.slice(0,end);
           }
           function parseLevelBlock(block){
@@ -2529,8 +2532,8 @@
             });
             return out;
           }
-          const supBlock = blockBetween('支撑位');
-          const resBlock = blockBetween('阻力位');
+          const supBlock = blockBetween(supportKeys);
+          const resBlock = blockBetween(resistKeys);
           supports = parseLevelBlock(supBlock).sort((a,b)=>a-b);
           resistances = parseLevelBlock(resBlock).sort((a,b)=>a-b);
           sLabels = new Array(supports.length).fill('');
@@ -2538,7 +2541,8 @@
           renderLists();
           // 备注
           const note = (txt.match(/备注[：:](.*)$/)||[])[1]||''; el('kd_remarks').value = note.trim();
-          // 更新图
+          // 更新模板与图
+          updateTemplateText();
           this.drawChart();
         },
         addLevel(kind){ const id = (kind==='support')?'kd_supportAdd':'kd_resistanceAdd'; const val=parseFloat(el(id).value); if(!val||isNaN(val)) return; addLevel(kind, val); el(id).value=''; },
