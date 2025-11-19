@@ -130,6 +130,8 @@
     let supportLines = [];
     let resistanceLines = [];
     let autoTimer = null;
+    let dragState = { active: false, kind: null, idx: -1, suppressClick: false, lastTs: 0 };
+    let dragHandlersBound = false;
 
     function setStatus(msg, type='info') {
       const el = document.getElementById('status');
@@ -149,6 +151,7 @@
       candleSeries = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', wickUpColor: '#26a69a', wickDownColor: '#ef5350', borderVisible: false });
 
       chart.subscribeClick(param => {
+        if (dragState.suppressClick) { dragState.suppressClick = false; return; }
         const mode = document.getElementById('clickMode').value;
         if (!param || !param.point || mode === 'none') return;
         const price = candleSeries.coordinateToPrice(param.point.y);
@@ -159,6 +162,88 @@
           pushLevel('resistance', price);
         }
       });
+
+      bindDragHandlers();
+    }
+
+    function bindDragHandlers() {
+      if (dragHandlersBound) return;
+      const el = document.getElementById('chart');
+      const onDown = (e) => {
+        const rect = el.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const hit = hitTestLine(y);
+        if (hit) {
+          dragState.active = true;
+          dragState.kind = hit.kind;
+          dragState.idx = hit.idx;
+          dragState.suppressClick = true;
+          e.preventDefault();
+        }
+      };
+      const onMove = (e) => {
+        if (!dragState.active) return;
+        const now = performance.now();
+        if (now - dragState.lastTs < 25) return; // throttle
+        dragState.lastTs = now;
+        const rect = el.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const price = candleSeries.coordinateToPrice(y);
+        if (!price || isNaN(price) || price <= 0) return;
+        updateLineAt(dragState.kind, dragState.idx, price);
+      };
+      const onUp = () => {
+        if (dragState.active) {
+          dragState.active = false;
+          // 结束后刷新侧边列表，反映新价格
+          renderLevels('supportLevels','support',supports);
+          renderLevels('resistanceLevels','resistance',resistances);
+        }
+      };
+      el.addEventListener('mousedown', onDown);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      dragHandlersBound = true;
+    }
+
+    function hitTestLine(y) {
+      const tol = 6; // px tolerance
+      let best = null;
+      // supports first
+      supports.forEach((p, i) => {
+        const py = candleSeries.priceToCoordinate(p);
+        if (py == null) return;
+        const d = Math.abs(py - y);
+        if (d <= tol && (!best || d < best.d)) best = { kind: 'support', idx: i, d };
+      });
+      resistances.forEach((p, i) => {
+        const py = candleSeries.priceToCoordinate(p);
+        if (py == null) return;
+        const d = Math.abs(py - y);
+        if (d <= tol && (!best || d < best.d)) best = { kind: 'resistance', idx: i, d };
+      });
+      return best;
+    }
+
+    function updateLineAt(kind, idx, newPrice) {
+      if (kind === 'support') {
+        supports[idx] = newPrice;
+        if (supportLines[idx]) { try { candleSeries.removePriceLine(supportLines[idx]); } catch(_){} }
+        supportLines[idx] = candleSeries.createPriceLine({ price: newPrice, color: '#10b981', lineWidth: 2, lineStyle: 2, title: `S ${fmtPrice(newPrice)}` });
+      } else {
+        resistances[idx] = newPrice;
+        if (resistanceLines[idx]) { try { candleSeries.removePriceLine(resistanceLines[idx]); } catch(_){} }
+        resistanceLines[idx] = candleSeries.createPriceLine({ price: newPrice, color: '#ef4444', lineWidth: 2, lineStyle: 2, title: `R ${fmtPrice(newPrice)}` });
+      }
+    }
+
+    function fmtPrice(x) {
+      const v = Number(x);
+      if (!isFinite(v)) return '';
+      if (v >= 100) return v.toFixed(2);
+      if (v >= 1) return v.toFixed(4);
+      if (v >= 0.01) return v.toFixed(6);
+      return v.toFixed(8);
     }
 
     function msToLwc(rows) {
@@ -239,12 +324,12 @@
       clearPriceLines(resistanceLines);
       // 绘制支撑（绿色）
       supports.forEach(p => {
-        const line = candleSeries.createPriceLine({ price: p, color: '#10b981', lineWidth: 2, lineStyle: 2, title: `S ${p}` });
+        const line = candleSeries.createPriceLine({ price: p, color: '#10b981', lineWidth: 2, lineStyle: 2, title: `S ${fmtPrice(p)}` });
         supportLines.push(line);
       });
       // 绘制阻力（红色）
       resistances.forEach(p => {
-        const line = candleSeries.createPriceLine({ price: p, color: '#ef4444', lineWidth: 2, lineStyle: 2, title: `R ${p}` });
+        const line = candleSeries.createPriceLine({ price: p, color: '#ef4444', lineWidth: 2, lineStyle: 2, title: `R ${fmtPrice(p)}` });
         resistanceLines.push(line);
       });
     }
