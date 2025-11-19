@@ -101,6 +101,9 @@
           <button class="btn secondary" onclick="exportLevelsCSV()">导出水平线(CSV)</button>
           <input type="file" id="importFile" accept="application/json" onchange="importConfigJSON(this)">
         </div>
+        <div class="row">
+          <button class="btn" onclick="exportChartPNG()">导出图表PNG</button>
+        </div>
         <div id="savedList" class="levels" style="margin-top:6px;"></div>
         <div class="row">
           <label>刷新秒数</label>
@@ -479,6 +482,48 @@
       a.download = `kline_config_${obj.symbol}_${obj.timeframe}_${ts}.json`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setStatus('已导出配置 JSON');
+    }
+
+    function exportChartPNG() {
+      try {
+        initChart();
+        if (!lwcChart) { setStatus('图表未初始化', 'error'); return; }
+        const symbol = (document.getElementById('symbolInput').value || 'SYMBOL').toUpperCase();
+        const timeframe = document.getElementById('timeframeSelect').value || 'tf';
+        const ts = new Date().toISOString().replace(/[:.]/g,'-');
+        const filename = `kline_${symbol}_${timeframe}_${ts}.png`;
+
+        // 优先使用库自带截图（包含价格轴与时间轴）
+        if (typeof lwcChart.takeScreenshot === 'function') {
+          const cnv = lwcChart.takeScreenshot();
+          const url = cnv.toDataURL('image/png');
+          triggerDownload(url, filename);
+          setStatus('已导出图表 PNG');
+          return;
+        }
+        // 兼容方案：将容器内所有 canvas 叠加到临时画布
+        const box = document.getElementById('klineChart');
+        const canvases = box.querySelectorAll('canvas');
+        if (!canvases || canvases.length === 0) throw new Error('未找到图表画布');
+        // 使用第一个画布的内部分辨率
+        const w = canvases[0].width, h = canvases[0].height;
+        const off = document.createElement('canvas');
+        off.width = w; off.height = h;
+        const ctx = off.getContext('2d');
+        canvases.forEach(c => { try { ctx.drawImage(c, 0, 0); } catch(_){} });
+        const url = off.toDataURL('image/png');
+        triggerDownload(url, filename);
+        setStatus('已导出图表 PNG');
+      } catch (e) {
+        console.error(e);
+        setStatus('导出图表失败：' + e.message, 'error');
+      }
+    }
+
+    function triggerDownload(url, filename) {
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.style.display = 'none';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
     }
 
     function exportLevelsCSV() {
