@@ -618,6 +618,7 @@ def kline_draw_save():
     resistances = data.get('resistances') or []
     supports_labels = data.get('supports_labels') or []
     resistances_labels = data.get('resistances_labels') or []
+    annotations = data.get('annotations') or []  # [{x,y,text}]
     remarks = (data.get('remarks') or '').strip()
     if not symbol:
         return jsonify({'success': False, 'error': '缺少符号 symbol'}), 400
@@ -672,6 +673,19 @@ def kline_draw_save():
         'resistances_labels': resistances_labels,
         'created_at': int(time.time()*1000)
     }
+    # 规范化注释
+    def _norm_annos(arr):
+        out = []
+        for it in arr or []:
+            try:
+                x = float(it.get('x', 0))
+                y = float(it.get('y', 0))
+                text = str(it.get('text', ''))
+                out.append({'x': x, 'y': y, 'text': text})
+            except Exception:
+                continue
+        return out
+    item['annotations'] = _norm_annos(annotations)
     items.append(item)
     # 最多保留最近 500 条
     items = sorted(items, key=lambda x: x.get('created_at', 0), reverse=True)[:500]
