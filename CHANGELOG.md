@@ -1,122 +1,31 @@
-# 布林带策略挂单系统 - 版本更新日志
+# Changelog
 
-## v1.1.0 (2025-09-09) - 多时间框架分析系统优化版本
+All notable changes to this project will be documented in this file.
 
-### 🚀 新功能
-- **支持500币种分析** - 从原来的20个币种扩展到500个币种
-- **智能币种过滤** - 自动排除稳定币、杠杆代币和无效代币
-- **分页分析系统** - 支持分页处理大量币种，避免超时问题
-- **多线程优化** - 使用ThreadPoolExecutor提高分析效率
+This project follows Conventional Commits and maintains short, focused release notes.
 
-### 🔧 功能优化
-- **增强去重逻辑** - 双重去重机制（策略层+API层），彻底解决重复信号问题
-- **优化信号生成** - 改进EMA回撤条件，从5%放宽到10%
-- **智能止盈计算** - 基于趋势和布林带的动态止盈目标
-- **前端分页控制** - 支持自定义每页币种数量（10/20/50/100）
+## [v2.1.0] - 2025-11-19
 
-### 🐛 错误修复
-- **修复500错误** - 解决前端请求超时和服务器内部错误
-- **修复JavaScript错误** - 解决函数未定义、变量重复声明等问题
-- **修复连接问题** - 优化AbortController使用，添加全局错误处理
-- **修复tab切换** - 解决前端tab切换无反应问题
-- **修复币种列表** - 解决"请先获取币种列表"错误
+Highlights
+- Fibonacci Probability now uses real market data only (no mock), with multi-exchange fallback: Bybit (spot/linear) -> Gate.io -> Bitget.
+- Frontend stability improvements: JSON NaN/Inf sanitized; probability UI shows data source and used symbol.
 
-### 🎨 界面改进
-- **优化错误提示** - 提供更详细和友好的错误信息
-- **增加调试信息** - 控制台显示详细的请求和分析过程
-- **改进状态显示** - 实时显示分析进度和结果统计
-- **统一UI风格** - 保持界面一致性和用户体验
+Added
+- feat(fibonacci-prob): multi-exchange fallback (Bybit spot/linear -> Gate.io -> Bitget) for K-line fetching.
+- feat(fibonacci-prob): downside Fibonacci extensions and probabilities; dynamic weighting; evaluation/gridsearch scripts.
+- feat(ui): ATR/RSI/ADX and +DI/-DI snapshot display on Fibonacci Probability panel.
 
-### 🔒 稳定性提升
-- **超时控制** - 5分钟请求超时保护
-- **错误恢复** - 自动重试和错误恢复机制
-- **内存优化** - 优化大数据量处理，避免内存溢出
-- **连接稳定性** - 改进网络连接处理和错误恢复
+Fixed
+- fix(fibonacci-prob): sanitize JSON outputs (NaN/Inf -> null) to avoid frontend JSON.parse errors.
+- fix(chart/frontend): canvas context errors and toFixed field mismatches in related Fibonacci views.
+- fix(api): multi_timeframe_api undefined strategy 500.
 
-### 📊 性能提升
-- **并发处理** - 8线程并发分析，提高处理速度
-- **请求优化** - 智能延迟控制，避免API频率限制
-- **缓存机制** - 优化数据缓存，减少重复请求
-- **分页处理** - 分批处理大量数据，提高响应速度
+Changed
+- change: strict mode — never use mock data; if no real K-lines available, return failure.
+- ui: show `data_source` and `used_symbol` in Fibonacci Probability results for traceability.
 
-### 🛠️ 技术改进
-- **代码重构** - 优化函数定义顺序和变量作用域
-- **错误处理** - 完善异常捕获和错误日志
-- **类型转换** - 修复numpy类型JSON序列化问题
-- **API优化** - 改进API响应格式和错误处理
+Notes
+- See `templates/index.html` for UI additions; `fibonacci_probability_model.py` for data sourcing and sanitization.
+- Prior releases and snapshots are available under `versions/`.
 
-### 📝 文档更新
-- **版本管理** - 完善版本管理系统
-- **使用说明** - 更新功能使用指南
-- **错误排查** - 添加常见问题解决方案
-
----
-
-## v1.0.1 (2025-08-16) - 完善版本管理系统
-
-### 🛠️ 技术改进
-- 添加版本管理工具
-- 完善备份和恢复功能
-- 优化项目结构
-
----
-
-## v1.0.0 (2025-08-16) - 初始版本
-
-### 🚀 基础功能
-- 布林带策略分析
-- 多时间框架支持
-- 基础前端界面
-- API接口设计
-
----
-
-## 使用说明
-
-### 版本管理
-```bash
-# 查看所有版本
-python version_manager.py list
-
-# 创建新版本备份
-python version_manager.py backup --version "v1.x.x" --description "版本描述"
-
-# 恢复指定版本
-python version_manager.py restore --version "v1.x.x"
-
-# 删除指定版本
-python version_manager.py delete --version "v1.x.x"
-```
-
-### 启动服务
-```bash
-# 开发环境
-python app.py
-
-# 生产环境
-python start_server.py
-```
-
-### 访问地址
-- **主页面**: http://localhost:5000/
-- **测试页面**: http://localhost:5000/test_multi_timeframe.html
-
----
-
-## 注意事项
-
-1. **币种数量**: 建议每页分析币种数量不超过50个，避免超时
-2. **网络环境**: 确保网络连接稳定，避免API请求失败
-3. **浏览器兼容**: 建议使用Chrome、Firefox等现代浏览器
-4. **错误处理**: 如遇到错误，请查看控制台日志获取详细信息
-
----
-
-## 技术支持
-
-如有问题或建议，请查看：
-1. 控制台错误日志
-2. 服务器运行日志
-3. 网络连接状态
-4. API响应状态
-
+[v2.1.0]: https://github.com/hongbinzuo/bollinger-bands-web-app/releases/tag/v2.1.0
