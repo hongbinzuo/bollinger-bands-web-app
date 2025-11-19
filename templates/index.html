@@ -1367,6 +1367,12 @@
                             <strong>数据点数:</strong> ${result.data_points}
                         </div>
                         <div class="stat-item">
+                            <strong>数据源:</strong> ${result.data_source || 'Unknown'}
+                        </div>
+                        <div class="stat-item">
+                            <strong>请求符号:</strong> ${result.used_symbol || result.symbol}
+                        </div>
+                        <div class="stat-item">
                             <strong>历史高点:</strong> ${result.historical_high?.toFixed(6) || 'N/A'}
                         </div>
                         <div class="stat-item">

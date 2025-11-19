@@ -115,8 +115,10 @@ class FibonacciProbabilityModel:
             data = response.json()
             
             if data.get('retCode') == 0:
-                klines = data['result']['list']
-                return self.convert_bybit_data(klines)
+                klines = data['result'].get('list') or []
+                if klines:
+                    return self.convert_bybit_data(klines)
+                return None
             else:
                 logger.error(f"Bybit API错误: {data.get('retMsg', 'Unknown error')}")
                 return None
@@ -124,6 +126,50 @@ class FibonacciProbabilityModel:
         except Exception as e:
             logger.error(f"Bybit获取 {symbol} K线数据失败: {e}")
             return None
+
+    def fetch_bybit_best_effort(self, symbol: str, interval: str, limit: int):
+        """尽力从Bybit拿到数据：优先按符号推断类别，再在现货/合约之间回退。
+
+        返回: (data_list or None, data_source_str, used_symbol_str)
+        data_source_str 可能是 'Bybit spot', 'Bybit linear', 或 'None'
+        """
+        try:
+            norm = (symbol or '').upper().strip()
+            # 判断是否为合约标志，如 'HUSDT.P' 或带 '.P'
+            is_perp_hint = norm.endswith('.P') or norm.endswith('-PERP')
+            base = norm.replace('.P', '').replace('-PERP', '')
+            if not base.endswith('USDT'):
+                base = f"{base}USDT"
+
+            # 决定尝试顺序
+            categories = ['linear', 'spot'] if is_perp_hint else ['spot', 'linear']
+            bybit_interval_map = {
+                '5m': '5', '15m': '15', '1h': '60', '4h': '240', '1d': 'D'
+            }
+            bybit_interval = bybit_interval_map.get(interval, '60')
+            url = "https://api.bybit.com/v5/market/kline"
+
+            for cat in categories:
+                params = {
+                    'category': cat,
+                    'symbol': base,
+                    'interval': bybit_interval,
+                    'limit': min(int(limit), 1000)
+                }
+                try:
+                    resp = requests.get(url, params=params, timeout=10)
+                    resp.raise_for_status()
+                    j = resp.json()
+                    if j.get('retCode') == 0:
+                        lst = j.get('result', {}).get('list') or []
+                        if lst:
+                            return self.convert_bybit_data(lst), f"Bybit {cat}", base
+                except Exception as _e:
+                    logger.warning(f"Bybit {cat} 获取 {base} 失败: {_e}")
+            return None, 'None', base
+        except Exception as e:
+            logger.error(f"Bybit数据获取失败({symbol}): {e}")
+            return None, 'None', symbol
     
     def convert_bybit_data(self, klines):
         """转换Bybit数据格式"""
@@ -664,11 +710,13 @@ class FibonacciProbabilityModel:
             
             # 获取数据
             limit = min(1000, int(days * self._get_bars_per_day(timeframe)))
-            price_data = self.get_bybit_klines(symbol, timeframe, limit)
+            price_data, data_source, used_symbol = self.fetch_bybit_best_effort(symbol, timeframe, limit)
             
             if not price_data:
                 logger.warning(f"无法获取 {symbol} 数据，使用模拟数据")
                 price_data = self.generate_mock_data(symbol, timeframe, limit)
+                data_source = 'Mock'
+                used_symbol = symbol
             
             # 识别历史高点和低点
             historical_data = self.identify_historical_high_low(price_data, timeframe=timeframe)
@@ -725,6 +773,8 @@ class FibonacciProbabilityModel:
                 'symbol': symbol,
                 'timeframe': timeframe,
                 'data_points': len(price_data),
+                'data_source': data_source,
+                'used_symbol': used_symbol,
                 'fib_levels': fib_levels,
                 'down_fib_levels': down_fib_levels,
                 'probabilities': fib_probabilities,
