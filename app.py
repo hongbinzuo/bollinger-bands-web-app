@@ -616,6 +616,8 @@ def kline_draw_save():
     source = (data.get('source') or 'gate').strip().lower()
     supports = data.get('supports') or []
     resistances = data.get('resistances') or []
+    supports_labels = data.get('supports_labels') or []
+    resistances_labels = data.get('resistances_labels') or []
     remarks = (data.get('remarks') or '').strip()
     if not symbol:
         return jsonify({'success': False, 'error': '缺少符号 symbol'}), 400
@@ -630,8 +632,31 @@ def kline_draw_save():
             except Exception:
                 continue
         return out
-    supports = _nums(supports)
-    resistances = _nums(resistances)
+    # 支持对象数组 [{price, label}] 或数字数组
+    def _extract(arr, labels):
+        prices, labs = [], []
+        if isinstance(arr, list) and arr and isinstance(arr[0], dict):
+            for it in arr:
+                v = it.get('price') if isinstance(it, dict) else None
+                try:
+                    v = float(v)
+                except Exception:
+                    v = None
+                if v is None or (v != v) or v in (float('inf'), float('-inf')):
+                    continue
+                prices.append(v)
+                labs.append((it.get('label') or '').strip())
+        else:
+            prices = _nums(arr)
+            # 用同长度的 labels 数组
+            if isinstance(labels, list) and labels:
+                labs = [(str(x) if x is not None else '').strip() for x in labels][:len(prices)]
+            else:
+                labs = [''] * len(prices)
+        return prices, labs
+
+    supports, supports_labels = _extract(supports, supports_labels)
+    resistances, resistances_labels = _extract(resistances, resistances_labels)
     items = _kline_store_read()
     item_id = f"{symbol}-{timeframe}-{int(time.time()*1000)}"
     item = {
@@ -643,6 +668,8 @@ def kline_draw_save():
         'supports': supports,
         'resistances': resistances,
         'remarks': remarks,
+        'supports_labels': supports_labels,
+        'resistances_labels': resistances_labels,
         'created_at': int(time.time()*1000)
     }
     items.append(item)

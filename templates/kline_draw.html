@@ -245,6 +245,27 @@
       if (v >= 0.01) return v.toFixed(6);
       return v.toFixed(8);
     }
+    
+    function sortAndDedup(kind) {
+      const eps = 1e-8;
+      if (kind === 'support') {
+        let pairs = supports.map((p,i)=>({p, label: supportsLabels[i]||''}));
+        pairs.sort((a,b)=>a.p-b.p);
+        const out = []; const labs=[];
+        pairs.forEach(it => {
+          if (out.length===0 || Math.abs(it.p - out[out.length-1]) > eps) { out.push(it.p); labs.push(it.label); }
+        });
+        supports = out; supportsLabels = labs;
+      } else {
+        let pairs = resistances.map((p,i)=>({p, label: resistancesLabels[i]||''}));
+        pairs.sort((a,b)=>a.p-b.p);
+        const out = []; const labs=[];
+        pairs.forEach(it => {
+          if (out.length===0 || Math.abs(it.p - out[out.length-1]) > eps) { out.push(it.p); labs.push(it.label); }
+        });
+        resistances = out; resistancesLabels = labs;
+      }
+    }
 
     function msToLwc(rows) {
       return rows.map(r => ({ time: Math.floor((r.t || r.timestamp) / 1000), open: r.open, high: r.high, low: r.low, close: r.close }));
@@ -274,15 +295,24 @@
       arr.forEach((v, idx) => {
         const item = document.createElement('div');
         item.className = 'level-item';
+        const label = document.createElement('input');
+        label.placeholder = (kind === 'support' ? `S${idx+1}` : `R${idx+1}`);
+        label.value = (kind === 'support' ? (supportsLabels[idx] || '') : (resistancesLabels[idx] || ''));
+        label.onchange = () => {
+          if (kind === 'support') supportsLabels[idx] = label.value.trim();
+          else resistancesLabels[idx] = label.value.trim();
+          applyLevels();
+        };
         const inp = document.createElement('input');
         inp.type = 'number';
         inp.step = '0.00000001';
         inp.value = Number(v).toFixed(8).replace(/0+$/,'').replace(/\.$/,'');
-        inp.onchange = () => { arr[idx] = parseFloat(inp.value); };
+        inp.onchange = () => { arr[idx] = parseFloat(inp.value); applyLevels(); };
         const del = document.createElement('button');
         del.className = 'btn danger';
         del.textContent = '删除';
-        del.onclick = () => { arr.splice(idx,1); renderLevels(containerId, kind, arr); applyLevels(); };
+        del.onclick = () => { arr.splice(idx,1); if (kind==='support') supportsLabels.splice(idx,1); else resistancesLabels.splice(idx,1); renderLevels(containerId, kind, arr); applyLevels(); };
+        item.appendChild(label);
         item.appendChild(inp);
         item.appendChild(del);
         el.appendChild(item);
@@ -293,12 +323,14 @@
       const p = parseFloat(price);
       if (!p || isNaN(p)) return;
       if (kind === 'support') {
-        supports.push(p);
-        supports.sort((a,b)=>a-b);
+        supports.push(snapPrice(p));
+        supportsLabels.push('');
+        sortAndDedup('support');
         renderLevels('supportLevels','support',supports);
       } else {
-        resistances.push(p);
-        resistances.sort((a,b)=>a-b);
+        resistances.push(snapPrice(p));
+        resistancesLabels.push('');
+        sortAndDedup('resistance');
         renderLevels('resistanceLevels','resistance',resistances);
       }
       applyLevels();
@@ -323,13 +355,15 @@
       clearPriceLines(supportLines);
       clearPriceLines(resistanceLines);
       // 绘制支撑（绿色）
-      supports.forEach(p => {
-        const line = candleSeries.createPriceLine({ price: p, color: '#10b981', lineWidth: 2, lineStyle: 2, title: `S ${fmtPrice(p)}` });
+      supports.forEach((p, i) => {
+        const lab = (supportsLabels[i] && supportsLabels[i].trim()) || `S${i+1}`;
+        const line = candleSeries.createPriceLine({ price: p, color: '#10b981', lineWidth: 2, lineStyle: 2, title: `${lab} ${fmtPrice(p)}` });
         supportLines.push(line);
       });
       // 绘制阻力（红色）
-      resistances.forEach(p => {
-        const line = candleSeries.createPriceLine({ price: p, color: '#ef4444', lineWidth: 2, lineStyle: 2, title: `R ${fmtPrice(p)}` });
+      resistances.forEach((p, i) => {
+        const lab = (resistancesLabels[i] && resistancesLabels[i].trim()) || `R${i+1}`;
+        const line = candleSeries.createPriceLine({ price: p, color: '#ef4444', lineWidth: 2, lineStyle: 2, title: `${lab} ${fmtPrice(p)}` });
         resistanceLines.push(line);
       });
     }
@@ -349,7 +383,7 @@
         const timeframe = document.getElementById('timeframeSelect').value;
         const source = document.getElementById('sourceSelect').value;
         const name = document.getElementById('saveName').value.trim();
-        const payload = { name, symbol, timeframe, source, supports, resistances, remarks: document.getElementById('remarksInput').value.trim() };
+        const payload = { name, symbol, timeframe, source, supports, resistances, supports_labels: supportsLabels, resistances_labels: resistancesLabels, remarks: document.getElementById('remarksInput').value.trim() };
         const resp = await fetch('/kline-draw/api/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const data = await resp.json();
         if (!data.success) throw new Error(data.error || '保存失败');
@@ -429,9 +463,9 @@
     }
 
     function exportLevelsCSV() {
-      const lines = ['kind,price'];
-      supports.forEach(p => lines.push(`support,${p}`));
-      resistances.forEach(p => lines.push(`resistance,${p}`));
+      const lines = ['kind,label,price'];
+      supports.forEach((p,i) => lines.push(`support,${(supportsLabels[i]||'')},${p}`));
+      resistances.forEach((p,i) => lines.push(`resistance,${(resistancesLabels[i]||'')},${p}`));
       const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -523,6 +557,8 @@
     // 内部状态：水平线集合
     let supports = [];
     let resistances = [];
+    let supportsLabels = [];
+    let resistancesLabels = [];
 
     window.addEventListener('load', () => {
       initChart();
