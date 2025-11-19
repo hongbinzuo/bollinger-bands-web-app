@@ -150,7 +150,8 @@
         setStatus('K线库未加载，请刷新页面或检查 /static/vendor/lightweight-charts 路径', 'error');
         return;
       }
-      lwcChart = LightweightCharts.createChart(document.getElementById('klineChart'), {
+      const container = document.getElementById('klineChart');
+      lwcChart = LightweightCharts.createChart(container, {
         layout: { background: { color: '#0f111a' }, textColor: '#e5e5e5' },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         rightPriceScale: { borderVisible: false },
@@ -158,6 +159,16 @@
         grid: { vertLines: { color: '#1f2335' }, horzLines: { color: '#1f2335' } },
       });
       candleSeries = lwcChart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', wickUpColor: '#26a69a', wickDownColor: '#ef5350', borderVisible: false });
+      // 初次尺寸校准（避免在隐藏状态初始化为0宽）
+      setTimeout(() => ensureChartSize(), 0);
+      // 监听容器尺寸变化，自适应重排
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => ensureChartSize());
+        ro.observe(container);
+      } else {
+        window.addEventListener('resize', ensureChartSize);
+        document.addEventListener('visibilitychange', ensureChartSize);
+      }
 
       lwcChart.subscribeClick(param => {
         if (dragState.suppressClick) { dragState.suppressClick = false; return; }
@@ -176,6 +187,19 @@
       dragTipEl = document.createElement('div');
       dragTipEl.className = 'drag-tip';
       document.getElementById('klineChart').appendChild(dragTipEl);
+    }
+
+    function ensureChartSize() {
+      try {
+        if (!lwcChart) return;
+        const el = document.getElementById('klineChart');
+        const rect = el.getBoundingClientRect();
+        const w = Math.max(300, Math.floor(rect.width || el.clientWidth || 0));
+        const h = Math.max(300, Math.floor(rect.height || el.clientHeight || 540));
+        if (w > 0 && h > 0) {
+          lwcChart.resize(w, h);
+        }
+      } catch (_) {}
     }
 
     function bindDragHandlers() {
@@ -392,6 +416,7 @@
 
     function drawChart() {
       initChart();
+      ensureChartSize();
       const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
       const timeframe = document.getElementById('timeframeSelect').value;
       const source = document.getElementById('sourceSelect').value;
