@@ -1,4 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_file
+import os
+import json
+import time
 import requests
 import pandas as pd
 import numpy as np
@@ -578,6 +581,97 @@ def fibonacci_research():
 def kline_draw_page():
     """K线绘制（Lightweight Charts）与自然语言输入解析页"""
     return render_template('kline_draw.html')
+
+# ---------------- K线绘制 配置持久化 API ----------------
+def _kline_store_path() -> str:
+    base = os.path.join(os.getcwd(), 'cache')
+    os.makedirs(base, exist_ok=True)
+    return os.path.join(base, 'kline_drawings.json')
+
+def _kline_store_read() -> list:
+    path = _kline_store_path()
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+def _kline_store_write(items: list) -> None:
+    path = _kline_store_path()
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(items, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"保存k线绘制配置失败: {e}")
+
+@app.route('/kline-draw/api/save', methods=['POST'])
+def kline_draw_save():
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip() or None
+    symbol = (data.get('symbol') or '').upper().strip()
+    timeframe = (data.get('timeframe') or '4h').strip()
+    source = (data.get('source') or 'gate').strip().lower()
+    supports = data.get('supports') or []
+    resistances = data.get('resistances') or []
+    remarks = (data.get('remarks') or '').strip()
+    if not symbol:
+        return jsonify({'success': False, 'error': '缺少符号 symbol'}), 400
+    # 清洗数字
+    def _nums(arr):
+        out = []
+        for x in arr:
+            try:
+                v = float(x)
+                if not (v != v or v in (float('inf'), float('-inf'))):
+                    out.append(v)
+            except Exception:
+                continue
+        return out
+    supports = _nums(supports)
+    resistances = _nums(resistances)
+    items = _kline_store_read()
+    item_id = f"{symbol}-{timeframe}-{int(time.time()*1000)}"
+    item = {
+        'id': item_id,
+        'name': name,
+        'symbol': symbol,
+        'timeframe': timeframe,
+        'source': source,
+        'supports': supports,
+        'resistances': resistances,
+        'remarks': remarks,
+        'created_at': int(time.time()*1000)
+    }
+    items.append(item)
+    # 最多保留最近 500 条
+    items = sorted(items, key=lambda x: x.get('created_at', 0), reverse=True)[:500]
+    _kline_store_write(items)
+    return jsonify({'success': True, 'id': item_id})
+
+@app.route('/kline-draw/api/list', methods=['GET'])
+def kline_draw_list():
+    items = _kline_store_read()
+    symbol = (request.args.get('symbol') or '').upper().strip()
+    if symbol:
+        items = [x for x in items if x.get('symbol') == symbol]
+    return jsonify({'success': True, 'count': len(items), 'items': items})
+
+@app.route('/kline-draw/api/delete', methods=['POST'])
+def kline_draw_delete():
+    data = request.get_json(silent=True) or {}
+    item_id = data.get('id')
+    if not item_id:
+        return jsonify({'success': False, 'error': '缺少id'}), 400
+    items = _kline_store_read()
+    n0 = len(items)
+    items = [x for x in items if x.get('id') != item_id]
+    if len(items) == n0:
+        return jsonify({'success': False, 'error': '未找到该id'}), 404
+    _kline_store_write(items)
+    return jsonify({'success': True})
 
 @app.route('/fibonacci/api/light-data', methods=['GET'])
 def fibonacci_api_light_data():

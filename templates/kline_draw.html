@@ -88,6 +88,19 @@
           <button class="btn warn" onclick="applyLevels()">应用水平线</button>
           <button class="btn secondary" onclick="toggleAutoRefresh()" id="autoBtn">开启自动刷新</button>
         </div>
+
+        <h3 style="margin-top:16px;">保存 / 导入 / 导出</h3>
+        <div class="row">
+          <input id="saveName" placeholder="保存名称（可选）">
+          <button class="btn" onclick="saveConfig()">保存到服务器</button>
+          <button class="btn secondary" onclick="loadSavedList()">加载保存列表</button>
+        </div>
+        <div class="row">
+          <button class="btn" onclick="exportConfigJSON()">导出配置(JSON)</button>
+          <button class="btn secondary" onclick="exportLevelsCSV()">导出水平线(CSV)</button>
+          <input type="file" id="importFile" accept="application/json" onchange="importConfigJSON(this)">
+        </div>
+        <div id="savedList" class="levels" style="margin-top:6px;"></div>
         <div class="row">
           <label>刷新秒数</label>
           <input id="refreshSec" type="number" min="5" max="300" value="30">
@@ -245,6 +258,118 @@
       applyLevels();
     }
 
+    async function saveConfig() {
+      try {
+        const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
+        const timeframe = document.getElementById('timeframeSelect').value;
+        const source = document.getElementById('sourceSelect').value;
+        const name = document.getElementById('saveName').value.trim();
+        const payload = { name, symbol, timeframe, source, supports, resistances, remarks: document.getElementById('remarksInput').value.trim() };
+        const resp = await fetch('/kline-draw/api/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || '保存失败');
+        setStatus(`已保存：${data.id}`);
+        loadSavedList();
+      } catch (e) {
+        setStatus(`保存失败：${e.message}`, 'error');
+      }
+    }
+
+    async function loadSavedList() {
+      try {
+        const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
+        const resp = await fetch('/kline-draw/api/list?symbol=' + encodeURIComponent(symbol));
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || '加载失败');
+        const list = data.items || [];
+        const el = document.getElementById('savedList');
+        el.innerHTML = '';
+        list.forEach(item => {
+          const row = document.createElement('div');
+          row.className = 'level-item';
+          const txt = document.createElement('div');
+          txt.textContent = `${item.name || '(未命名)'} · ${item.symbol} ${item.timeframe} · ${new Date(item.created_at).toLocaleString()} `;
+          const loadBtn = document.createElement('button');
+          loadBtn.className = 'btn'; loadBtn.textContent = '载入';
+          loadBtn.onclick = () => applySaved(item);
+          const delBtn = document.createElement('button');
+          delBtn.className = 'btn danger'; delBtn.textContent = '删除';
+          delBtn.onclick = () => deleteSaved(item.id);
+          row.appendChild(txt); row.appendChild(loadBtn); row.appendChild(delBtn);
+          el.appendChild(row);
+        });
+        setStatus(`已加载保存项：${list.length} 条`);
+      } catch (e) {
+        setStatus(`加载保存列表失败：${e.message}`, 'error');
+      }
+    }
+
+    async function deleteSaved(id) {
+      if (!id) return;
+      try {
+        const resp = await fetch('/kline-draw/api/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || '删除失败');
+        loadSavedList();
+      } catch (e) { setStatus(`删除失败：${e.message}`, 'error'); }
+    }
+
+    function applySaved(item) {
+      document.getElementById('symbolInput').value = (item.symbol || 'BTCUSDT');
+      document.getElementById('timeframeSelect').value = (item.timeframe || '4h');
+      document.getElementById('sourceSelect').value = (item.source || 'gate');
+      document.getElementById('remarksInput').value = (item.remarks || '');
+      supports = (item.supports || []).slice().sort((a,b)=>a-b);
+      resistances = (item.resistances || []).slice().sort((a,b)=>a-b);
+      renderLevels('supportLevels','support',supports);
+      renderLevels('resistanceLevels','resistance',resistances);
+      drawChart();
+    }
+
+    function exportConfigJSON() {
+      const obj = {
+        symbol: document.getElementById('symbolInput').value.trim().toUpperCase(),
+        timeframe: document.getElementById('timeframeSelect').value,
+        source: document.getElementById('sourceSelect').value,
+        supports, resistances,
+        remarks: document.getElementById('remarksInput').value.trim(),
+      };
+      const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const ts = new Date().toISOString().replace(/[:.]/g,'-');
+      a.download = `kline_config_${obj.symbol}_${obj.timeframe}_${ts}.json`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setStatus('已导出配置 JSON');
+    }
+
+    function exportLevelsCSV() {
+      const lines = ['kind,price'];
+      supports.forEach(p => lines.push(`support,${p}`));
+      resistances.forEach(p => lines.push(`resistance,${p}`));
+      const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'levels.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setStatus('已导出水平线 CSV');
+    }
+
+    function importConfigJSON(input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const obj = JSON.parse(reader.result);
+          applySaved(obj);
+          setStatus('已导入配置');
+        } catch (e) { setStatus('导入失败：' + e.message, 'error'); }
+      };
+      reader.readAsText(file);
+      input.value = '';
+    }
+
     function parseNumbers(str) {
       if (!str) return [];
       return (str.match(/[-+]?[0-9]*\.?[0-9]+/g) || []).map(x => parseFloat(x)).filter(x => !isNaN(x));
@@ -322,4 +447,3 @@
   </script>
 </body>
 </html>
-
