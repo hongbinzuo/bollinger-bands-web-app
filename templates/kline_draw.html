@@ -23,7 +23,8 @@
     .levels { max-height: 160px; overflow: auto; border: 1px dashed #2a2f45; padding: 6px; border-radius: 6px; }
     .level-item { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
     .level-item input { flex: 1; }
-    #chart { height: 540px; }
+    #klineChart { height: 540px; position: relative; }
+    .drag-tip { position: absolute; right: 8px; padding: 2px 6px; background: rgba(0,0,0,0.7); color: #fff; border-radius: 4px; font-size: 12px; pointer-events: none; display: none; }
     .muted { color: #9aa1b2; font-size: 12px; }
   </style>
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
@@ -119,19 +120,21 @@
 
       <div class="card">
         <h3>实时图表</h3>
-        <div id="chart"></div>
+        <div id="klineChart"></div>
         <div class="muted" id="status"></div>
       </div>
     </div>
   </div>
 
   <script>
-    let chart, candleSeries;
+    let lwcChart, candleSeries;
     let supportLines = [];
     let resistanceLines = [];
     let autoTimer = null;
     let dragState = { active: false, kind: null, idx: -1, suppressClick: false, lastTs: 0 };
     let dragHandlersBound = false;
+    let dragTipEl = null;
+    let lwcLoading = false;
 
     function setStatus(msg, type='info') {
       const el = document.getElementById('status');
@@ -140,17 +143,28 @@
     }
 
     function initChart() {
-      if (chart) return;
-      chart = LightweightCharts.createChart(document.getElementById('chart'), {
+      if (lwcChart) return;
+      if (!window.LightweightCharts || typeof LightweightCharts.createChart !== 'function') {
+        if (!lwcLoading) {
+          lwcLoading = true;
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.min.js';
+          s.onload = () => { lwcLoading = false; initChart(); };
+          s.onerror = () => { lwcLoading = false; setStatus('无法加载K线库，请检查网络', 'error'); };
+          document.head.appendChild(s);
+        }
+        return;
+      }
+      lwcChart = LightweightCharts.createChart(document.getElementById('klineChart'), {
         layout: { background: { color: '#0f111a' }, textColor: '#e5e5e5' },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         rightPriceScale: { borderVisible: false },
         timeScale: { borderVisible: false },
         grid: { vertLines: { color: '#1f2335' }, horzLines: { color: '#1f2335' } },
       });
-      candleSeries = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', wickUpColor: '#26a69a', wickDownColor: '#ef5350', borderVisible: false });
+      candleSeries = lwcChart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', wickUpColor: '#26a69a', wickDownColor: '#ef5350', borderVisible: false });
 
-      chart.subscribeClick(param => {
+      lwcChart.subscribeClick(param => {
         if (dragState.suppressClick) { dragState.suppressClick = false; return; }
         const mode = document.getElementById('clickMode').value;
         if (!param || !param.point || mode === 'none') return;
@@ -164,11 +178,14 @@
       });
 
       bindDragHandlers();
+      dragTipEl = document.createElement('div');
+      dragTipEl.className = 'drag-tip';
+      document.getElementById('klineChart').appendChild(dragTipEl);
     }
 
     function bindDragHandlers() {
       if (dragHandlersBound) return;
-      const el = document.getElementById('chart');
+      const el = document.getElementById('klineChart');
       const onDown = (e) => {
         const rect = el.getBoundingClientRect();
         const y = e.clientY - rect.top;
@@ -179,6 +196,7 @@
           dragState.idx = hit.idx;
           dragState.suppressClick = true;
           e.preventDefault();
+          if (dragTipEl) { dragTipEl.style.display = 'block'; dragTipEl.style.top = `${y - 10}px`; }
         }
       };
       const onMove = (e) => {
@@ -190,15 +208,21 @@
         const y = e.clientY - rect.top;
         const price = candleSeries.coordinateToPrice(y);
         if (!price || isNaN(price) || price <= 0) return;
-        updateLineAt(dragState.kind, dragState.idx, price);
+        const snapped = snapPrice(price);
+        updateLineAt(dragState.kind, dragState.idx, snapped);
+        if (dragTipEl) { dragTipEl.style.display = 'block'; dragTipEl.style.top = `${y - 10}px`; dragTipEl.textContent = fmtPrice(snapped); }
       };
       const onUp = () => {
         if (dragState.active) {
           dragState.active = false;
           // 结束后刷新侧边列表，反映新价格
+          sortAndDedup('support');
+          sortAndDedup('resistance');
           renderLevels('supportLevels','support',supports);
           renderLevels('resistanceLevels','resistance',resistances);
+          applyLevels();
         }
+        if (dragTipEl) dragTipEl.style.display = 'none';
       };
       el.addEventListener('mousedown', onDown);
       window.addEventListener('mousemove', onMove);
@@ -281,6 +305,7 @@
         const data = await resp.json();
         if (!data.success) throw new Error(data.error || '加载失败');
         const series = data.result.series || [];
+        if (!candleSeries) { setStatus('图表未初始化', 'error'); return; }
         candleSeries.setData(msToLwc(series));
         setStatus(`已加载：${data.result.symbol} / ${data.result.timeframe} / 源 ${data.result.source}`);
       } catch (e) {
@@ -346,12 +371,14 @@
 
     function clearPriceLines(lines) {
       if (!lines) return;
+      if (!candleSeries) return;
       lines.forEach(l => { try { candleSeries.removePriceLine(l); } catch(_){} });
       lines.length = 0;
     }
 
     function applyLevels() {
       initChart();
+      if (!candleSeries) return;
       clearPriceLines(supportLines);
       clearPriceLines(resistanceLines);
       // 绘制支撑（绿色）
@@ -401,22 +428,22 @@
         const data = await resp.json();
         if (!data.success) throw new Error(data.error || '加载失败');
         const list = data.items || [];
-        const el = document.getElementById('savedList');
-        el.innerHTML = '';
-        list.forEach(item => {
-          const row = document.createElement('div');
-          row.className = 'level-item';
-          const txt = document.createElement('div');
-          txt.textContent = `${item.name || '(未命名)'} · ${item.symbol} ${item.timeframe} · ${new Date(item.created_at).toLocaleString()} `;
-          const loadBtn = document.createElement('button');
-          loadBtn.className = 'btn'; loadBtn.textContent = '载入';
-          loadBtn.onclick = () => applySaved(item);
-          const delBtn = document.createElement('button');
-          delBtn.className = 'btn danger'; delBtn.textContent = '删除';
-          delBtn.onclick = () => deleteSaved(item.id);
-          row.appendChild(txt); row.appendChild(loadBtn); row.appendChild(delBtn);
-          el.appendChild(row);
-        });
+      const el = document.getElementById('savedList');
+      el.innerHTML = '';
+      list.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'level-item';
+        const txt = document.createElement('div');
+        txt.textContent = `${item.name || '(未命名)'} · ${item.symbol} ${item.timeframe} · ${new Date(item.created_at).toLocaleString()} `;
+        const loadBtn = document.createElement('button');
+        loadBtn.className = 'btn'; loadBtn.textContent = '载入';
+        loadBtn.onclick = () => applySaved(item);
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn danger'; delBtn.textContent = '删除';
+        delBtn.onclick = () => deleteSaved(item.id);
+        row.appendChild(txt); row.appendChild(loadBtn); row.appendChild(delBtn);
+        el.appendChild(row);
+      });
         setStatus(`已加载保存项：${list.length} 条`);
       } catch (e) {
         setStatus(`加载保存列表失败：${e.message}`, 'error');
