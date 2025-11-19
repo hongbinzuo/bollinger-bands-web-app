@@ -2544,21 +2544,69 @@
       function clearLines(arr){ if(!series) return; arr.forEach(l=>{ try{ series.removePriceLine(l);}catch(_){}}); arr.length=0; }
       // ---- 多文本注释工具 ----
       let annos = []; let annoIdSeq = 1;
-      function addAnnoAt(x,y,text){ const box=el('kd_chart'); const id=annoIdSeq++; const div=document.createElement('div'); div.className='kd-anno'; div.dataset.id=String(id); div.textContent=text||'双击编辑'; div.style.cssText='position:absolute; left:'+x+'px; top:'+y+'px; color:#fff; background:rgba(0,0,0,0.45); padding:4px 6px; border-radius:4px; font-size:12px; cursor:move; user-select:text; z-index:100001;';
-        const close=document.createElement('span'); close.textContent='×'; close.style.cssText='margin-left:6px; color:#ccc; cursor:pointer;'; close.onclick=(e)=>{ e.stopPropagation(); removeAnno(id); };
+      function addAnnoAt(x,y,text){ const box=el('kd_chart'); const id=annoIdSeq++; const div=document.createElement('div'); div.className='kd-anno'; div.dataset.id=String(id); div.textContent=text||'双击编辑'; div.style.cssText='position:absolute; left:'+x+'px; top:'+y+'px; color:#fff; background:rgba(0,0,0,0.45); padding:4px 6px; border-radius:4px; font-size:12px; cursor:move; user-select:text; z-index:100001; min-width:80px; min-height:20px; max-width:400px; word-wrap:break-word; white-space:pre-wrap;';
+        // 添加调整大小的手柄
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className='kd-anno-resize';
+        resizeHandle.style.cssText='position:absolute; right:0; bottom:0; width:12px; height:12px; background:rgba(255,255,255,0.3); cursor:nwse-resize; border-radius:2px 0 4px 0; z-index:100002;';
+        div.appendChild(resizeHandle);
+        const close=document.createElement('span'); close.textContent='×'; close.style.cssText='position:absolute; top:2px; right:2px; margin-left:6px; color:#ccc; cursor:pointer; font-size:14px; line-height:1; z-index:100003;'; close.onclick=(e)=>{ e.stopPropagation(); removeAnno(id); };
         div.appendChild(close);
-        // drag
-        let dragging=false, dx=0, dy=0; div.addEventListener('mousedown',(e)=>{ dragging=true; const r=div.getBoundingClientRect(); dx=e.clientX-r.left; dy=e.clientY-r.top; e.stopPropagation(); e.preventDefault(); });
-        window.addEventListener('mousemove',(e)=>{ if(!dragging) return; const r=box.getBoundingClientRect(); let nx=e.clientX-r.left-dx; let ny=e.clientY-r.top-dy; nx=Math.max(4, Math.min(r.width-120, nx)); ny=Math.max(4, Math.min(r.height-28, ny)); div.style.left=nx+'px'; div.style.top=ny+'px'; const a=annos.find(a=>a.id===id); if(a){ a.x=nx; a.y=ny; }});
-        window.addEventListener('mouseup',()=>{ if(dragging){ dragging=false; renderAnnoList(); } });
+        // drag and resize
+        let dragging=false, dx=0, dy=0;
+        let resizing=false, startWidth=0, startHeight=0, startX=0, startY=0;
+        div.addEventListener('mousedown',(e)=>{
+          if(e.target === resizeHandle || e.target.classList.contains('kd-anno-resize')) {
+            resizing=true;
+            const rect=div.getBoundingClientRect();
+            startWidth=rect.width;
+            startHeight=rect.height;
+            startX=e.clientX;
+            startY=e.clientY;
+            e.stopPropagation();
+            e.preventDefault();
+          } else if(e.target !== close && !e.target.classList.contains('kd-anno-resize')) {
+            dragging=true;
+            const r=div.getBoundingClientRect();
+            dx=e.clientX-r.left;
+            dy=e.clientY-r.top;
+            e.stopPropagation();
+            e.preventDefault();
+          }
+        });
+        window.addEventListener('mousemove',(e)=>{
+          if(resizing) {
+            const deltaX=e.clientX-startX;
+            const deltaY=e.clientY-startY;
+            const newWidth=Math.max(80, Math.min(400, startWidth+deltaX));
+            const newHeight=Math.max(20, Math.min(200, startHeight+deltaY));
+            div.style.width=newWidth+'px';
+            div.style.height=newHeight+'px';
+          } else if(dragging) {
+            const r=box.getBoundingClientRect();
+            let nx=e.clientX-r.left-dx;
+            let ny=e.clientY-r.top-dy;
+            nx=Math.max(4, Math.min(r.width-120, nx));
+            ny=Math.max(4, Math.min(r.height-28, ny));
+            div.style.left=nx+'px';
+            div.style.top=ny+'px';
+            const a=annos.find(a=>a.id===id);
+            if(a){ a.x=nx; a.y=ny; }
+          }
+        });
+        window.addEventListener('mouseup',()=>{ if(dragging){ dragging=false; renderAnnoList(); } if(resizing){ resizing=false; renderAnnoList(); } });
         // edit
         let editing=false; div.addEventListener('dblclick',()=>{ editing=true; div.contentEditable='true'; div.focus(); });
         div.addEventListener('blur',()=>{ if(!editing) return; div.contentEditable='false'; editing=false; const a=annos.find(a=>a.id===id); if(a){ a.text = div.textContent.replace('×','').trim(); } updateTemplateText(); renderAnnoList(); });
-        div.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); div.blur(); }});
+        // 允许Enter换行，Ctrl+Enter或Escape退出编辑
+        div.addEventListener('keydown',(e)=>{
+          if(e.key==='Enter' && !e.ctrlKey && !e.metaKey) { return; }
+          if((e.key==='Enter' && (e.ctrlKey || e.metaKey)) || e.key==='Escape') { e.preventDefault(); div.blur(); }
+        });
         box.appendChild(div); annos.push({id, x, y, text: div.textContent.replace('×','').trim()}); renderAnnoList();
       }
       function removeAnno(id){ const box=el('kd_chart'); const idx=annos.findIndex(a=>a.id===id); if(idx>=0){ const node=box.querySelector('.kd-anno[data-id="'+id+'"]'); if(node) node.remove(); annos.splice(idx,1); updateTemplateText(); renderAnnoList(); }}
-      function renderAnnoList(){ try{ const list=el('kd_annoList'); if(!list) return; list.innerHTML=''; if(annos.length===0){ list.innerHTML='<div class="muted">（无文本注释）</div>'; return; } annos.forEach(a=>{ const row=document.createElement('div'); row.style.display='flex'; row.style.gap='6px'; row.style.alignItems='center'; const inp=document.createElement('input'); inp.className='form-control'; inp.value=a.text||''; inp.onchange=()=>{ a.text=inp.value; const node=document.querySelector('.kd-anno[data-id="'+a.id+'"]'); if(node){ node.childNodes[0].nodeValue = a.text; } updateTemplateText(); }; const pos=document.createElement('span'); pos.className='muted'; pos.textContent = '('+Math.round(a.x)+', '+Math.round(a.y)+')'; const goto=document.createElement('button'); goto.className='btn'; goto.textContent='定位'; goto.onclick=()=>{ const node=document.querySelector('.kd-anno[data-id="'+a.id+'"]'); if(node){ node.style.outline='1px solid #4caf50'; setTimeout(()=>{ node.style.outline='none'; },800); } }; const del=document.createElement('button'); del.className='btn'; del.textContent='删除'; del.onclick=()=>removeAnno(a.id); row.appendChild(inp); row.appendChild(pos); row.appendChild(goto); row.appendChild(del); list.appendChild(row); }); }catch(_){}}
+      function renderAnnoList(){ try{ const list=el('kd_annoList'); if(!list) return; list.innerHTML=''; if(annos.length===0){ list.innerHTML='<div class="muted">（无文本注释）</div>'; return; } annos.forEach(a=>{ const row=document.createElement('div'); row.style.display='flex'; row.style.gap='6px'; row.style.alignItems='flex-start'; row.style.marginBottom='8px'; const textarea=document.createElement('textarea'); textarea.className='form-control'; textarea.value=a.text||''; textarea.rows=2; textarea.style.cssText='resize:both; min-width:200px; min-height:40px; max-width:400px;'; textarea.onchange=()=>{ a.text=textarea.value; const node=document.querySelector('.kd-anno[data-id="'+a.id+'"]'); if(node){ const textNode = Array.from(node.childNodes).find(n => n.nodeType === Node.TEXT_NODE); if(textNode) { textNode.textContent = textarea.value; } else { const closeNode = node.querySelector('span'); if(closeNode) { node.insertBefore(document.createTextNode(textarea.value), closeNode); } else { node.textContent = textarea.value + ' ×'; } } } updateTemplateText(); }; const pos=document.createElement('span'); pos.className='muted'; pos.style.cssText='font-size:11px; white-space:nowrap; margin-top:4px;'; pos.textContent = '('+Math.round(a.x)+', '+Math.round(a.y)+')'; const goto=document.createElement('button'); goto.className='btn'; goto.textContent='定位'; goto.onclick=()=>{ const node=document.querySelector('.kd-anno[data-id="'+a.id+'"]'); if(node){ node.style.outline='1px solid #4caf50'; setTimeout(()=>{ node.style.outline='none'; },800); } }; const del=document.createElement('button'); del.className='btn'; del.textContent='删除'; del.onclick=()=>removeAnno(a.id); row.appendChild(textarea); row.appendChild(pos); row.appendChild(goto); row.appendChild(del); list.appendChild(row); }); }catch(_){}}
       function applyLines(){
         ensureChart(); if(!series) return;
         // 支撑/阻力：虚线
