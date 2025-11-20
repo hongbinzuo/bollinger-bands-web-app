@@ -2521,24 +2521,8 @@
           const r = box.getBoundingClientRect(); const x = e.clientX - r.left; const y = e.clientY - r.top;
           addAnnoAt(x, y, '双击编辑'); updateTemplateText();
         });
-        dragTip = document.createElement('div'); dragTip.style.cssText='position:absolute;right:8px;padding:2px 6px;background:rgba(0,0,0,0.7);color:#fff;border-radius:4px;font-size:12px;pointer-events:none;display:none;'; box.appendChild(dragTip); // 备注可拖动标签
-        const noteEl = document.createElement('div'); noteEl.id='kd_note'; noteEl.style.cssText='position:absolute; left:66%; top:24px; color:#fff; background:rgba(0,0,0,0.45); padding:4px 6px; border-radius:4px; font-size:12px; cursor:move;'; noteEl.textContent=''; noteEl.setAttribute('title','拖动以移动；双击以编辑'); box.appendChild(noteEl);
-        // 拖动/编辑备注
-        let noteDragging=false, noteDX=0, noteDY=0, noteEditedPos=false, noteEditing=false;
-        noteEl.addEventListener('mousedown', (e)=>{ if(noteEditing) return; noteDragging=true; const rect=noteEl.getBoundingClientRect(); noteDX=e.clientX-rect.left; noteDY=e.clientY-rect.top; e.preventDefault(); });
-        window.addEventListener('mousemove',(e)=>{ if(!noteDragging) return; const r=box.getBoundingClientRect(); const x=e.clientX - r.left - noteDX; const y=e.clientY - r.top - noteDY; noteEl.style.left = Math.max(4, Math.min(r.width-120, x)) + 'px'; noteEl.style.right='auto'; noteEl.style.top = Math.max(4, Math.min(r.height-28, y)) + 'px'; noteEditedPos=true; });
-        window.addEventListener('mouseup',()=>{ noteDragging=false; });
-        noteEl.addEventListener('dblclick',()=>{ noteEditing=true; noteEl.contentEditable='true'; noteEl.focus(); });
-        noteEl.addEventListener('blur',()=>{ noteEl.contentEditable='false'; noteEditing=false; try{ el('kd_remarks').value = noteEl.textContent.trim(); updateTemplateText(); }catch(_){}});
-        noteEl.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); noteEl.blur(); }});
+        dragTip = document.createElement('div'); dragTip.style.cssText='position:absolute;right:8px;padding:2px 6px;background:rgba(0,0,0,0.7);color:#fff;border-radius:4px;font-size:12px;pointer-events:none;display:none;'; box.appendChild(dragTip);
         box.addEventListener('mousedown', (e)=>{ const y=e.clientY-box.getBoundingClientRect().top; const hit=hitTest(y); if(hit){ drag.on=true; drag.kind=hit.kind; drag.idx=hit.idx; e.preventDefault(); dragTip.style.display='block'; dragTip.style.top=(y-10)+'px'; }}); window.addEventListener('mousemove', (e)=>{ if(!drag.on) return; const now=performance.now(); if(now-drag.last<25) return; drag.last=now; const y=e.clientY-box.getBoundingClientRect().top; const p=series.coordinateToPrice(y); if(!p||isNaN(p)||p<=0) return; const v=snap(p); updateLine(drag.kind,drag.idx,v); dragTip.textContent=fmt(v); dragTip.style.top=(y-10)+'px'; }); window.addEventListener('mouseup', ()=>{ if(!drag.on) return; drag.on=false; sortDedup('support'); sortDedup('resistance'); renderLists(); applyLines(); dragTip.style.display='none'; }); }
-      function updateNoteAnchor(){ try{ const box=el('kd_chart'); const noteEl=box.querySelector('#kd_note'); if(!noteEl) return; const note=(el('kd_remarks').value||'').trim(); noteEl.textContent=note; if(!note) { noteEl.style.display='none'; return; } noteEl.style.display='block'; if(noteEditedPos) return; // 用户已拖动则不再自动定位
-        // 选取锚点：优先最高的阻力，其次最高的支撑
-        let anchor=null; if(resistances.length>0) anchor=Math.max.apply(null,resistances); else if(supports.length>0) anchor=Math.max.apply(null,supports);
-        const r=box.getBoundingClientRect(); const midRight = Math.floor(r.width*0.65);
-        let y=null; if(anchor && typeof series.priceToCoordinate==='function'){ const yCss=series.priceToCoordinate(anchor); y = (yCss!=null)? Math.max(4, Math.min(r.height-28, yCss-22)) : null; }
-        noteEl.style.left = (midRight) + 'px'; noteEl.style.right='auto'; noteEl.style.top = (y!=null? y : 24) + 'px';
-      }catch(_){}}
       function resize(){ try{ if(!chart) return; const box=el('kd_chart'); const r=box.getBoundingClientRect(); const w=Math.max(300,Math.floor(r.width||box.clientWidth||0)); const h=Math.max(300,Math.floor(r.height||540)); chart.resize(w,h);}catch(_){}}
       function hitTest(y){ const tol=6; let best=null; const test=(arr,kind)=>{ arr.forEach((p,i)=>{ const py=series.priceToCoordinate(p); if(py==null) return; const d=Math.abs(py-y); if(d<=tol && (!best||d<best.d)) best={kind,idx:i,d}; }); }; test(supports,'support'); test(resistances,'resistance'); test(entries,'entry'); test(tps,'tp'); return best; }
       function clearLines(arr){ if(!series) return; arr.forEach(l=>{ try{ series.removePriceLine(l);}catch(_){}}); arr.length=0; }
@@ -2654,7 +2638,6 @@
         try{
           const sym=(el('kd_symbol').value||'BTCUSDT').toUpperCase();
           const tf=el('kd_timeframe').value||'4h';
-          const note=(el('kd_remarks').value||'').trim();
           const supTxt = supports.length? supports.map(v=>fmt(v).replace(/0+$/,'').replace(/\.$/,'')).join(', ') : '';
           const resTxt = resistances.length? resistances.map(v=>fmt(v).replace(/0+$/,'').replace(/\.$/,'')).join(', ') : '';
           const eTxt = entries.length? entries.map(v=>fmt(v).replace(/0+$/,'').replace(/\.$/,'')).join(', ') : '';
@@ -2664,7 +2647,6 @@
           if(resTxt) tpl += `；阻力：${resTxt}`;
           if(eTxt)   tpl += `；开仓：${eTxt}`;
           if(tpTxt)  tpl += `；止盈：${tpTxt}`;
-          if(note)   tpl += `；备注：${note}`;
           el('kd_nlp').value = tpl;
         }catch(_){ }
       }
@@ -2685,7 +2667,7 @@
       }
 
       return {
-        init(){ ensureChart(); renderLists(); updateTemplateText(); try{ el('kd_symbol').addEventListener('change', updateTemplateText); el('kd_timeframe').addEventListener('change', updateTemplateText); el('kd_remarks').addEventListener('input', ()=>{ updateTemplateText(); updateNoteAnchor(); }); const modeSel=el('kd_clickMode'); const editSel=el('kd_editMode'); const updOverlay=()=>{ const box=el('kd_chart'); const overlay = box.querySelector('#kd_textOverlay'); const v = modeSel? modeSel.value : 'none'; const edit = editSel? editSel.checked : false; if(overlay){ overlay.style.display = (edit || v==='text') ? 'block' : 'none'; overlay.style.cursor = (v==='text') ? 'text' : 'default'; } box.style.cursor = (edit || v==='text') ? 'text' : 'default'; }; if(modeSel){ modeSel.addEventListener('change',updOverlay);} if(editSel){ editSel.addEventListener('change',updOverlay);} updOverlay(); }catch(_){ } },
+        init(){ ensureChart(); renderLists(); updateTemplateText(); try{ el('kd_symbol').addEventListener('change', updateTemplateText); el('kd_timeframe').addEventListener('change', updateTemplateText); const modeSel=el('kd_clickMode'); const editSel=el('kd_editMode'); const updOverlay=()=>{ const box=el('kd_chart'); const overlay = box.querySelector('#kd_textOverlay'); const v = modeSel? modeSel.value : 'none'; const edit = editSel? editSel.checked : false; if(overlay){ overlay.style.display = (edit || v==='text') ? 'block' : 'none'; overlay.style.cursor = (v==='text') ? 'text' : 'default'; } box.style.cursor = (edit || v==='text') ? 'text' : 'default'; }; if(modeSel){ modeSel.addEventListener('change',updOverlay);} if(editSel){ editSel.addEventListener('change',updOverlay);} updOverlay(); }catch(_){ } },
         addText(){ ensureChart(); addAnnoDefault(); updateTemplateText(); },
         parse(){
           const txt=(el('kd_nlp').value||'').trim(); if(!txt) return;
@@ -2698,7 +2680,7 @@
           // 解析‘支撑位’/‘阻力位’块，严格截取到下一个关键词前
           const supportKeys = ['支撑位','支撑价','支撑区间','支撑','support'];
           const resistKeys  = ['阻力位','阻力价','阻力区间','阻力','resistance'];
-          const nextLabels  = [...supportKeys, ...resistKeys, '备注','币种','symbol','时间周期','时间','周期'];
+          const nextLabels  = [...supportKeys, ...resistKeys, '币种','symbol','时间周期','时间','周期'];
           function firstIndexOf(text, keys){ let best={idx:-1,key:null}; keys.forEach(k=>{ const i=text.indexOf(k); if(i>=0 && (best.idx<0 || i<best.idx)) best={idx:i,key:k}; }); return best; }
           function blockBetween(keys){
             const hit = firstIndexOf(txt, keys); if(hit.idx<0) return '';
@@ -2728,35 +2710,30 @@
           sLabels = new Array(supports.length).fill('');
           rLabels = new Array(resistances.length).fill('');
           renderLists();
-          // 备注
-          const note = (txt.match(/备注[：:](.*)$/)||[])[1]||''; el('kd_remarks').value = note.trim();
           // 更新模板与图
           updateTemplateText();
           this.drawChart();
         },
         addLevel(kind){ let id=''; if(kind==='support') id='kd_supportAdd'; else if(kind==='resistance') id='kd_resistanceAdd'; else if(kind==='entry') id='kd_entryAdd'; else if(kind==='tp') id='kd_tpAdd'; if(!id) return; const val=parseFloat(el(id).value); if(!val||isNaN(val)) return; addLevel(kind, val); el(id).value=''; },
         applyLevels(){ applyLines(); },
-        drawChart(){ ensureChart(); const sym=el('kd_symbol').value.trim().toUpperCase(); const tf=el('kd_timeframe').value; const src=el('kd_source').value; resize(); loadSeries(sym, tf, src); applyLines(); updateNoteAnchor(); },
+        drawChart(){ ensureChart(); const sym=el('kd_symbol').value.trim().toUpperCase(); const tf=el('kd_timeframe').value; const src=el('kd_source').value; resize(); loadSeries(sym, tf, src); applyLines(); },
         toggleAutoRefresh(){ const btn=el('kd_autoBtn'); if(autoTimer){ clearInterval(autoTimer); autoTimer=null; btn.textContent='开启自动刷新'; status('自动刷新关闭'); return; } const sym=el('kd_symbol').value.trim().toUpperCase(); const tf=el('kd_timeframe').value; const src=el('kd_source').value; autoTimer=setInterval(()=>loadSeries(sym,tf,src), 30000); btn.textContent='关闭自动刷新'; status('自动刷新中，每 30s 更新一次'); },
-        exportPNG(){ try{ ensureChart(); if(!chart){ status('图表未初始化','error'); return; } const sym=(el('kd_symbol').value||'SYMBOL').toUpperCase(); const tfRaw=el('kd_timeframe').value||'tf'; const tf=tfRaw.toUpperCase(); const ts=new Date().toISOString().replace(/[:.]/g,'-'); const name=`kline_${sym}_${tf}_${ts}.png`; const composeAndDownload=(baseCanvas)=>{ const w=baseCanvas.width, h=baseCanvas.height; const out=document.createElement('canvas'); out.width=w; out.height=h; const ctx=out.getContext('2d'); ctx.drawImage(baseCanvas,0,0); // DPI 缩放系数（设备像素比）
+        exportPNG(){ try{ ensureChart(); if(!chart){ status('图表未初始化','error'); return; } const sym=(el('kd_symbol').value||'SYMBOL').toUpperCase(); const tfRaw=el('kd_timeframe').value||'tf'; const tf=tfRaw.toUpperCase(); const ts=new Date().toISOString().replace(/[:.]/g,'-'); const name=`kline_${sym}_${tf}_${ts}.png`; const composeAndDownload=(baseCanvas)=>{ const w=baseCanvas.width, h=baseCanvas.height; const out=document.createElement('canvas'); out.width=w; out.height=h; const ctx=out.getContext('2d');             ctx.drawImage(baseCanvas,0,0); // DPI 缩放系数（设备像素比）
             const box=el('kd_chart'); const cssW = Math.max(1, box.clientWidth||w); const scale = w / cssW; const fontSize = 12 * scale;
             // 水印: 左上角币种+周期（加半透明底）
             ctx.save(); ctx.font=`${fontSize}px Arial`; ctx.textBaseline='top'; const wm = `${sym} ${tf}`; const wmW = ctx.measureText(wm).width; const pad=4*scale; const x=8*scale, y=8*scale; ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(x-pad, y-pad, wmW+pad*2, fontSize+pad*2); ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.fillText(wm, x, y); ctx.restore();
-            // 备注：靠近最近的支撑/阻力线（上方偏移），同样考虑DPR
-            const note=(el('kd_remarks').value||'').trim(); if(note){ ctx.save(); ctx.font=`${fontSize}px Arial`; let yy=null; if(typeof series.priceToCoordinate==='function'){ let anchor=null; if(supports.length>0) anchor=supports[0]; else if(resistances.length>0) anchor=resistances[0]; const yCss=anchor?series.priceToCoordinate(anchor):null; yy = (yCss!=null) ? Math.max(8*scale, yCss*scale - (18*scale)) : null; }
-              const textW=ctx.measureText(note).width; const xx = Math.max(8*scale, w - textW - 16*scale); if(yy==null) yy = 24*scale; ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(xx-4*scale, yy-4*scale, textW+8*scale, fontSize+8*scale); ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.fillText(note, xx, yy); ctx.restore(); }
-            // 多个文本注释：读取 DOM 叠加
-            ctx.save(); ctx.font=`${fontSize}px Arial`; const nodes = box.querySelectorAll('.kd-anno'); nodes.forEach(n=>{ const text = (n.textContent||'').replace('×','').trim(); if(!text) return; const leftPx = parseFloat(n.style.left||'0'); const topPx = parseFloat(n.style.top||'0'); const xx = (isFinite(leftPx)? leftPx*scale : 16*scale); const yy = (isFinite(topPx)? topPx*scale : 24*scale); const tw = ctx.measureText(text).width; ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(xx-4*scale, yy-4*scale, tw+8*scale, fontSize+8*scale); ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.fillText(text, xx, yy); }); ctx.restore();
+            // 多个文本注释：读取 DOM 叠加（支持多行）
+            ctx.save(); ctx.font=`${fontSize}px Arial`; ctx.textBaseline='top'; const lineHeight = fontSize * 1.2; const nodes = box.querySelectorAll('.kd-anno'); nodes.forEach(n=>{ const text = (n.textContent||'').replace('×','').trim(); if(!text) return; const leftPx = parseFloat(n.style.left||'0'); const topPx = parseFloat(n.style.top||'0'); const xx = (isFinite(leftPx)? leftPx*scale : 16*scale); let yy = (isFinite(topPx)? topPx*scale : 24*scale); const lines = text.split('\n'); const maxWidth = Math.max(...lines.map(line => ctx.measureText(line).width)); const totalHeight = lines.length * lineHeight; const pad = 4*scale; ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(xx-pad, yy-pad, maxWidth+pad*2, totalHeight+pad*2); ctx.fillStyle='rgba(255,255,255,0.95)'; lines.forEach((line, idx) => { ctx.fillText(line, xx, yy + idx * lineHeight); }); }); ctx.restore();
             const url=out.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); document.body.removeChild(a); status('已导出图表 PNG'); };
           if(typeof chart.takeScreenshot==='function'){ const cnv=chart.takeScreenshot(); composeAndDownload(cnv); return; }
           const box=el('kd_chart'); const cvs=box.querySelectorAll('canvas'); if(!cvs||cvs.length===0) throw new Error('未找到画布'); const w=cvs[0].width, h=cvs[0].height; const off=document.createElement('canvas'); off.width=w; off.height=h; const ctx=off.getContext('2d'); cvs.forEach(c=>{ try{ ctx.drawImage(c,0,0); }catch(_){}}); composeAndDownload(off); }catch(e){ console.error(e); status('导出失败:'+e.message,'error'); } },
-        saveConfig: async function(){ try{ const payload={ name: el('kd_saveName').value.trim(), symbol: el('kd_symbol').value.trim().toUpperCase(), timeframe: el('kd_timeframe').value, source: el('kd_source').value, supports, resistances, supports_labels: sLabels, resistances_labels: rLabels, entries, tps, remarks: el('kd_remarks').value.trim(), annotations: annos.map(a=>({x:a.x,y:a.y,text:a.text})) }; const resp=await fetch('/kline-draw/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const data=await resp.json(); if(!data.success) throw new Error(data.error||'保存失败'); status('已保存:'+data.id); this.loadSavedList(); }catch(e){ status('保存失败:'+e.message,'error'); } },
-        loadSavedList: async function(){ try{ const sym=el('kd_symbol').value.trim().toUpperCase(); const resp=await fetch('/kline-draw/api/list?symbol='+encodeURIComponent(sym)); const data=await resp.json(); if(!data.success) throw new Error(data.error||'加载失败'); const list=data.items||[]; const box=el('kd_savedList'); box.innerHTML=''; list.forEach(item=>{ const row=document.createElement('div'); row.style.display='flex'; row.style.gap='8px'; row.style.alignItems='center'; const txt=document.createElement('div'); txt.textContent=`${item.name||'(未命名)'} · ${item.symbol} ${item.timeframe} · ${new Date(item.created_at).toLocaleString()}`; const load=document.createElement('button'); load.className='btn'; load.textContent='载入';           load.onclick=()=>{ el('kd_symbol').value=item.symbol||'BTCUSDT'; el('kd_timeframe').value=item.timeframe||'4h'; el('kd_source').value=item.source||'gate'; el('kd_remarks').value=item.remarks||''; supports=(item.supports||[]).slice(); resistances=(item.resistances||[]).slice(); entries=(item.entries||[]).slice(); tps=(item.tps||[]).slice(); sLabels=(item.supports_labels||new Array(supports.length).fill('')).slice(); rLabels=(item.resistances_labels||new Array(resistances.length).fill('')).slice(); sortDedup('support'); sortDedup('resistance'); renderLists(); // 重建注释
+        saveConfig: async function(){ try{ const payload={ name: el('kd_saveName').value.trim(), symbol: el('kd_symbol').value.trim().toUpperCase(), timeframe: el('kd_timeframe').value, source: el('kd_source').value, supports, resistances, supports_labels: sLabels, resistances_labels: rLabels, entries, tps, annotations: annos.map(a=>({x:a.x,y:a.y,text:a.text})) }; const resp=await fetch('/kline-draw/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const data=await resp.json(); if(!data.success) throw new Error(data.error||'保存失败'); status('已保存:'+data.id); this.loadSavedList(); }catch(e){ status('保存失败:'+e.message,'error'); } },
+        loadSavedList: async function(){ try{ const sym=el('kd_symbol').value.trim().toUpperCase(); const resp=await fetch('/kline-draw/api/list?symbol='+encodeURIComponent(sym)); const data=await resp.json(); if(!data.success) throw new Error(data.error||'加载失败'); const list=data.items||[]; const box=el('kd_savedList'); box.innerHTML=''; list.forEach(item=>{ const row=document.createElement('div'); row.style.display='flex'; row.style.gap='8px'; row.style.alignItems='center'; const txt=document.createElement('div'); txt.textContent=`${item.name||'(未命名)'} · ${item.symbol} ${item.timeframe} · ${new Date(item.created_at).toLocaleString()}`; const load=document.createElement('button'); load.className='btn'; load.textContent='载入';           load.onclick=()=>{ el('kd_symbol').value=item.symbol||'BTCUSDT'; el('kd_timeframe').value=item.timeframe||'4h'; el('kd_source').value=item.source||'gate'; supports=(item.supports||[]).slice(); resistances=(item.resistances||[]).slice(); entries=(item.entries||[]).slice(); tps=(item.tps||[]).slice(); sLabels=(item.supports_labels||new Array(supports.length).fill('')).slice(); rLabels=(item.resistances_labels||new Array(resistances.length).fill('')).slice(); sortDedup('support'); sortDedup('resistance'); renderLists(); // 重建注释
             annos=[]; const boxChart=el('kd_chart'); boxChart.querySelectorAll('.kd-anno').forEach(n=>n.remove()); (item.annotations||[]).forEach(a=>addAnnoAt(parseFloat(a.x||0), parseFloat(a.y||0), a.text||'')); KLINE.drawChart(); };
           const del=document.createElement('button'); del.className='btn'; del.textContent='删除'; del.onclick=async ()=>{ const r=await fetch('/kline-draw/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:item.id})}); const j=await r.json(); if(j.success){ KLINE.loadSavedList(); } }; row.appendChild(txt); row.appendChild(load); row.appendChild(del); box.appendChild(row); }); status(`已加载保存项：${list.length} 条`); }catch(e){ status('加载保存列表失败:'+e.message,'error'); } },
-        exportJSON(){ const obj={ symbol: el('kd_symbol').value.trim().toUpperCase(), timeframe: el('kd_timeframe').value, source: el('kd_source').value, supports, resistances, supports_labels: sLabels, resistances_labels: rLabels, entries, tps, remarks: el('kd_remarks').value.trim() }; const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); const ts=new Date().toISOString().replace(/[:.]/g,'-'); a.download=`kline_config_${obj.symbol}_${obj.timeframe}_${ts}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); status('已导出配置 JSON'); },
+        exportJSON(){ const obj={ symbol: el('kd_symbol').value.trim().toUpperCase(), timeframe: el('kd_timeframe').value, source: el('kd_source').value, supports, resistances, supports_labels: sLabels, resistances_labels: rLabels, entries, tps }; const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); const ts=new Date().toISOString().replace(/[:.]/g,'-'); a.download=`kline_config_${obj.symbol}_${obj.timeframe}_${ts}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); status('已导出配置 JSON'); },
         exportCSV(){ const lines=['kind,label,price']; supports.forEach((p,i)=>lines.push(`support,${(sLabels[i]||'')},${p}`)); resistances.forEach((p,i)=>lines.push(`resistance,${(rLabels[i]||'')},${p}`)); entries.forEach((p,i)=>lines.push(`entry,,${p}`)); tps.forEach((p,i)=>lines.push(`tp,,${p}`)); const blob=new Blob(['\uFEFF'+lines.join('\n')],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='levels.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); status('已导出水平线 CSV'); },
-        importJSON(input){ const file=input.files&&input.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ try{ const obj=JSON.parse(reader.result); el('kd_symbol').value=obj.symbol||'BTCUSDT'; el('kd_timeframe').value=obj.timeframe||'4h'; el('kd_source').value=obj.source||'gate'; el('kd_remarks').value=obj.remarks||''; supports=(obj.supports||[]).slice(); resistances=(obj.resistances||[]).slice(); entries=(obj.entries||[]).slice(); tps=(obj.tps||[]).slice(); sLabels=(obj.supports_labels||new Array(supports.length).fill('')).slice(); rLabels=(obj.resistances_labels||new Array(resistances.length).fill('')).slice(); sortDedup('support'); sortDedup('resistance'); renderLists(); KLINE.drawChart(); status('已导入配置'); }catch(e){ status('导入失败:'+e.message,'error'); } }; reader.readAsText(file); input.value=''; }
+        importJSON(input){ const file=input.files&&input.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ try{ const obj=JSON.parse(reader.result); el('kd_symbol').value=obj.symbol||'BTCUSDT'; el('kd_timeframe').value=obj.timeframe||'4h'; el('kd_source').value=obj.source||'gate'; supports=(obj.supports||[]).slice(); resistances=(obj.resistances||[]).slice(); entries=(obj.entries||[]).slice(); tps=(obj.tps||[]).slice(); sLabels=(obj.supports_labels||new Array(supports.length).fill('')).slice(); rLabels=(obj.resistances_labels||new Array(resistances.length).fill('')).slice(); sortDedup('support'); sortDedup('resistance'); renderLists(); KLINE.drawChart(); status('已导入配置'); }catch(e){ status('导入失败:'+e.message,'error'); } }; reader.readAsText(file); input.value=''; }
       };
     })();
     </script>
@@ -4773,11 +4750,11 @@
         <!-- K线绘制（内嵌版） -->
         <div id="klineDraw" class="tab-content">
             <h3>📉 专业K线绘制</h3>
-            <p class="muted">基于 TradingView Lightweight Charts；支持自然语言解析支撑/阻力/备注、点击加线、拖拽、保存/导入/导出、导出图表PNG。</p>
+            <p class="muted">基于 TradingView Lightweight Charts；支持自然语言解析支撑/阻力、点击加线、拖拽、保存/导入/导出、导出图表PNG。</p>
 
             <div class="form-group">
                 <label>自然语言描述</label>
-                <textarea id="kd_nlp" class="form-control" rows="3" placeholder="例：币种 $BTC，时间周期 4小时；支撑位：61200, 60000；阻力位：63500；备注：突破阻力加仓"></textarea>
+                <textarea id="kd_nlp" class="form-control" rows="3" placeholder="例：币种 $BTC，时间周期 4小时；支撑位：61200, 60000；阻力位：63500；开仓：62000；止盈：65000"></textarea>
                 <div style="margin-top:8px;">
                     <button class="btn btn-primary" onclick="KLINE.parse()">解析</button>
                     <button class="btn" onclick="KLINE.clearAll()">清空</button>
@@ -4863,10 +4840,6 @@
                     <div class="form-group">
                         <label>文本注释</label>
                         <div id="kd_annoList" class="results-container" style="max-height:180px; overflow:auto;"></div>
-                    </div>
-                    <div class="form-group">
-                        <label>备注</label>
-                        <input id="kd_remarks" class="form-control" placeholder="示例：突破阻力加仓，回踩支撑减仓">
                     </div>
                     <div class="form-group" style="display:flex; gap:8px; flex-wrap:wrap;">
                         <button class="btn btn-primary" onclick="KLINE.drawChart()">绘制图表</button>
