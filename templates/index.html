@@ -2529,12 +2529,12 @@
       // ---- 多文本注释工具 ----
       let annos = []; let annoIdSeq = 1;
       function addAnnoAt(x,y,text){ const box=el('kd_chart'); const id=annoIdSeq++; const div=document.createElement('div'); div.className='kd-anno'; div.dataset.id=String(id); div.textContent=text||'双击编辑'; div.style.cssText='position:absolute; left:'+x+'px; top:'+y+'px; color:#fff; background:rgba(0,0,0,0.45); padding:4px 6px; border-radius:4px; font-size:12px; cursor:move; user-select:text; z-index:100001; min-width:80px; min-height:20px; max-width:400px; word-wrap:break-word; white-space:pre-wrap;';
-        // 添加调整大小的手柄
+        // 添加调整大小的手柄（默认隐藏）
         const resizeHandle = document.createElement('div');
         resizeHandle.className='kd-anno-resize';
-        resizeHandle.style.cssText='position:absolute; right:0; bottom:0; width:12px; height:12px; background:rgba(255,255,255,0.3); cursor:nwse-resize; border-radius:2px 0 4px 0; z-index:100002;';
+        resizeHandle.style.cssText='position:absolute; right:0; bottom:0; width:12px; height:12px; background:rgba(255,255,255,0.3); cursor:nwse-resize; border-radius:2px 0 4px 0; z-index:100002; display:none;';
         div.appendChild(resizeHandle);
-        const close=document.createElement('span'); close.textContent='×'; close.style.cssText='position:absolute; top:2px; right:2px; margin-left:6px; color:#ccc; cursor:pointer; font-size:14px; line-height:1; z-index:100003;'; close.onclick=(e)=>{ e.stopPropagation(); removeAnno(id); };
+        const close=document.createElement('span'); close.textContent='×'; close.className='kd-anno-close'; close.style.cssText='position:absolute; top:2px; right:2px; margin-left:6px; color:#ccc; cursor:pointer; font-size:14px; line-height:1; z-index:100003; display:none;'; close.onclick=(e)=>{ e.stopPropagation(); removeAnno(id); };
         div.appendChild(close);
         // drag and resize
         let dragging=false, dx=0, dy=0;
@@ -2580,8 +2580,11 @@
         });
         window.addEventListener('mouseup',()=>{ if(dragging){ dragging=false; renderAnnoList(); } if(resizing){ resizing=false; renderAnnoList(); } });
         // edit
-        let editing=false; div.addEventListener('dblclick',()=>{ editing=true; div.contentEditable='true'; div.focus(); });
-        div.addEventListener('blur',()=>{ if(!editing) return; div.contentEditable='false'; editing=false; const a=annos.find(a=>a.id===id); if(a){ a.text = div.textContent.replace('×','').trim(); } updateTemplateText(); renderAnnoList(); });
+        let editing=false;
+        const showControls=()=>{ resizeHandle.style.display='block'; close.style.display='block'; };
+        const hideControls=()=>{ resizeHandle.style.display='none'; close.style.display='none'; };
+        div.addEventListener('dblclick',()=>{ editing=true; div.contentEditable='true'; div.focus(); showControls(); });
+        div.addEventListener('blur',()=>{ if(!editing) return; div.contentEditable='false'; editing=false; const a=annos.find(a=>a.id===id); if(a){ a.text = div.textContent.replace('×','').trim(); } updateTemplateText(); renderAnnoList(); hideControls(); });
         // 允许Enter换行，Ctrl+Enter或Escape退出编辑
         div.addEventListener('keydown',(e)=>{
           if(e.key==='Enter' && !e.ctrlKey && !e.metaKey) { return; }
