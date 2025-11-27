@@ -14,7 +14,8 @@
     
     <script>
         // 显示Tab函数 - 需要在HTML之前定义
-        function showTab(tabName, event) {
+        // 确保全局可用，避免作用域问题
+        window.showTab = function(tabName, event) {
             // 隐藏所有tab内容
             const tabContents = document.querySelectorAll('.tab-content');
             tabContents.forEach(content => content.classList.remove('active'));
@@ -42,7 +43,7 @@
         }
         
         // 显示交叉点Tab函数
-        function showCrossTab(tabType, event) {
+        window.showCrossTab = function(tabType, event) {
             // 更新标签按钮状态
             document.querySelectorAll('.cross-tab').forEach(tab => {
                 tab.classList.remove('active');
