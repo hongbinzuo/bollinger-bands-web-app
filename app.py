@@ -13,15 +13,10 @@ import pickle
 import csv
 
 # 导入日内交易模块
-from intraday_api import intraday_bp
-from ultra_short_api import ultra_short_bp
 from logs_api import logs_bp
 from multi_timeframe_api import multi_timeframe_bp
 from crypto_analysis_api import crypto_analysis_bp
 from crypto_advanced_analysis_api import crypto_advanced_bp
-from fibonacci_api import fibonacci_bp
-from momentum_field_api import momentum_field_bp
-from fibonacci_probability_model import fibonacci_prob_bp
 from realtime_fibonacci_analyzer import realtime_fib_bp
 
 app = Flask(__name__)
@@ -31,15 +26,10 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
 # 注册日内交易蓝图
-app.register_blueprint(intraday_bp)
-app.register_blueprint(ultra_short_bp)
 app.register_blueprint(logs_bp)
 app.register_blueprint(multi_timeframe_bp)
 app.register_blueprint(crypto_analysis_bp)
 app.register_blueprint(crypto_advanced_bp)
-app.register_blueprint(fibonacci_bp)
-app.register_blueprint(momentum_field_bp)
-app.register_blueprint(fibonacci_prob_bp)
 app.register_blueprint(realtime_fib_bp)
 
 # 设置日志
@@ -567,10 +557,7 @@ def index():
     """主页"""
     return render_template('index.html')
 
-@app.route('/fibonacci-research')
-def fibonacci_research():
-    """斐波规律研究页面"""
-    return render_template('fibonacci_research.html')
+# 已移除斐波规律研究页面
 
 @app.route('/kline-draw')
 def kline_draw_page():
@@ -709,11 +696,7 @@ def kline_draw_delete():
     _kline_store_write(items)
     return jsonify({'success': True})
 
-@app.route('/fibonacci/api/light-data', methods=['GET'])
-def fibonacci_api_light_data():
-    """斐波规律研究API - 重定向到fibonacci蓝图"""
-    from fibonacci_api import get_light_data
-    return get_light_data()
+# 已移除斐波规律研究API转发端点
 
 
 

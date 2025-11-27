@@ -1,7 +1,6 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Core app: `app.py` (Flask) with feature blueprints in `*_api.py` (e.g., `multi_timeframe_api.py`, `fibonacci_api.py`).
 - Frontend: `templates/` (Jinja/HTML) and `static/` (CSS/JS/assets).
 - Scripts: server starters (`start_server.py`, `waitress_server.py`), `gunicorn.conf.py`.
 - Data/config: `requirements.txt`, `supported_symbols.json`, optional DB in `bollinger_strategy.db`.

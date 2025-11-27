@@ -445,3 +445,81 @@ def clear_ema_usage():
     except Exception as e:
         logger.error(f"Failed to clear EMA usage record: {e}", exc_info=True)
         return jsonify({'error': 'An internal server error occurred.', 'details': str(e)}), 500
+
+
+@multi_timeframe_bp.route('/get_chart_data', methods=['POST'])
+def get_chart_data():
+    """Provide base OHLC and key EMA series for client-side charting.
+
+    Request JSON:
+      - symbol: e.g. "BTC" or "BTCUSDT"
+      - base_timeframe: e.g. "5m" (default: 5m)
+      - limit: number of candles (default: 300, max: 1000)
+
+    Response JSON:
+      {
+        success: true,
+        symbol: "BTCUSDT",
+        timeframe: "5m",
+        base_data: { timestamps: [ms...], prices: [float...] },
+        ema: { ema89: [...], ema144: [...], ema233: [...], ema377: [...] }
+      }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        symbol_raw = (data.get('symbol') or '').strip()
+        timeframe = (data.get('base_timeframe') or '5m').strip()
+        limit = int(data.get('limit') or 300)
+        limit = max(50, min(limit, 1000))
+
+        if not symbol_raw:
+            return jsonify({'success': False, 'error': '缺少symbol'}), 400
+
+        symbol = _process_symbol(symbol_raw)
+        strategy_ref = original_strategy or modified_strategy
+        if strategy_ref is None:
+            return jsonify({'success': False, 'error': 'Strategy service is not available.'}), 503
+
+        # Fetch base timeframe klines
+        df = strategy_ref.get_klines_data(symbol, timeframe, limit)
+        if df is None or df.empty:
+            return jsonify({'success': False, 'error': '无法获取K线数据'}), 502
+
+        # Ensure ascending index with datetime index
+        df = df.copy()
+        df = df.sort_index()
+
+        # Compute EMAs needed for charting (independent of strategy mappings)
+        for p in (89, 144, 233, 377):
+            col = f'ema{p}'
+            try:
+                df[col] = df['close'].ewm(span=p, adjust=False).mean()
+            except Exception:
+                df[col] = None
+
+        # Build response payload
+        # Convert timestamps to epoch milliseconds for frontend time scale
+        ts_ms = [int(ts.value // 10**6) for ts in df.index.to_series()]  # pandas datetime64[ns] -> ms
+        prices = [float(x) if x == x else None for x in df['close'].tolist()]
+
+        payload = {
+            'success': True,
+            'symbol': symbol,
+            'timeframe': timeframe,
+            'base_data': {
+                'timestamps': ts_ms,
+                'prices': prices,
+            },
+            'ema': {
+                'ema89': [float(x) if x == x else None for x in df.get('ema89', []).tolist()],
+                'ema144': [float(x) if x == x else None for x in df.get('ema144', []).tolist()],
+                'ema233': [float(x) if x == x else None for x in df.get('ema233', []).tolist()],
+                'ema377': [float(x) if x == x else None for x in df.get('ema377', []).tolist()],
+            }
+        }
+
+        return jsonify(payload)
+
+    except Exception as e:
+        logger.error(f"get_chart_data failed: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
