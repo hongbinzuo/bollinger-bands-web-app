@@ -613,9 +613,7 @@
             }
         }
         
-        // 日内交易相关函数
-            showStatus('获取日内信号', 'info');
-        }
+        // 日内交易相关函数（已移除）
         
         // 图表相关函数
         function refreshChart() {
@@ -658,7 +656,7 @@
         // 日志相关函数
         function startLogMonitoring() {
             showStatus('开始监控日志', 'info');
-        }
+        
         
         function clearLogs() {
             showStatus('清空日志', 'info');
@@ -3077,6 +3075,47 @@
             
             <!-- 状态显示 -->
             <div id="multiTimeframeStatus" class="status-message"></div>
+            
+            <!-- 图表区域（多时间框架内嵌图表） -->
+            <div id="chartSection" style="display:none; margin-top: 20px;">
+                <div class="form-group" style="display:flex; gap: 10px; align-items:center; flex-wrap:wrap;">
+                    <label for="chartSymbolSelect">币种:</label>
+                    <select id="chartSymbolSelect" class="form-control" style="width: 160px;"></select>
+                    
+                    <label for="chartTimeframeSelect">时间周期:</label>
+                    <select id="chartTimeframeSelect" class="form-control" style="width: 140px;" onchange="updateChartTimeframe()">
+                        <option value="5m">5分钟</option>
+                        <option value="15m">15分钟</option>
+                        <option value="1h">1小时</option>
+                        <option value="4h">4小时</option>
+                        <option value="1d">1天</option>
+                    </select>
+                    
+                    <button class="btn" onclick="refreshChart()">🔄 刷新</button>
+                    <button class="btn" onclick="toggleChartVisibility()">👁️ 显示/隐藏</button>
+                </div>
+                <div class="chart-wrapper" style="height:420px; border:1px solid rgba(255,255,255,0.2); padding:10px; border-radius:6px;">
+                    <canvas id="emaChart"></canvas>
+                </div>
+                <div class="chart-legend" id="chartLegend" style="margin-top:10px;"></div>
+                
+                <!-- 交叉点位信息面板（当前后端未返回交叉点，默认隐藏） -->
+                <div class="cross-points-panel" id="crossPointsPanel" style="display: none; margin-top: 10px;">
+                    <h4>🎯 交叉点位信息</h4>
+                    <div class="cross-points-tabs">
+                        <button class="cross-tab active" onclick="showCrossTab('price', event)">价格交叉</button>
+                        <button class="cross-tab" onclick="showCrossTab('indicator', event)">均线交叉</button>
+                    </div>
+                    <div class="cross-points-content">
+                        <div id="priceCrossPoints" class="cross-tab-content active">
+                            <div class="cross-points-list" id="priceCrossList"></div>
+                        </div>
+                        <div id="indicatorCrossPoints" class="cross-tab-content">
+                            <div class="cross-points-list" id="indicatorCrossList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- 日志诊断Tab -->
