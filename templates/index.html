@@ -2902,6 +2902,7 @@
             <button class="tab" onclick="showTab('multiTimeframe', event)">📈 多时间框架</button>
             <button class="tab" onclick="showTab('hotCoins', event)">🔥 热点币种分析</button>
             <button class="tab" onclick="showTab('klineDraw', event)">📉 K线绘制</button>
+            <button class="tab" onclick="showTab('ultraShort', event)">⚡ 超短BTC</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
         </div>
@@ -3436,6 +3437,62 @@
                 </div>
                 <div>
                     <div id="kd_chart" style="height:620px; position:relative; background:#0f111a; z-index:10; pointer-events:auto; touch-action:none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 超短BTC Tab -->
+        <div id="ultraShort" class="tab-content">
+            <h3>⚡ 超短BTC信号系统</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; margin-top: 20px;">
+                <!-- 左侧控制面板 -->
+                <div>
+                    <div class="form-group">
+                        <button class="btn btn-primary" onclick="ultraShortStartMonitor()">开始监控</button>
+                        <button class="btn" onclick="ultraShortStopMonitor()">停止监控</button>
+                        <button class="btn" onclick="ultraShortCheckSignal()">手动检查</button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>时间框架</label>
+                        <select id="ultraShortTimeframe" class="form-control">
+                            <option value="1m">1分钟</option>
+                            <option value="2m">2分钟</option>
+                            <option value="3m">3分钟</option>
+                            <option value="5m" selected>5分钟</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>监控状态</label>
+                        <div id="ultraShortStatus" style="padding: 10px; background: rgba(0,0,0,0.3); border-radius: 5px;">
+                            <div>状态: <span id="ultraShortMonitorStatus">未启动</span></div>
+                            <div>上次检查: <span id="ultraShortLastCheck">-</span></div>
+                            <div>盈亏比: <span style="color: #4caf50;">1:2</span> (止损150点 / 止盈300点)</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 实时信号 -->
+                    <div class="form-group">
+                        <h4>实时信号</h4>
+                        <div id="ultraShortActiveSignals" style="max-height: 300px; overflow-y: auto;">
+                            <p class="muted">暂无活跃信号</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 历史信号 -->
+                    <div class="form-group">
+                        <h4>历史信号</h4>
+                        <div id="ultraShortHistorySignals" style="max-height: 300px; overflow-y: auto;">
+                            <p class="muted">暂无历史记录</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 右侧图表区域 -->
+                <div>
+                    <div id="ultraShortChart" style="height: 600px; background: #0f111a; position: relative;"></div>
+                    <div id="ultraShortChartStatus" class="muted" style="margin-top: 10px;"></div>
                 </div>
             </div>
         </div>
@@ -6823,6 +6880,242 @@
         }
         
         // ==================== 高级历史分析功能结束 ====================
+        
+        // ==================== 超短BTC信号系统 ====================
+        
+        let ultraShortChart = null;
+        let ultraShortCandleSeries = null;
+        let ultraShortBbLowerSeries = null;
+        let ultraShortBbUpperSeries = null;
+        let ultraShortSupportLines = [];
+        let ultraShortMonitorInterval = null;
+        let ultraShortSignalCheckInterval = null;
+        
+        // 初始化图表
+        function ultraShortInitChart() {
+            if (ultraShortChart) return;
+            
+            if (!window.LightweightCharts) {
+                document.getElementById('ultraShortChartStatus').textContent = 'K线库未加载';
+                return;
+            }
+            
+            const container = document.getElementById('ultraShortChart');
+            if (!container) return;
+            
+            ultraShortChart = LightweightCharts.createChart(container, {
+                layout: { background: { color: '#0f111a' }, textColor: '#e5e5e5' },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                rightPriceScale: { borderVisible: false },
+                timeScale: { borderVisible: false },
+                grid: { vertLines: { color: '#1f2335' }, horzLines: { color: '#1f2335' } },
+            });
+            
+            ultraShortCandleSeries = ultraShortChart.addCandlestickSeries({
+                upColor: '#26a69a',
+                downColor: '#ef5350',
+                wickUpColor: '#26a69a',
+                wickDownColor: '#ef5350',
+                borderVisible: false
+            });
+            
+            // 布林带上轨
+            ultraShortBbUpperSeries = ultraShortChart.addLineSeries({
+                color: '#ff9800',
+                lineWidth: 1,
+                lineStyle: LightweightCharts.LineStyle.Dashed,
+                title: '布林带上轨'
+            });
+            
+            // 布林带下轨
+            ultraShortBbLowerSeries = ultraShortChart.addLineSeries({
+                color: '#2196f3',
+                lineWidth: 2,
+                title: '布林带下轨'
+            });
+            
+            // 自适应尺寸
+            setTimeout(() => ultraShortResizeChart(), 0);
+            if (window.ResizeObserver) {
+                new ResizeObserver(ultraShortResizeChart).observe(container);
+            } else {
+                window.addEventListener('resize', ultraShortResizeChart);
+            }
+            
+            // 加载K线数据
+            ultraShortLoadChartData();
+        }
+        
+        function ultraShortResizeChart() {
+            if (!ultraShortChart) return;
+            const container = document.getElementById('ultraShortChart');
+            if (!container) return;
+            const rect = container.getBoundingClientRect();
+            const w = Math.max(300, Math.floor(rect.width || container.clientWidth || 0));
+            const h = Math.max(300, Math.floor(rect.height || container.clientHeight || 600));
+            if (w > 0 && h > 0) {
+                ultraShortChart.resize(w, h);
+            }
+        }
+        
+        async function ultraShortLoadChartData() {
+            try {
+                const timeframe = document.getElementById('ultraShortTimeframe').value || '5m';
+                const response = await fetch('/ultra_short/get_klines', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: 'BTC', interval: timeframe, limit: 200 })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.klines) {
+                    ultraShortUpdateChart(data.klines);
+                    document.getElementById('ultraShortChartStatus').textContent = '已加载 ' + data.klines.length + ' 根K线';
+                } else {
+                    document.getElementById('ultraShortChartStatus').textContent = '加载K线数据失败';
+                }
+            } catch (error) {
+                console.error('加载K线数据失败:', error);
+                document.getElementById('ultraShortChartStatus').textContent = '加载失败: ' + error.message;
+            }
+        }
+        
+        function ultraShortUpdateChart(klines) {
+            if (!ultraShortCandleSeries) return;
+            
+            // 转换数据格式
+            const candles = klines.map(k => ({
+                time: k.time,
+                open: k.open,
+                high: k.high,
+                low: k.low,
+                close: k.close
+            }));
+            
+            ultraShortCandleSeries.setData(candles);
+            ultraShortChart.timeScale().fitContent();
+        }
+        
+        async function ultraShortCheckSignal() {
+            try {
+                document.getElementById('ultraShortLastCheck').textContent = new Date().toLocaleTimeString();
+                document.getElementById('ultraShortMonitorStatus').textContent = '检查中...';
+                
+                const response = await fetch('/ultra_short/check_signal?symbol=BTC');
+                const data = await response.json();
+                
+                if (data.success && data.has_signal) {
+                    ultraShortDisplaySignal(data.signal);
+                    ultraShortLoadActiveSignals();
+                } else {
+                    document.getElementById('ultraShortMonitorStatus').textContent = '无信号';
+                }
+                
+            } catch (error) {
+                console.error('检查信号失败:', error);
+                document.getElementById('ultraShortMonitorStatus').textContent = '检查失败';
+            }
+        }
+        
+        async function ultraShortLoadActiveSignals() {
+            try {
+                const response = await fetch('/ultra_short/get_active_signals');
+                const data = await response.json();
+                
+                const container = document.getElementById('ultraShortActiveSignals');
+                if (data.success && data.signals && data.signals.length > 0) {
+                    container.innerHTML = data.signals.map(signal => {
+                        return '<div style="padding: 10px; margin: 5px 0; background: rgba(33, 150, 243, 0.2); border-radius: 5px; border-left: 3px solid #2196f3;">' +
+                            '<div><strong>入场: ' + signal.entry_price + '</strong></div>' +
+                            '<div>止损: ' + signal.stop_loss + ' (' + (signal.entry_price - signal.stop_loss).toFixed(2) + '点)</div>' +
+                            '<div>止盈: ' + signal.take_profit_price + ' (' + (signal.take_profit_price - signal.entry_price).toFixed(2) + '点)</div>' +
+                            '<div>盈亏比: 1:' + signal.risk_reward_ratio + '</div>' +
+                            '<div>信号强度: ' + signal.signal_strength + '</div>' +
+                            '<div style="font-size: 12px; color: #999;">' + new Date(signal.created_at).toLocaleString() + '</div>' +
+                            '</div>';
+                    }).join('');
+                } else {
+                    container.innerHTML = '<p class="muted">暂无活跃信号</p>';
+                }
+            } catch (error) {
+                console.error('加载活跃信号失败:', error);
+            }
+        }
+        
+        async function ultraShortLoadHistorySignals() {
+            try {
+                const response = await fetch('/ultra_short/get_history_signals?limit=20');
+                const data = await response.json();
+                
+                const container = document.getElementById('ultraShortHistorySignals');
+                if (data.success && data.signals && data.signals.length > 0) {
+                    container.innerHTML = data.signals.map(signal => {
+                        return '<div style="padding: 8px; margin: 3px 0; background: rgba(100, 100, 100, 0.2); border-radius: 5px; font-size: 13px;">' +
+                            '<div>入场: ' + signal.entry_price + ' | 状态: ' + signal.status + '</div>' +
+                            '<div style="font-size: 11px; color: #999;">' + new Date(signal.created_at).toLocaleString() + '</div>' +
+                            '</div>';
+                    }).join('');
+                } else {
+                    container.innerHTML = '<p class="muted">暂无历史记录</p>';
+                }
+            } catch (error) {
+                console.error('加载历史信号失败:', error);
+            }
+        }
+        
+        function ultraShortDisplaySignal(signal) {
+            console.log('新信号:', signal);
+        }
+        
+        function ultraShortStartMonitor() {
+            if (ultraShortMonitorInterval) return;
+            
+            ultraShortCheckSignal();
+            ultraShortLoadActiveSignals();
+            ultraShortLoadHistorySignals();
+            
+            ultraShortMonitorInterval = setInterval(function() {
+                ultraShortCheckSignal();
+                ultraShortLoadActiveSignals();
+            }, 60000);
+            
+            ultraShortSignalCheckInterval = setInterval(function() {
+                ultraShortCheckSignal();
+            }, 5000);
+            
+            setInterval(function() {
+                ultraShortLoadChartData();
+            }, 30000);
+            
+            document.getElementById('ultraShortMonitorStatus').textContent = '监控中';
+        }
+        
+        function ultraShortStopMonitor() {
+            if (ultraShortMonitorInterval) {
+                clearInterval(ultraShortMonitorInterval);
+                ultraShortMonitorInterval = null;
+            }
+            if (ultraShortSignalCheckInterval) {
+                clearInterval(ultraShortSignalCheckInterval);
+                ultraShortSignalCheckInterval = null;
+            }
+            document.getElementById('ultraShortMonitorStatus').textContent = '已停止';
+        }
+        
+        // Tab切换时初始化图表
+        const originalShowTab = window.showTab;
+        window.showTab = function(tabName, event) {
+            originalShowTab(tabName, event);
+            if (tabName === 'ultraShort') {
+                setTimeout(function() {
+                    ultraShortInitChart();
+                    ultraShortLoadActiveSignals();
+                    ultraShortLoadHistorySignals();
+                }, 100);
+            }
+        };
+        
+        // ==================== 超短BTC信号系统结束 ====================
         
     </script>
 </body>

@@ -1,0 +1,154 @@
+//@version=5
+indicator("超短BTC信号系统", overlay=true, max_boxes_count=100, max_lines_count=100)
+
+// ==================== 导入ZigZag库 ====================
+import DevLucem/ZigLib/1 as ZigZag
+
+// ==================== 输入参数 ====================
+// 时间框架设置
+direction_tf = input.timeframe("60", "方向确认时间框架 (1h)")
+entry_tf = input.timeframe("5", "入场信号时间框架 (1-5min)")
+
+// ZigZag参数（用于趋势识别）
+use_zigzag = input.bool(true, "使用ZigZag识别趋势", group="趋势识别")
+zigzag_depth = input.int(12, "ZigZag深度", minval=1, group="趋势识别")
+zigzag_deviation = input.int(5, "ZigZag偏差", minval=1, group="趋势识别")
+zigzag_backstep = input.int(2, "ZigZag回退", minval=2, group="趋势识别")
+
+// EMA参数（备用趋势确认）
+use_ema = input.bool(false, "使用EMA确认趋势（备用）", group="趋势识别")
+ema_fast = input.int(89, "快速EMA", minval=1, group="趋势识别")
+ema_mid = input.int(144, "中期EMA", minval=1, group="趋势识别")
+ema_slow = input.int(233, "慢速EMA", minval=1, group="趋势识别")
+
+// 布林带参数
+bb_period = input.int(20, "布林带周期", minval=1, group="布林带")
+bb_std = input.float(2.0, "布林带标准差", minval=0.1, group="布林带")
+
+// 止损止盈设置
+stop_loss_points = input.float(150.0, "止损点数", minval=1.0)
+take_profit_multiplier = input.float(2.0, "止盈倍数 (盈亏比)", minval=1.0)
+
+// 信号触发条件
+price_tolerance = input.float(1.005, "价格接近下轨容差 (1.005 = 100.5%)", minval=0.99, maxval=1.1, step=0.001)
+
+// 显示选项
+show_bb = input.bool(true, "显示布林带")
+show_ema = input.bool(true, "显示EMA")
+show_signals = input.bool(true, "显示信号")
+show_targets = input.bool(true, "显示止损止盈线")
+
+// ==================== 获取数据 ====================
+// 获取方向确认时间框架的数据
+[direction_close, direction_high, direction_low] = request.security(syminfo.tickerid, direction_tf, [close, high, low], lookahead=barmerge.lookahead_off)
+
+// 计算ZigZag（在1h时间框架上使用ZigZag库）
+[direction_zigzag, z1, z2] = request.security(syminfo.tickerid, direction_tf, ZigZag.zigzag(low, high, zigzag_depth, zigzag_deviation, zigzag_backstep), lookahead=barmerge.lookahead_off)
+
+// ZigZag方向：1=多头, -1=空头, 0=中性
+zigzag_direction = direction_zigzag
+
+// 计算方向确认时间框架的EMA（备用）
+direction_ema_fast = ta.ema(direction_close, ema_fast)
+direction_ema_mid = ta.ema(direction_close, ema_mid)
+direction_ema_slow = ta.ema(direction_close, ema_slow)
+
+// 判断多头趋势
+is_bullish_zigzag = use_zigzag ? (zigzag_direction > 0) : false
+is_bullish_ema = use_ema ? (direction_ema_fast > direction_ema_mid and direction_ema_mid > direction_ema_slow) : false
+is_bullish_trend = is_bullish_zigzag or is_bullish_ema
+
+// 获取入场信号时间框架的数据
+[entry_close, entry_high, entry_low, entry_open] = request.security(syminfo.tickerid, entry_tf, [close, high, low, open], lookahead=barmerge.lookahead_off)
+
+// 计算入场时间框架的布林带
+entry_bb_basis = ta.sma(entry_close, bb_period)
+entry_bb_dev = bb_std * ta.stdev(entry_close, bb_period)
+entry_bb_upper = entry_bb_basis + entry_bb_dev
+entry_bb_lower = entry_bb_basis - entry_bb_dev
+
+// 当前价格接近下轨的判断（在99%-100.5%之间）
+bb_lower_ratio = entry_close / entry_bb_lower
+is_near_lower = bb_lower_ratio >= 0.99 and bb_lower_ratio <= price_tolerance
+
+// ==================== 信号生成 ====================
+// 生成做多信号的条件
+signal_condition = is_bullish_trend and is_near_lower
+
+// 信号触发（只在条件从false变为true时触发，避免重复）
+var float signal_entry_price = na
+var float signal_stop_loss = na
+var float signal_take_profit = na
+var int signal_bar = na
+var line signal_stop_line = na
+var line signal_tp_line = na
+var label signal_label = na
+
+if signal_condition and not signal_condition[1]
+    // 新信号生成
+    signal_entry_price := entry_close
+    signal_stop_loss := entry_close - stop_loss_points
+    signal_take_profit := entry_close + (stop_loss_points * take_profit_multiplier)
+    signal_bar := bar_index
+    
+    // 绘制止损止盈线
+    if show_targets
+        signal_stop_line := line.new(bar_index, signal_stop_loss, bar_index + 100, signal_stop_loss, color=color.red, width=2, style=line.style_dashed, extend=extend.right)
+        signal_tp_line := line.new(bar_index, signal_take_profit, bar_index + 100, signal_take_profit, color=color.green, width=2, style=line.style_dashed, extend=extend.right)
+    
+    // 绘制信号标签
+    if show_signals
+        signal_label := label.new(bar_index, entry_close, "做多信号\n入场: " + str.tostring(signal_entry_price, "#.##") + "\n止损: " + str.tostring(signal_stop_loss, "#.##") + "\n止盈: " + str.tostring(signal_take_profit, "#.##"), 
+            style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+
+// ==================== 绘图 ====================
+// 绘制布林带（使用入场时间框架的数据）
+plot(show_bb ? entry_bb_upper : na, "布林带上轨", color=color.orange, linewidth=1, style=plot.style_line)
+plot(show_bb ? entry_bb_basis : na, "布林带中轨", color=color.yellow, linewidth=1, style=plot.style_line)
+plot(show_bb ? entry_bb_lower : na, "布林带下轨", color=color.blue, linewidth=2, style=plot.style_line)
+
+// 填充布林带区域
+bb_fill = plot(show_bb ? entry_bb_upper : na, "BB Upper Fill", display=display.none)
+bb_fill2 = plot(show_bb ? entry_bb_lower : na, "BB Lower Fill", display=display.none)
+fill(bb_fill, bb_fill2, color=color.new(color.blue, 95), title="布林带填充")
+
+// 绘制EMA（在当前图表时间框架）
+plot(show_ema ? ta.ema(close, ema_fast) : na, "EMA Fast", color=color.blue, linewidth=1)
+plot(show_ema ? ta.ema(close, ema_mid) : na, "EMA Mid", color=color.orange, linewidth=1)
+plot(show_ema ? ta.ema(close, ema_slow) : na, "EMA Slow", color=color.red, linewidth=1)
+
+// ==================== 信号标记 ====================
+plotshape(show_signals and signal_condition and not signal_condition[1], title="做多信号", 
+    location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small, text="多")
+
+// ==================== 信息面板 ====================
+var table info_table = table.new(position.top_right, 2, 6, bgcolor=color.new(color.black, 80), border_width=1)
+
+if barstate.islast
+    table.cell(info_table, 0, 0, "方向时间框架", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(info_table, 1, 0, direction_tf, text_color=color.white)
+    
+    table.cell(info_table, 0, 1, "入场时间框架", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(info_table, 1, 1, entry_tf, text_color=color.white)
+    
+    table.cell(info_table, 0, 2, "ZigZag方向", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    zigzag_status = use_zigzag ? (zigzag_direction > 0 ? "多头" : zigzag_direction < 0 ? "空头" : "中性") : "未启用"
+    table.cell(info_table, 1, 2, zigzag_status, text_color=zigzag_direction > 0 ? color.green : zigzag_direction < 0 ? color.red : color.gray)
+    
+    table.cell(info_table, 0, 3, "多头趋势", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(info_table, 1, 3, is_bullish_trend ? "是" : "否", text_color=is_bullish_trend ? color.green : color.red)
+    
+    table.cell(info_table, 0, 4, "接近下轨", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(info_table, 1, 4, is_near_lower ? "是 (" + str.tostring(bb_lower_ratio, "#.####") + ")" : "否", text_color=is_near_lower ? color.green : color.red)
+    
+    table.cell(info_table, 0, 5, "信号状态", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(info_table, 1, 5, signal_condition ? "有信号" : "无信号", text_color=signal_condition ? color.green : color.gray)
+    
+    if not na(signal_entry_price)
+        table.insert_row(info_table, 6)
+        table.cell(info_table, 0, 6, "上次信号", text_color=color.white, bgcolor=color.new(color.gray, 50))
+        table.cell(info_table, 1, 6, "入场: " + str.tostring(signal_entry_price, "#.##"), text_color=color.white)
+
+// ==================== 警报条件 ====================
+alertcondition(signal_condition and not signal_condition[1], title="做多信号", message="超短BTC做多信号：入场价格 {{close}}，止损 {{close - stop_loss_points}}，止盈 {{close + (stop_loss_points * take_profit_multiplier)}}")
+

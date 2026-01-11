@@ -18,6 +18,7 @@ from multi_timeframe_api import multi_timeframe_bp
 from crypto_analysis_api import crypto_analysis_bp
 from crypto_advanced_analysis_api import crypto_advanced_bp
 from realtime_fibonacci_analyzer import realtime_fib_bp
+from ultra_short_api import ultra_short_bp
 
 app = Flask(__name__)
 
@@ -31,6 +32,7 @@ app.register_blueprint(multi_timeframe_bp)
 app.register_blueprint(crypto_analysis_bp)
 app.register_blueprint(crypto_advanced_bp)
 app.register_blueprint(realtime_fib_bp)
+app.register_blueprint(ultra_short_bp)
 
 # 设置日志
 from logging.handlers import RotatingFileHandler
