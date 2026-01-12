@@ -6951,6 +6951,7 @@
         let ultraShortSupportLines = [];
         let ultraShortMonitorInterval = null;
         let ultraShortSignalCheckInterval = null;
+        let ultraShortPriceInfoInterval = null;
         
         // 指标系列
         let ultraShortBb1hLower = null;
@@ -7439,11 +7440,19 @@
                 ultraShortCheckSignal();
             }, 5000);
             
+            // 图表数据和指标每30秒更新一次
             setInterval(function() {
                 ultraShortLoadChartData();
                 ultraShortLoadIndicators();
-                ultraShortLoadPriceInfo();
             }, 30000);
+            
+            // 买入条件（价格信息）每5秒更新一次
+            if (ultraShortPriceInfoInterval) {
+                clearInterval(ultraShortPriceInfoInterval);
+            }
+            ultraShortPriceInfoInterval = setInterval(function() {
+                ultraShortLoadPriceInfo();
+            }, 5000);
             
             document.getElementById('ultraShortMonitorStatus').textContent = '监控中';
         }
@@ -7456,6 +7465,10 @@
             if (ultraShortSignalCheckInterval) {
                 clearInterval(ultraShortSignalCheckInterval);
                 ultraShortSignalCheckInterval = null;
+            }
+            if (ultraShortPriceInfoInterval) {
+                clearInterval(ultraShortPriceInfoInterval);
+                ultraShortPriceInfoInterval = null;
             }
             document.getElementById('ultraShortMonitorStatus').textContent = '已停止';
         }
