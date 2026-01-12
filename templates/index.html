@@ -7253,7 +7253,19 @@
                 ultraShortBbLowerAvg.setData(bb_lower_avg_data);
             }
             
-            // 3. 更新1h ZigZag低点（用水平线显示，只显示3个）
+            // 3. 更新15分钟Vegas通道
+            if (indicators.vegas_15m) {
+                if (ultraShortVegas15mEma12) {
+                    const ema12_data = indicators.vegas_15m.map(p => ({ time: p.time, value: p.ema12 })).filter(p => p.value !== null);
+                    ultraShortVegas15mEma12.setData(ema12_data);
+                }
+                if (ultraShortVegas15mEma169) {
+                    const ema169_data = indicators.vegas_15m.map(p => ({ time: p.time, value: p.ema169 })).filter(p => p.value !== null);
+                    ultraShortVegas15mEma169.setData(ema169_data);
+                }
+            }
+            
+            // 4. 更新1h ZigZag低点（用水平线显示，只显示3个）
             if (indicators.zigzag_lows_1h && ultraShortCandleSeries) {
                 // 清除旧的ZigZag线
                 ultraShortClearZigzagLines();
