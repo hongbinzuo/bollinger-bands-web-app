@@ -254,20 +254,11 @@ class UltraShortStrategy:
             if len(df_1h_bb) < 1:
                 return None
             
-            latest_1h_bb = df_1h_bb.iloc[-1]
-            current_price = latest_1h_bb['close']  # 使用1h的收盘价作为当前价格
-            bb_1h_lower = latest_1h_bb['bb_lower']
-            
-            # 检查价格是否接近1h下轨
-            price_near_1h_lower = False
-            if bb_1h_lower > 0:
-                price_ratio_1h = current_price / bb_1h_lower
-                price_near_1h_lower = 0.99 <= price_ratio_1h <= 1.005
-            
             # 检查价格是否接近1-5min下轨（任一时间框架）
             price_near_short_lower = False
             entry_timeframe_used = None
             bb_lower_used = None
+            entry_price = None
             entry_timeframes = ['1m', '2m', '3m', '5m']
             
             for entry_tf in entry_timeframes:
@@ -280,40 +271,83 @@ class UltraShortStrategy:
                 if len(df_short) < 1:
                     continue
                 
-                latest_short = df_short.iloc[-1]
-                short_price = latest_short['close']
-                bb_short_lower = latest_short['bb_lower']
+                # 检查最近20个K线，找到低点最接近下轨的那个K线
+                lookback = min(20, len(df_short))
+                best_low_price = None
+                best_low_ratio = None
+                best_bb_lower = None
                 
-                if bb_short_lower > 0:
-                    price_ratio_short = short_price / bb_short_lower
-                    if 0.99 <= price_ratio_short <= 1.005:
-                        price_near_short_lower = True
-                        entry_timeframe_used = entry_tf
-                        bb_lower_used = bb_short_lower
-                        current_price = short_price  # 使用短时间框架的价格
-                        break
+                for i in range(len(df_short) - lookback, len(df_short)):
+                    row = df_short.iloc[i]
+                    bb_lower = row['bb_lower']
+                    low_price = row['low']
+                    
+                    if bb_lower > 0 and pd.notna(low_price):
+                        ratio = low_price / bb_lower
+                        # 检查低点是否在下轨附近（99%-100.5%）
+                        if 0.99 <= ratio <= 1.005:
+                            if best_low_ratio is None or abs(ratio - 1.0) < abs(best_low_ratio - 1.0):
+                                best_low_price = low_price
+                                best_low_ratio = ratio
+                                best_bb_lower = bb_lower
+                
+                if best_low_price is not None:
+                    price_near_short_lower = True
+                    entry_timeframe_used = entry_tf
+                    bb_lower_used = best_bb_lower
+                    entry_price = best_low_price
+                    break
+            
+            # 检查价格是否接近1h下轨
+            price_near_1h_lower = False
+            if not price_near_short_lower:
+                # 检查最近20个1h K线，找到低点最接近下轨的那个K线
+                lookback = min(20, len(df_1h_bb))
+                best_low_price_1h = None
+                best_low_ratio_1h = None
+                best_bb_lower_1h = None
+                
+                for i in range(len(df_1h_bb) - lookback, len(df_1h_bb)):
+                    row = df_1h_bb.iloc[i]
+                    bb_lower = row['bb_lower']
+                    low_price = row['low']
+                    
+                    if bb_lower > 0 and pd.notna(low_price):
+                        ratio = low_price / bb_lower
+                        # 检查低点是否在下轨附近（99%-100.5%）
+                        if 0.99 <= ratio <= 1.005:
+                            if best_low_ratio_1h is None or abs(ratio - 1.0) < abs(best_low_ratio_1h - 1.0):
+                                best_low_price_1h = low_price
+                                best_low_ratio_1h = ratio
+                                best_bb_lower_1h = bb_lower
+                
+                if best_low_price_1h is not None:
+                    price_near_1h_lower = True
+                    entry_timeframe_used = '1h'
+                    bb_lower_used = best_bb_lower_1h
+                    entry_price = best_low_price_1h
             
             # 如果价格接近1-5min或1h下轨（满足其一即可）
             if price_near_short_lower or price_near_1h_lower:
-                # 如果没有使用短时间框架，使用1h的数据
-                if not price_near_short_lower:
-                    entry_timeframe_used = '1h'
-                    bb_lower_used = bb_1h_lower
                 
                 # 获取支撑位（保留用于信号强度判断，但不作为必要条件）
                 support_levels = self.find_support_levels(symbol)
                 support_level = support_levels[0] if support_levels else None
                 
+                # 使用找到的低点价格作为入场价
+                if entry_price is None:
+                    return None  # 如果没找到合适的入场价，返回None
+                
                 # 计算止损和止盈（2:1盈亏比）
-                stop_loss = current_price - self.stop_loss_points
-                take_profit_price = current_price + (self.stop_loss_points * 2)  # 止损150点，止盈300点
+                stop_loss = entry_price - self.stop_loss_points
+                take_profit_price = entry_price + (self.stop_loss_points * 2)  # 止损150点，止盈300点
                 risk_reward = 2.0
                 
                 # 生成信号
                 signal = {
                     'symbol': symbol,
                     'signal_type': 'long',
-                    'entry_price': round(current_price, 2),
+                    'entry_price': round(entry_price, 2),
                     'entry_timeframe': entry_timeframe_used,
                     'direction_timeframe': '1h',
                     'bollinger_lower': round(bb_lower_used, 2),
@@ -321,8 +355,8 @@ class UltraShortStrategy:
                     'stop_loss': round(stop_loss, 2),
                     'take_profit_price': round(take_profit_price, 2),
                     'risk_reward_ratio': risk_reward,
-                    'signal_strength': 'high' if support_level and current_price >= support_level * 0.99 else 'medium',
-                    'current_price': round(current_price, 2),
+                    'signal_strength': 'high' if support_level and entry_price >= support_level * 0.99 else 'medium',
+                    'current_price': round(entry_price, 2),
                     'bb_middle': round(latest_1h_bb['bb_middle'], 2),
                     'timestamp': datetime.now().isoformat()
                 }
