@@ -872,6 +872,22 @@ def get_indicators():
             zigzag_lows = sorted(zigzag_lows, key=lambda x: x['time'], reverse=True)[:3]
             result['zigzag_lows_1h'] = zigzag_lows
         
+        # 4. 获取15分钟Vegas通道（EMA 12和EMA 169）
+        df_15m = strategy.get_klines(symbol, '15m', limit=200)
+        if df_15m is not None and not df_15m.empty:
+            df_15m = strategy.calculate_ema(df_15m, [12, 169])
+            df_15m = df_15m.dropna()
+            if not df_15m.empty:
+                vegas_15m = []
+                for idx, row in df_15m.iterrows():
+                    if pd.notna(row.get('ema12')) and pd.notna(row.get('ema169')):
+                        vegas_15m.append({
+                            'time': int(idx.timestamp()),
+                            'ema12': float(row['ema12']),
+                            'ema169': float(row['ema169'])
+                        })
+                result['vegas_15m'] = vegas_15m
+        
         return jsonify({
             'success': True,
             'indicators': result,

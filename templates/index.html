@@ -6956,6 +6956,8 @@
         // 指标系列
         let ultraShortBb1hLower = null;
         let ultraShortBbLowerAvg = null;
+        let ultraShortVegas15mEma12 = null; // 15分钟Vegas通道 EMA12
+        let ultraShortVegas15mEma169 = null; // 15分钟Vegas通道 EMA169
         let ultraShortZigzagLines = []; // 存储ZigZag低点水平线
         let ultraShortSignalLines = []; // 存储信号线（止损止盈）
         let ultraShortSignalMarkers = []; // 存储信号标记
@@ -7021,6 +7023,22 @@
                 lineWidth: 2,
                 lineStyle: LightweightCharts.LineStyle.Dashed,
                 title: '1-5min下轨均值'
+            });
+            
+            // 15分钟Vegas通道 EMA12
+            ultraShortVegas15mEma12 = ultraShortChart.addLineSeries({
+                color: '#00ff00',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Solid,
+                title: '15m Vegas EMA12'
+            });
+            
+            // 15分钟Vegas通道 EMA169
+            ultraShortVegas15mEma169 = ultraShortChart.addLineSeries({
+                color: '#ff00ff',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Solid,
+                title: '15m Vegas EMA169'
             });
             
             // 1h ZigZag低点（使用水平线，不创建LineSeries，用PriceLine）
