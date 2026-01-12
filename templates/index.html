@@ -7430,6 +7430,7 @@
             ultraShortCheckSignal();
             ultraShortLoadActiveSignals();
             ultraShortLoadHistorySignals();
+            ultraShortLoadPriceInfo(); // 立即加载一次价格信息
             
             ultraShortMonitorInterval = setInterval(function() {
                 ultraShortCheckSignal();
