@@ -97,7 +97,7 @@ class UltraShortStrategy:
             
             interval_map = {
                 '1m': '1m', '2m': '1m', '3m': '3m', '5m': '5m',
-                '15m': '15m', '1h': '1h', '4h': '4h', '12h': '12h', '1d': '1d'
+                '15m': '15m', '1h': '1h', '4h': '4h', '12h': '12h', '1d': '1d', '1w': '1w'
             }
             gate_interval = interval_map.get(interval)
             if not gate_interval:
@@ -436,6 +436,139 @@ def get_klines():
         
     except Exception as e:
         logger.error(f"获取K线数据API失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@ultra_short_bp.route('/get_price_info', methods=['GET', 'POST'])
+def get_price_info():
+    """获取价格和指标信息（用于左侧监控面板）"""
+    try:
+        data = request.json if request.is_json else {}
+        symbol = data.get('symbol', 'BTC')
+        
+        result = {}
+        
+        # 1. 获取当前标记价格
+        try:
+            gate_symbol = strategy._normalize_symbol(symbol)
+            ticker_url = f"{strategy.gate_url}/spot/tickers"
+            ticker_response = strategy.session.get(ticker_url, params={'currency_pair': gate_symbol}, timeout=10)
+            if ticker_response.status_code == 200:
+                ticker_data = ticker_response.json()
+                if ticker_data and len(ticker_data) > 0:
+                    result['current_price'] = float(ticker_data[0].get('last', 0))
+        except Exception as e:
+            logger.error(f"获取当前价格失败: {e}")
+            result['current_price'] = None
+        
+        # 2. 获取1-5min下轨均值（最新值）
+        entry_timeframes = ['1m', '2m', '3m', '5m']
+        bb_lower_values = []
+        for tf in entry_timeframes:
+            df_short = strategy.get_klines(symbol, tf, limit=100)
+            if df_short is not None and not df_short.empty:
+                df_short = strategy.calculate_bollinger_bands(df_short, period=20, std=2)
+                df_short = df_short.dropna()
+                if not df_short.empty:
+                    latest = df_short.iloc[-1]
+                    if pd.notna(latest['bb_lower']):
+                        bb_lower_values.append(float(latest['bb_lower']))
+        
+        if bb_lower_values:
+            result['bb_lower_avg'] = round(sum(bb_lower_values) / len(bb_lower_values), 2)
+        else:
+            result['bb_lower_avg'] = None
+        
+        # 3. 获取1h布林带（最新值：下轨、中轨、上轨）
+        df_1h = strategy.get_klines(symbol, '1h', limit=200)
+        if df_1h is not None and not df_1h.empty:
+            df_1h = strategy.calculate_bollinger_bands(df_1h, period=20, std=2)
+            df_1h = df_1h.dropna()
+            if not df_1h.empty:
+                latest_1h = df_1h.iloc[-1]
+                result['bb_1h_lower'] = round(float(latest_1h['bb_lower']), 2) if pd.notna(latest_1h['bb_lower']) else None
+                result['bb_1h_middle'] = round(float(latest_1h['bb_middle']), 2) if pd.notna(latest_1h['bb_middle']) else None
+                result['bb_1h_upper'] = round(float(latest_1h['bb_upper']), 2) if pd.notna(latest_1h['bb_upper']) else None
+            else:
+                result['bb_1h_lower'] = None
+                result['bb_1h_middle'] = None
+                result['bb_1h_upper'] = None
+        else:
+            result['bb_1h_lower'] = None
+            result['bb_1h_middle'] = None
+            result['bb_1h_upper'] = None
+        
+        # 4. 获取1h EMA200（最新值）
+        df_1h_ema = strategy.get_klines(symbol, '1h', limit=200)
+        if df_1h_ema is not None and not df_1h_ema.empty:
+            df_1h_ema = strategy.calculate_ema(df_1h_ema, [200])
+            df_1h_ema = df_1h_ema.dropna()
+            if not df_1h_ema.empty and 'ema200' in df_1h_ema.columns:
+                latest_ema = df_1h_ema.iloc[-1]
+                result['ema200_1h'] = round(float(latest_ema['ema200']), 2) if pd.notna(latest_ema['ema200']) else None
+            else:
+                result['ema200_1h'] = None
+        else:
+            result['ema200_1h'] = None
+        
+        # 5. 获取日线高、低点
+        df_1d = strategy.get_klines(symbol, '1d', limit=30)
+        if df_1d is not None and not df_1d.empty:
+            result['daily_high'] = round(float(df_1d['high'].max()), 2)
+            result['daily_low'] = round(float(df_1d['low'].min()), 2)
+        else:
+            result['daily_high'] = None
+            result['daily_low'] = None
+        
+        # 6. 获取周线高、低点
+        df_1w = strategy.get_klines(symbol, '1w', limit=10)
+        if df_1w is not None and not df_1w.empty:
+            result['weekly_high'] = round(float(df_1w['high'].max()), 2)
+            result['weekly_low'] = round(float(df_1w['low'].min()), 2)
+        else:
+            result['weekly_high'] = None
+            result['weekly_low'] = None
+        
+        # 7. 获取买入条件状态
+        signal_info = strategy.check_signal(symbol)
+        if signal_info:
+            result['buy_conditions'] = {
+                'trend_1h': '多头' if signal_info.get('signal_type') == 'long' else '非多头',
+                'price_near_lower': True,
+                'support_level': signal_info.get('support_level'),
+                'signal_strength': signal_info.get('signal_strength', 'medium')
+            }
+        else:
+            # 检查趋势
+            df_1h_check = strategy.get_klines(symbol, '1h', limit=200)
+            is_bullish = False
+            if df_1h_check is not None and len(df_1h_check) >= 100:
+                df_1h_check = strategy.calculate_ema(df_1h_check, [89, 144, 233])
+                df_1h_check = df_1h_check.dropna()
+                if len(df_1h_check) >= 1:
+                    is_bullish = strategy.is_bullish_trend(df_1h_check)
+            
+            # 检查价格是否接近下轨
+            price_near_lower = False
+            if result.get('current_price') and result.get('bb_lower_avg'):
+                ratio = result['current_price'] / result['bb_lower_avg']
+                price_near_lower = 0.99 <= ratio <= 1.005
+            
+            result['buy_conditions'] = {
+                'trend_1h': '多头' if is_bullish else '非多头',
+                'price_near_lower': price_near_lower,
+                'support_level': None,
+                'signal_strength': None
+            }
+        
+        return jsonify({
+            'success': True,
+            'data': result,
+            'symbol': symbol
+        })
+        
+    except Exception as e:
+        logger.error(f"获取价格信息API失败: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

@@ -6976,6 +6976,7 @@
             // 加载K线数据和指标
             ultraShortLoadChartData();
             ultraShortLoadIndicators();
+            ultraShortLoadPriceInfo();
         }
         
         function ultraShortResizeChart() {
@@ -7043,6 +7044,84 @@
                 }
             } catch (error) {
                 console.error('加载指标数据失败:', error);
+            }
+        }
+        
+        // 加载价格信息
+        async function ultraShortLoadPriceInfo() {
+            try {
+                const response = await fetch('/ultra_short/get_price_info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: 'BTC' })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.data) {
+                    ultraShortUpdatePriceInfo(data.data);
+                }
+            } catch (error) {
+                console.error('加载价格信息失败:', error);
+            }
+        }
+        
+        // 更新价格信息显示
+        function ultraShortUpdatePriceInfo(priceData) {
+            // 更新价格
+            if (priceData.current_price) {
+                document.getElementById('ultraShortCurrentPrice').textContent = priceData.current_price.toFixed(2);
+            } else {
+                document.getElementById('ultraShortCurrentPrice').textContent = '-';
+            }
+            
+            // 更新指标
+            document.getElementById('ultraShortBbLowerAvg').textContent = priceData.bb_lower_avg !== null ? priceData.bb_lower_avg.toFixed(2) : '-';
+            document.getElementById('ultraShortBb1hLower').textContent = priceData.bb_1h_lower !== null ? priceData.bb_1h_lower.toFixed(2) : '-';
+            document.getElementById('ultraShortBb1hMiddle').textContent = priceData.bb_1h_middle !== null ? priceData.bb_1h_middle.toFixed(2) : '-';
+            document.getElementById('ultraShortBb1hUpper').textContent = priceData.bb_1h_upper !== null ? priceData.bb_1h_upper.toFixed(2) : '-';
+            document.getElementById('ultraShortEma200').textContent = priceData.ema200_1h !== null ? priceData.ema200_1h.toFixed(2) : '-';
+            document.getElementById('ultraShortDailyHigh').textContent = priceData.daily_high !== null ? priceData.daily_high.toFixed(2) : '-';
+            document.getElementById('ultraShortDailyLow').textContent = priceData.daily_low !== null ? priceData.daily_low.toFixed(2) : '-';
+            document.getElementById('ultraShortWeeklyHigh').textContent = priceData.weekly_high !== null ? priceData.weekly_high.toFixed(2) : '-';
+            document.getElementById('ultraShortWeeklyLow').textContent = priceData.weekly_low !== null ? priceData.weekly_low.toFixed(2) : '-';
+            
+            // 更新买入条件状态
+            if (priceData.buy_conditions) {
+                const conditions = priceData.buy_conditions;
+                
+                // 条件1: 1h级别多头趋势
+                const condition1El = document.getElementById('ultraShortCondition1');
+                if (conditions.trend_1h === '多头') {
+                    condition1El.innerHTML = '<span style="color: #4caf50;">✓</span> 1h级别多头趋势 (EMA89 > EMA144 > EMA233)';
+                } else {
+                    condition1El.innerHTML = '<span style="color: #f44336;">✗</span> 1h级别多头趋势 (EMA89 > EMA144 > EMA233)';
+                }
+                
+                // 条件2: 价格接近下轨
+                const condition2El = document.getElementById('ultraShortCondition2');
+                if (conditions.price_near_lower) {
+                    condition2El.innerHTML = '<span style="color: #4caf50;">✓</span> 1-5分钟价格接近布林带下轨 (99%-100.5%)';
+                } else {
+                    condition2El.innerHTML = '<span style="color: #f44336;">✗</span> 1-5分钟价格接近布林带下轨 (99%-100.5%)';
+                }
+                
+                // 条件3: 支撑位
+                const condition3El = document.getElementById('ultraShortCondition3');
+                if (conditions.support_level) {
+                    condition3El.innerHTML = '<span style="color: #4caf50;">✓</span> 价格在支撑位附近 (' + conditions.support_level.toFixed(2) + ')';
+                } else {
+                    condition3El.innerHTML = '<span style="color: #999;">-</span> 价格在支撑位附近';
+                }
+                
+                // 当前状态总结
+                const statusEl = document.getElementById('ultraShortConditionStatus');
+                const allMet = conditions.trend_1h === '多头' && conditions.price_near_lower && conditions.support_level;
+                if (allMet) {
+                    statusEl.innerHTML = '<span style="color: #4caf50; font-weight: bold;">✓ 所有条件满足，可以买入</span>';
+                } else {
+                    const metCount = (conditions.trend_1h === '多头' ? 1 : 0) + (conditions.price_near_lower ? 1 : 0) + (conditions.support_level ? 1 : 0);
+                    statusEl.innerHTML = '<span style="color: #ff9800;">部分条件满足 (' + metCount + '/3)</span>';
+                }
             }
         }
         
@@ -7255,6 +7334,7 @@
             setInterval(function() {
                 ultraShortLoadChartData();
                 ultraShortLoadIndicators();
+                ultraShortLoadPriceInfo();
             }, 30000);
             
             document.getElementById('ultraShortMonitorStatus').textContent = '监控中';
@@ -7282,6 +7362,7 @@
                     ultraShortLoadActiveSignals();
                     ultraShortLoadHistorySignals();
                     ultraShortLoadIndicators();
+                    ultraShortLoadPriceInfo();
                     
                     // 绑定时间框架切换事件
                     const timeframeSelect = document.getElementById('ultraShortTimeframe');
