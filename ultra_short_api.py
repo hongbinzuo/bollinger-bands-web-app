@@ -338,10 +338,11 @@ class UltraShortStrategy:
                 if entry_price is None:
                     return None  # 如果没找到合适的入场价，返回None
                 
-                # 计算止损和止盈（2:1盈亏比）
+                # 计算止损和止盈（止损150点，止盈800点）
+                take_profit_points = 800  # 止盈800点
                 stop_loss = entry_price - self.stop_loss_points
-                take_profit_price = entry_price + (self.stop_loss_points * 2)  # 止损150点，止盈300点
-                risk_reward = 2.0
+                take_profit_price = entry_price + take_profit_points
+                risk_reward = take_profit_points / self.stop_loss_points  # 800/150 = 5.33
                 
                 # 生成信号
                 signal = {
@@ -457,6 +458,72 @@ class UltraShortStrategy:
         except Exception as e:
             logger.error(f"获取历史信号失败: {e}")
             return []
+    
+    def update_signal_status(self, symbol: str = "BTC") -> int:
+        """更新活跃信号的状态（检查是否触发止损或止盈）"""
+        updated_count = 0
+        try:
+            # 获取当前价格
+            gate_symbol = self._normalize_symbol(symbol)
+            ticker_url = f"{self.gate_url}/spot/tickers"
+            ticker_response = self.session.get(ticker_url, params={'currency_pair': gate_symbol}, timeout=10)
+            if ticker_response.status_code != 200:
+                return 0
+            
+            ticker_data = ticker_response.json()
+            if not ticker_data or len(ticker_data) == 0:
+                return 0
+            
+            current_price = float(ticker_data[0].get('last', 0))
+            if current_price <= 0:
+                return 0
+            
+            # 获取所有活跃信号
+            active_signals = self.get_active_signals()
+            
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            
+            for signal in active_signals:
+                signal_id = signal['id']
+                entry_price = float(signal['entry_price'])
+                stop_loss = float(signal['stop_loss'])
+                take_profit_price = float(signal['take_profit_price'])
+                current_status = signal['status']
+                
+                # 只处理活跃状态的信号
+                if current_status != 'active':
+                    continue
+                
+                new_status = None
+                
+                # 检查是否触发止损（当前价格 <= 止损价）
+                if current_price <= stop_loss:
+                    new_status = 'stopped_out'  # 已止损
+                # 检查是否触发止盈（当前价格 >= 止盈价）
+                elif current_price >= take_profit_price:
+                    new_status = 'take_profit'  # 已止盈
+                
+                # 如果状态需要更新
+                if new_status:
+                    cursor.execute('''
+                        UPDATE ultra_short_signals 
+                        SET status = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    ''', (new_status, signal_id))
+                    updated_count += 1
+            
+            conn.commit()
+            conn.close()
+            
+            if updated_count > 0:
+                logger.info(f"更新了 {updated_count} 个信号的状态")
+            
+            return updated_count
+            
+        except Exception as e:
+            logger.error(f"更新信号状态失败: {e}", exc_info=True)
+            return updated_count
 
 
 # 创建策略实例
@@ -824,8 +891,13 @@ def get_support_levels():
 
 @ultra_short_bp.route('/get_active_signals', methods=['GET'])
 def get_active_signals():
-    """获取所有活跃信号"""
+    """获取所有活跃信号（自动更新状态）"""
     try:
+        # 先更新信号状态
+        symbol = request.args.get('symbol', 'BTC')
+        strategy.update_signal_status(symbol)
+        
+        # 获取活跃信号
         signals = strategy.get_active_signals()
         return jsonify({
             'success': True,
@@ -834,6 +906,24 @@ def get_active_signals():
         })
     except Exception as e:
         logger.error(f"获取活跃信号API失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@ultra_short_bp.route('/update_signal_status', methods=['GET', 'POST'])
+def update_signal_status():
+    """更新信号状态（手动触发）"""
+    try:
+        data = request.json if request.is_json else {}
+        symbol = data.get('symbol', 'BTC') or request.args.get('symbol', 'BTC')
+        
+        updated_count = strategy.update_signal_status(symbol)
+        
+        return jsonify({
+            'success': True,
+            'updated_count': updated_count
+        })
+    except Exception as e:
+        logger.error(f"更新信号状态API失败: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

@@ -3469,7 +3469,7 @@
                         <div id="ultraShortStatus" style="padding: 10px; background: rgba(0,0,0,0.3); border-radius: 5px;">
                             <div>状态: <span id="ultraShortMonitorStatus">未启动</span></div>
                             <div>上次检查: <span id="ultraShortLastCheck">-</span></div>
-                            <div>盈亏比: <span style="color: #4caf50;">2:1</span> (止损150点 / 止盈300点)</div>
+                            <div>盈亏比: <span style="color: #4caf50;">5.33:1</span> (止损150点 / 止盈800点)</div>
                         </div>
                     </div>
                     
@@ -7391,8 +7391,23 @@
                 const container = document.getElementById('ultraShortHistorySignals');
                 if (data.success && data.signals && data.signals.length > 0) {
                     container.innerHTML = data.signals.map(signal => {
+                        // 状态中文映射
+                        let statusText = signal.status;
+                        let statusColor = '#999';
+                        if (signal.status === 'active') {
+                            statusText = '活跃';
+                            statusColor = '#4caf50';
+                        } else if (signal.status === 'stopped_out') {
+                            statusText = '已止损';
+                            statusColor = '#f44336';
+                        } else if (signal.status === 'take_profit') {
+                            statusText = '已止盈';
+                            statusColor = '#2196f3';
+                        }
+                        
                         return '<div style="padding: 8px; margin: 3px 0; background: rgba(100, 100, 100, 0.2); border-radius: 5px; font-size: 13px;">' +
-                            '<div>入场: ' + signal.entry_price + ' | 状态: ' + signal.status + '</div>' +
+                            '<div>入场: ' + signal.entry_price + ' | 止损: ' + signal.stop_loss + ' | 止盈: ' + signal.take_profit_price + '</div>' +
+                            '<div>状态: <span style="color: ' + statusColor + '; font-weight: bold;">' + statusText + '</span></div>' +
                             '<div style="font-size: 11px; color: #999;">' + new Date(signal.created_at).toLocaleString() + '</div>' +
                             '</div>';
                     }).join('');
