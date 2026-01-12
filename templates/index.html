@@ -7143,12 +7143,12 @@
             if (priceData.buy_conditions) {
                 const conditions = priceData.buy_conditions;
                 
-                // 条件1: 1h级别多头趋势
+                // 条件1: ZigZag的1h低点越来越高
                 const condition1El = document.getElementById('ultraShortCondition1');
-                if (conditions.trend_1h === '多头') {
-                    condition1El.innerHTML = '<span style="color: #4caf50;">✓</span> 1h级别多头趋势 (EMA89 > EMA144 > EMA233)';
+                if (conditions.zigzag_ascending) {
+                    condition1El.innerHTML = '<span style="color: #4caf50;">✓</span> ZigZag的1h低点越来越高';
                 } else {
-                    condition1El.innerHTML = '<span style="color: #f44336;">✗</span> 1h级别多头趋势 (EMA89 > EMA144 > EMA233)';
+                    condition1El.innerHTML = '<span style="color: #f44336;">✗</span> ZigZag的1h低点越来越高';
                 }
                 
                 // 条件2: 价格接近下轨
@@ -7159,22 +7159,14 @@
                     condition2El.innerHTML = '<span style="color: #f44336;">✗</span> 1-5分钟价格接近布林带下轨 (99%-100.5%)';
                 }
                 
-                // 条件3: 支撑位
-                const condition3El = document.getElementById('ultraShortCondition3');
-                if (conditions.support_level) {
-                    condition3El.innerHTML = '<span style="color: #4caf50;">✓</span> 价格在支撑位附近 (' + conditions.support_level.toFixed(2) + ')';
-                } else {
-                    condition3El.innerHTML = '<span style="color: #999;">-</span> 价格在支撑位附近';
-                }
-                
                 // 当前状态总结
                 const statusEl = document.getElementById('ultraShortConditionStatus');
-                const allMet = conditions.trend_1h === '多头' && conditions.price_near_lower && conditions.support_level;
+                const allMet = conditions.zigzag_ascending && conditions.price_near_lower;
                 if (allMet) {
                     statusEl.innerHTML = '<span style="color: #4caf50; font-weight: bold;">✓ 所有条件满足，可以买入</span>';
                 } else {
-                    const metCount = (conditions.trend_1h === '多头' ? 1 : 0) + (conditions.price_near_lower ? 1 : 0) + (conditions.support_level ? 1 : 0);
-                    statusEl.innerHTML = '<span style="color: #ff9800;">部分条件满足 (' + metCount + '/3)</span>';
+                    const metCount = (conditions.zigzag_ascending ? 1 : 0) + (conditions.price_near_lower ? 1 : 0);
+                    statusEl.innerHTML = '<span style="color: #ff9800;">部分条件满足 (' + metCount + '/2)</span>';
                 }
             }
         }
