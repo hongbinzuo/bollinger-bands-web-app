@@ -3473,6 +3473,63 @@
                         </div>
                     </div>
                     
+                    <!-- 价格和指标信息 -->
+                    <div class="form-group">
+                        <h4>价格信息</h4>
+                        <div id="ultraShortPriceInfo" style="padding: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; font-size: 13px;">
+                            <div style="margin-bottom: 8px;">
+                                <strong>当前标记价格:</strong> <span id="ultraShortCurrentPrice" style="color: #4caf50;">-</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>1-5分钟下轨均值:</strong> <span id="ultraShortBbLowerAvg" style="color: #9c27b0;">-</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>1h 布林带下轨:</strong> <span id="ultraShortBb1hLower" style="color: #ff9800;">-</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>1h 布林带中轨:</strong> <span id="ultraShortBb1hMiddle" style="color: #ffc107;">-</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>1h 布林带上轨:</strong> <span id="ultraShortBb1hUpper" style="color: #ff9800;">-</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>1h EMA200:</strong> <span id="ultraShortEma200" style="color: #00bcd4;">-</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>日线高点:</strong> <span id="ultraShortDailyHigh" style="color: #f44336;">-</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>日线低点:</strong> <span id="ultraShortDailyLow" style="color: #4caf50;">-</span>
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <strong>周线高点:</strong> <span id="ultraShortWeeklyHigh" style="color: #f44336;">-</span>
+                            </div>
+                            <div>
+                                <strong>周线低点:</strong> <span id="ultraShortWeeklyLow" style="color: #4caf50;">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 买入条件 -->
+                    <div class="form-group">
+                        <h4>买入条件</h4>
+                        <div id="ultraShortBuyConditions" style="padding: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; font-size: 12px;">
+                            <div style="margin-bottom: 5px;">
+                                <span id="ultraShortCondition1">✓ 1h级别多头趋势 (EMA89 > EMA144 > EMA233)</span>
+                            </div>
+                            <div style="margin-bottom: 5px;">
+                                <span id="ultraShortCondition2">✓ 1-5分钟价格接近布林带下轨 (99%-100.5%)</span>
+                            </div>
+                            <div style="margin-bottom: 5px;">
+                                <span id="ultraShortCondition3">✓ 价格在支撑位附近</span>
+                            </div>
+                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
+                                <div><strong>当前状态:</strong></div>
+                                <div id="ultraShortConditionStatus" style="margin-top: 5px; color: #999;">检查中...</div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- 实时信号 -->
                     <div class="form-group">
                         <h4>实时信号</h4>
