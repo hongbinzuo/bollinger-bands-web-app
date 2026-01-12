@@ -3473,6 +3473,23 @@
                         </div>
                     </div>
                     
+                    <!-- 买入条件 -->
+                    <div class="form-group">
+                        <h4>买入条件</h4>
+                        <div id="ultraShortBuyConditions" style="padding: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; font-size: 12px;">
+                            <div style="margin-bottom: 5px;">
+                                <span id="ultraShortCondition1">✓ ZigZag的1h低点越来越高</span>
+                            </div>
+                            <div style="margin-bottom: 5px;">
+                                <span id="ultraShortCondition2">✓ 1-5分钟或1h价格接近布林带下轨 (99%-100.5%)</span>
+                            </div>
+                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
+                                <div><strong>当前状态:</strong></div>
+                                <div id="ultraShortConditionStatus" style="margin-top: 5px; color: #999;">检查中...</div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- 价格和指标信息 -->
                     <div class="form-group">
                         <h4>价格信息</h4>
@@ -3506,23 +3523,6 @@
                             </div>
                             <div>
                                 <strong>周线低点:</strong> <span id="ultraShortWeeklyLow" style="color: #4caf50;">-</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 买入条件 -->
-                    <div class="form-group">
-                        <h4>买入条件</h4>
-                        <div id="ultraShortBuyConditions" style="padding: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; font-size: 12px;">
-                            <div style="margin-bottom: 5px;">
-                                <span id="ultraShortCondition1">✓ ZigZag的1h低点越来越高</span>
-                            </div>
-                            <div style="margin-bottom: 5px;">
-                                <span id="ultraShortCondition2">✓ 1-5分钟价格接近布林带下轨 (99%-100.5%)</span>
-                            </div>
-                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
-                                <div><strong>当前状态:</strong></div>
-                                <div id="ultraShortConditionStatus" style="margin-top: 5px; color: #999;">检查中...</div>
                             </div>
                         </div>
                     </div>
@@ -6975,7 +6975,11 @@
                 layout: { background: { color: '#0f111a' }, textColor: '#e5e5e5' },
                 crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
                 rightPriceScale: { borderVisible: false },
-                timeScale: { borderVisible: false },
+                timeScale: { 
+                    borderVisible: false,
+                    timeVisible: true,
+                    secondsVisible: true
+                },
                 grid: { vertLines: { color: '#1f2335' }, horzLines: { color: '#1f2335' } },
             });
             
@@ -7005,7 +7009,7 @@
             // 1h布林带（只显示下轨）
             ultraShortBb1hLower = ultraShortChart.addLineSeries({
                 color: '#ff9800',
-                lineWidth: 1,
+                lineWidth: 4,
                 lineStyle: LightweightCharts.LineStyle.Dotted,
                 title: '1h布林带下轨'
             });
@@ -7194,12 +7198,12 @@
                     condition1El.innerHTML = '<span style="color: #f44336;">✗</span> ZigZag的1h低点越来越高';
                 }
                 
-                // 条件2: 价格接近下轨
+                // 条件2: 价格接近下轨（1-5分钟或1h）
                 const condition2El = document.getElementById('ultraShortCondition2');
                 if (conditions.price_near_lower) {
-                    condition2El.innerHTML = '<span style="color: #4caf50;">✓</span> 1-5分钟价格接近布林带下轨 (99%-100.5%)';
+                    condition2El.innerHTML = '<span style="color: #4caf50;">✓</span> 1-5分钟或1h价格接近布林带下轨 (99%-100.5%)';
                 } else {
-                    condition2El.innerHTML = '<span style="color: #f44336;">✗</span> 1-5分钟价格接近布林带下轨 (99%-100.5%)';
+                    condition2El.innerHTML = '<span style="color: #f44336;">✗</span> 1-5分钟或1h价格接近布林带下轨 (99%-100.5%)';
                 }
                 
                 // 当前状态总结

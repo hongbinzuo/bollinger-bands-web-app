@@ -202,73 +202,132 @@ class UltraShortStrategy:
     def check_signal(self, symbol: str = "BTC") -> Optional[Dict]:
         """检查是否有信号"""
         try:
-            # 1. 获取1h数据，判断方向
+            # 1. 获取1h数据，检查ZigZag趋势（1h低点是否越来越高）
             df_1h = self.get_klines(symbol, '1h', limit=200)
             if df_1h is None or len(df_1h) < 100:
                 return None
             
-            # 计算EMA
-            df_1h = self.calculate_ema(df_1h, [89, 144, 233])
-            df_1h = df_1h.dropna()
+            # 使用pivotlow识别低点
+            zigzag_lows = []
+            depth = 12
+            for i in range(depth, len(df_1h) - depth):
+                current_low = df_1h.iloc[i]['low']
+                # 检查是否是pivot low
+                is_pivot = True
+                for j in range(i - depth, i):
+                    if df_1h.iloc[j]['low'] < current_low:
+                        is_pivot = False
+                        break
+                for j in range(i + 1, i + depth + 1):
+                    if df_1h.iloc[j]['low'] < current_low:
+                        is_pivot = False
+                        break
+                
+                if is_pivot:
+                    zigzag_lows.append(float(current_low))
             
-            if len(df_1h) < 1:
+            # 获取最近的低点，判断是否越来越高（要求：有3个HL最好，最差2个也行）
+            zigzag_ascending = False
+            if len(zigzag_lows) >= 2:
+                # 如果有3个或更多，取最近3个；如果只有2个，就用这2个
+                recent_lows = zigzag_lows[-3:] if len(zigzag_lows) >= 3 else zigzag_lows[-2:]
+                # 判断是否递增（每个低点都比前一个高）
+                is_ascending = True
+                for i in range(1, len(recent_lows)):
+                    if recent_lows[i] <= recent_lows[i-1]:
+                        is_ascending = False
+                        break
+                zigzag_ascending = is_ascending
+            
+            # 如果ZigZag趋势不符合要求，直接返回None
+            if not zigzag_ascending:
                 return None
             
-            # 检查是否为多头趋势
-            if not self.is_bullish_trend(df_1h):
+            # 2. 获取当前价格，检查是否接近1-5min或1h布林带下轨
+            # 先获取1h布林带下轨
+            df_1h_bb = self.get_klines(symbol, '1h', limit=200)
+            if df_1h_bb is None or len(df_1h_bb) < 20:
                 return None
             
-            # 2. 获取1-5min数据，检查布林带下轨
+            df_1h_bb = self.calculate_bollinger_bands(df_1h_bb, period=20, std=2)
+            df_1h_bb = df_1h_bb.dropna()
+            if len(df_1h_bb) < 1:
+                return None
+            
+            latest_1h_bb = df_1h_bb.iloc[-1]
+            current_price = latest_1h_bb['close']  # 使用1h的收盘价作为当前价格
+            bb_1h_lower = latest_1h_bb['bb_lower']
+            
+            # 检查价格是否接近1h下轨
+            price_near_1h_lower = False
+            if bb_1h_lower > 0:
+                price_ratio_1h = current_price / bb_1h_lower
+                price_near_1h_lower = 0.99 <= price_ratio_1h <= 1.005
+            
+            # 检查价格是否接近1-5min下轨（任一时间框架）
+            price_near_short_lower = False
+            entry_timeframe_used = None
+            bb_lower_used = None
             entry_timeframes = ['1m', '2m', '3m', '5m']
+            
             for entry_tf in entry_timeframes:
                 df_short = self.get_klines(symbol, entry_tf, limit=100)
                 if df_short is None or len(df_short) < 20:
                     continue
                 
-                # 计算布林带
                 df_short = self.calculate_bollinger_bands(df_short, period=20, std=2)
                 df_short = df_short.dropna()
-                
                 if len(df_short) < 1:
                     continue
                 
-                latest = df_short.iloc[-1]
-                current_price = latest['close']
-                bb_lower = latest['bb_lower']
-                bb_middle = latest['bb_middle']
+                latest_short = df_short.iloc[-1]
+                short_price = latest_short['close']
+                bb_short_lower = latest_short['bb_lower']
                 
-                # 检查价格是否接近下轨（在99%-100.5%下轨之间）
-                if bb_lower > 0:
-                    price_ratio = current_price / bb_lower
-                    if 0.99 <= price_ratio <= 1.005:  # 接近下轨
-                        # 获取支撑位
-                        support_levels = self.find_support_levels(symbol)
-                        support_level = support_levels[0] if support_levels else None
-                        
-                        # 计算止损和止盈（2:1盈亏比）
-                        stop_loss = current_price - self.stop_loss_points
-                        take_profit_price = current_price + (self.stop_loss_points * 2)  # 止损150点，止盈300点
-                        risk_reward = 2.0
-                        
-                        # 生成信号
-                        signal = {
-                            'symbol': symbol,
-                            'signal_type': 'long',
-                            'entry_price': round(current_price, 2),
-                            'entry_timeframe': entry_tf,
-                            'direction_timeframe': '1h',
-                            'bollinger_lower': round(bb_lower, 2),
-                            'support_level': round(support_level, 2) if support_level else None,
-                            'stop_loss': round(stop_loss, 2),
-                            'take_profit_price': round(take_profit_price, 2),
-                            'risk_reward_ratio': risk_reward,
-                            'signal_strength': 'high' if support_level and current_price >= support_level * 0.99 else 'medium',
-                            'current_price': round(current_price, 2),
-                            'bb_middle': round(bb_middle, 2),
-                            'timestamp': datetime.now().isoformat()
-                        }
-                        
-                        return signal
+                if bb_short_lower > 0:
+                    price_ratio_short = short_price / bb_short_lower
+                    if 0.99 <= price_ratio_short <= 1.005:
+                        price_near_short_lower = True
+                        entry_timeframe_used = entry_tf
+                        bb_lower_used = bb_short_lower
+                        current_price = short_price  # 使用短时间框架的价格
+                        break
+            
+            # 如果价格接近1-5min或1h下轨（满足其一即可）
+            if price_near_short_lower or price_near_1h_lower:
+                # 如果没有使用短时间框架，使用1h的数据
+                if not price_near_short_lower:
+                    entry_timeframe_used = '1h'
+                    bb_lower_used = bb_1h_lower
+                
+                # 获取支撑位（保留用于信号强度判断，但不作为必要条件）
+                support_levels = self.find_support_levels(symbol)
+                support_level = support_levels[0] if support_levels else None
+                
+                # 计算止损和止盈（2:1盈亏比）
+                stop_loss = current_price - self.stop_loss_points
+                take_profit_price = current_price + (self.stop_loss_points * 2)  # 止损150点，止盈300点
+                risk_reward = 2.0
+                
+                # 生成信号
+                signal = {
+                    'symbol': symbol,
+                    'signal_type': 'long',
+                    'entry_price': round(current_price, 2),
+                    'entry_timeframe': entry_timeframe_used,
+                    'direction_timeframe': '1h',
+                    'bollinger_lower': round(bb_lower_used, 2),
+                    'support_level': round(support_level, 2) if support_level else None,
+                    'stop_loss': round(stop_loss, 2),
+                    'take_profit_price': round(take_profit_price, 2),
+                    'risk_reward_ratio': risk_reward,
+                    'signal_strength': 'high' if support_level and current_price >= support_level * 0.99 else 'medium',
+                    'current_price': round(current_price, 2),
+                    'bb_middle': round(latest_1h_bb['bb_middle'], 2),
+                    'timestamp': datetime.now().isoformat()
+                }
+                
+                return signal
             
             return None
             
@@ -340,7 +399,7 @@ class UltraShortStrategy:
             return []
     
     def get_history_signals(self, limit: int = 50) -> List[Dict]:
-        """获取历史信号"""
+        """获取历史信号（所有信号，按时间倒序）"""
         try:
             conn = sqlite3.connect(DB_PATH)
             conn.row_factory = sqlite3.Row
@@ -348,7 +407,6 @@ class UltraShortStrategy:
             
             cursor.execute('''
                 SELECT * FROM ultra_short_signals 
-                WHERE status != 'active' 
                 ORDER BY created_at DESC 
                 LIMIT ?
             ''', (limit,))
@@ -566,11 +624,21 @@ def get_price_info():
                         break
                 zigzag_ascending = is_ascending
         
-        # 检查价格是否接近下轨
+        # 检查价格是否接近下轨（1-5分钟或1h下轨，满足其一即可）
         price_near_lower = False
-        if result.get('current_price') and result.get('bb_lower_avg'):
-            ratio = result['current_price'] / result['bb_lower_avg']
-            price_near_lower = 0.99 <= ratio <= 1.005
+        current_price = result.get('current_price')
+        
+        if current_price:
+            # 检查是否接近1-5分钟下轨
+            if result.get('bb_lower_avg'):
+                ratio_short = current_price / result['bb_lower_avg']
+                if 0.99 <= ratio_short <= 1.005:
+                    price_near_lower = True
+            
+            # 检查是否接近1h下轨（如果1-5分钟不满足，再检查1h）
+            if not price_near_lower and result.get('bb_1h_lower'):
+                ratio_1h = current_price / result['bb_1h_lower']
+                price_near_lower = 0.99 <= ratio_1h <= 1.005
         
         result['buy_conditions'] = {
             'zigzag_ascending': zigzag_ascending,
