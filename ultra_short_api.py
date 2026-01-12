@@ -732,20 +732,54 @@ def get_price_info():
                 zigzag_ascending = is_ascending
         
         # 检查价格是否接近下轨（1-5分钟或1h下轨，满足其一即可）
+        # 需要检查最近K线的低点是否接近下轨，而不是当前价格
         price_near_lower = False
-        current_price = result.get('current_price')
         
-        if current_price:
-            # 检查是否接近1-5分钟下轨
-            if result.get('bb_lower_avg'):
-                ratio_short = current_price / result['bb_lower_avg']
-                if 0.99 <= ratio_short <= 1.005:
-                    price_near_lower = True
-            
-            # 检查是否接近1h下轨（如果1-5分钟不满足，再检查1h）
-            if not price_near_lower and result.get('bb_1h_lower'):
-                ratio_1h = current_price / result['bb_1h_lower']
-                price_near_lower = 0.99 <= ratio_1h <= 1.005
+        # 检查1-5分钟时间框架，看是否有低点接近下轨
+        entry_timeframes = ['1m', '2m', '3m', '5m']
+        for tf in entry_timeframes:
+            df_short = strategy.get_klines(symbol, tf, limit=20)
+            if df_short is not None and not df_short.empty:
+                df_short = strategy.calculate_bollinger_bands(df_short, period=20, std=2)
+                df_short = df_short.dropna()
+                if len(df_short) >= 1:
+                    # 检查最近几个K线的低点
+                    lookback = min(5, len(df_short))  # 检查最近5个K线
+                    for i in range(len(df_short) - lookback, len(df_short)):
+                        row = df_short.iloc[i]
+                        bb_lower = row.get('bb_lower')
+                        low_price = row.get('low')
+                        
+                        if pd.notna(bb_lower) and pd.notna(low_price) and bb_lower > 0:
+                            ratio = low_price / bb_lower
+                            # 检查低点是否在下轨附近（99%-100.5%）
+                            if 0.99 <= ratio <= 1.005:
+                                price_near_lower = True
+                                break
+                    
+                    if price_near_lower:
+                        break
+        
+        # 如果1-5分钟不满足，检查1h下轨
+        if not price_near_lower and result.get('bb_1h_lower'):
+            df_1h = strategy.get_klines(symbol, '1h', limit=20)
+            if df_1h is not None and not df_1h.empty:
+                df_1h = strategy.calculate_bollinger_bands(df_1h, period=20, std=2)
+                df_1h = df_1h.dropna()
+                if len(df_1h) >= 1:
+                    # 检查最近几个1h K线的低点
+                    lookback = min(5, len(df_1h))
+                    for i in range(len(df_1h) - lookback, len(df_1h)):
+                        row = df_1h.iloc[i]
+                        bb_lower = row.get('bb_lower')
+                        low_price = row.get('low')
+                        
+                        if pd.notna(bb_lower) and pd.notna(low_price) and bb_lower > 0:
+                            ratio = low_price / bb_lower
+                            # 检查低点是否在下轨附近（99%-100.5%）
+                            if 0.99 <= ratio <= 1.005:
+                                price_near_lower = True
+                                break
         
         result['buy_conditions'] = {
             'zigzag_ascending': zigzag_ascending,
