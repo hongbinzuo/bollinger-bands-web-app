@@ -44,7 +44,6 @@ show_targets = input.bool(true, "显示止损止盈线")
 
 // 计算ZigZag（在1h时间框架上使用ZigZag库）
 [direction_zigzag, z1, z2] = request.security(syminfo.tickerid, direction_tf, ZigZag.zigzag(low, high, zigzag_depth, zigzag_deviation, zigzag_backstep), lookahead=barmerge.lookahead_off)
-
 // ZigZag方向：1=多头, -1=空头, 0=中性
 zigzag_direction = direction_zigzag
 
@@ -98,8 +97,8 @@ if signal_condition and not signal_condition[1]
     
     // 绘制信号标签
     if show_signals
-        signal_label := label.new(bar_index, entry_close, "做多信号\n入场: " + str.tostring(signal_entry_price, "#.##") + "\n止损: " + str.tostring(signal_stop_loss, "#.##") + "\n止盈: " + str.tostring(signal_take_profit, "#.##"), 
-            style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+        signal_text = "做多信号\n入场: " + str.tostring(signal_entry_price, "#.##") + "\n止损: " + str.tostring(signal_stop_loss, "#.##") + "\n止盈: " + str.tostring(signal_take_profit, "#.##")
+        signal_label := label.new(bar_index, entry_close, signal_text, style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
 
 // ==================== 绘图 ====================
 // 绘制布林带（使用入场时间框架的数据）

@@ -6957,6 +6957,7 @@
         let ultraShortBbLowerAvg = null;
         let ultraShortZigzagLines = []; // 存储ZigZag低点水平线
         let ultraShortSignalLines = []; // 存储信号线（止损止盈）
+        let ultraShortSignalMarkers = []; // 存储信号标记
         
         // 初始化图表
         function ultraShortInitChart() {
@@ -7081,6 +7082,48 @@
             
             ultraShortCandleSeries.setData(candles);
             ultraShortChart.timeScale().fitContent();
+            
+            // 加载信号标记
+            ultraShortLoadSignalMarkers();
+        }
+        
+        // 加载过去2小时的5分钟信号标记
+        async function ultraShortLoadSignalMarkers() {
+            try {
+                const response = await fetch('/ultra_short/get_recent_5m_signals', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: 'BTC', hours: 2 })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.signals && ultraShortCandleSeries) {
+                    ultraShortUpdateSignalMarkers(data.signals);
+                }
+            } catch (error) {
+                console.error('加载信号标记失败:', error);
+            }
+        }
+        
+        // 更新信号标记
+        function ultraShortUpdateSignalMarkers(signals) {
+            if (!ultraShortCandleSeries) return;
+            
+            // 创建标记数组
+            const markers = signals
+                .filter(signal => signal.timestamp) // 只处理有时间戳的信号
+                .map(signal => ({
+                    time: signal.timestamp,
+                    position: 'belowBar',
+                    color: '#4caf50', // 绿色
+                    shape: 'arrowUp', // 向上的箭头（三角形）
+                    text: '买入',
+                    size: 1
+                }));
+            
+            // 设置标记
+            ultraShortCandleSeries.setMarkers(markers);
+            ultraShortSignalMarkers = markers;
         }
         
         // 加载指标数据

@@ -751,4 +751,58 @@ def get_history_signals():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@ultra_short_bp.route('/get_recent_5m_signals', methods=['GET', 'POST'])
+def get_recent_5m_signals():
+    """获取过去2小时的5分钟买入信号（用于图表标记）"""
+    try:
+        data = request.json if request.is_json else {}
+        symbol = data.get('symbol', 'BTC')
+        hours = data.get('hours', 2)  # 默认2小时
+        
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # 计算时间范围
+            from datetime import timedelta
+            cutoff_time = datetime.now() - timedelta(hours=hours)
+            
+            # 查询过去2小时内的5分钟信号（entry_timeframe为5m的）
+            cursor.execute('''
+                SELECT * FROM ultra_short_signals 
+                WHERE symbol = ? 
+                AND entry_timeframe = '5m'
+                AND datetime(created_at) >= datetime(?)
+                ORDER BY created_at DESC
+            ''', (symbol, cutoff_time.strftime('%Y-%m-%d %H:%M:%S')))
+            
+            rows = cursor.fetchall()
+            signals = []
+            for row in rows:
+                signal = dict(row)
+                # 将created_at转换为时间戳
+                try:
+                    created_at = datetime.fromisoformat(signal['created_at'].replace('Z', '+00:00'))
+                    signal['timestamp'] = int(created_at.timestamp())
+                except:
+                    signal['timestamp'] = None
+                signals.append(signal)
+            
+            conn.close()
+            
+            return jsonify({
+                'success': True,
+                'signals': signals,
+                'count': len(signals)
+            })
+        except Exception as e:
+            logger.error(f"获取最近5分钟信号失败: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+        
+    except Exception as e:
+        logger.error(f"获取最近5分钟信号API失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 
