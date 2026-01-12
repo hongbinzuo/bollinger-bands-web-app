@@ -202,6 +202,12 @@ class UltraShortStrategy:
     def check_signal(self, symbol: str = "BTC") -> Optional[Dict]:
         """检查是否有信号"""
         try:
+            # 0. 先检查是否有活跃信号，如果有则不生成新信号
+            active_signals = self.get_active_signals()
+            if active_signals and len(active_signals) > 0:
+                # 有活跃信号，不生成新信号
+                return None
+            
             # 1. 获取1h数据，检查ZigZag趋势（1h低点是否越来越高）
             df_1h = self.get_klines(symbol, '1h', limit=200)
             if df_1h is None or len(df_1h) < 100:
