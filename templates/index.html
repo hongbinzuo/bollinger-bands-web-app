@@ -7322,7 +7322,7 @@
                             '<div><strong>入场: ' + signal.entry_price + '</strong></div>' +
                             '<div>止损: ' + signal.stop_loss + ' (' + (signal.entry_price - signal.stop_loss).toFixed(2) + '点)</div>' +
                             '<div>止盈: ' + signal.take_profit_price + ' (' + (signal.take_profit_price - signal.entry_price).toFixed(2) + '点)</div>' +
-                            '<div>盈亏比: 1:' + signal.risk_reward_ratio + '</div>' +
+                            '<div>盈亏比: ' + signal.risk_reward_ratio + ':1</div>' +
                             '<div>信号强度: ' + signal.signal_strength + '</div>' +
                             '<div style="font-size: 12px; color: #999;">' + new Date(signal.created_at).toLocaleString() + '</div>' +
                             '</div>';
