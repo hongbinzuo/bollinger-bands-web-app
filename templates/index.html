@@ -2727,6 +2727,7 @@
              color: #f44336;
          }
          
+         .some-class {
              background: rgba(255, 255, 255, 0.05);
              border-radius: 10px;
              padding: 15px;
@@ -3491,10 +3492,11 @@
                 
                 <!-- 右侧图表区域 -->
                 <div>
-                    <div style="margin-bottom: 10px; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 5px;">
+                    <div style="margin-bottom: 10px; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
                         <div style="font-size: 12px; color: #999;">
                             <span>时间级别: <strong style="color: #fff;">1h</strong> (方向确认) | <strong style="color: #fff;">1-5min</strong> (入场信号)</span>
                         </div>
+                        <button class="btn" onclick="ultraShortAutoFit()" style="padding: 5px 15px; font-size: 12px;">Auto</button>
                     </div>
                     <div id="ultraShortChart" style="height: 600px; background: #0f111a; position: relative;"></div>
                     <div id="ultraShortChartStatus" class="muted" style="margin-top: 10px;"></div>
@@ -6897,12 +6899,10 @@
         let ultraShortSignalCheckInterval = null;
         
         // 指标系列
-        let ultraShortBb1hUpper = null;
-        let ultraShortBb1hMiddle = null;
         let ultraShortBb1hLower = null;
         let ultraShortBbLowerAvg = null;
         let ultraShortEma200 = null;
-        let ultraShortZigzagLows = null;
+        let ultraShortZigzagLines = []; // 存储ZigZag低点水平线
         let ultraShortSignalLines = []; // 存储信号线（止损止盈）
         
         // 初始化图表
@@ -6948,19 +6948,7 @@
                 title: '布林带下轨'
             });
             
-            // 1h布林带
-            ultraShortBb1hUpper = ultraShortChart.addLineSeries({
-                color: '#ff9800',
-                lineWidth: 1,
-                lineStyle: LightweightCharts.LineStyle.Dotted,
-                title: '1h布林带上轨'
-            });
-            ultraShortBb1hMiddle = ultraShortChart.addLineSeries({
-                color: '#ffc107',
-                lineWidth: 1,
-                lineStyle: LightweightCharts.LineStyle.Dotted,
-                title: '1h布林带中轨'
-            });
+            // 1h布林带（只显示下轨）
             ultraShortBb1hLower = ultraShortChart.addLineSeries({
                 color: '#ff9800',
                 lineWidth: 1,
@@ -6983,13 +6971,7 @@
                 title: '1h EMA200'
             });
             
-            // 1h ZigZag低点（使用标记点）
-            ultraShortZigzagLows = ultraShortChart.addLineSeries({
-                color: '#f44336',
-                lineWidth: 1,
-                lineStyle: LightweightCharts.LineStyle.SparseDotted,
-                title: '1h ZigZag低点'
-            });
+            // 1h ZigZag低点（使用水平线，不创建LineSeries，用PriceLine）
             
             // 自适应尺寸
             setTimeout(() => ultraShortResizeChart(), 0);
@@ -7076,14 +7058,9 @@
         function ultraShortUpdateIndicators(indicators) {
             if (!ultraShortChart) return;
             
-            // 1. 更新1h布林带
-            if (indicators.bb_1h && ultraShortBb1hUpper && ultraShortBb1hMiddle && ultraShortBb1hLower) {
-                const bb1h_upper = indicators.bb_1h.map(p => ({ time: p.time, value: p.upper })).filter(p => p.value !== null);
-                const bb1h_middle = indicators.bb_1h.map(p => ({ time: p.time, value: p.middle })).filter(p => p.value !== null);
+            // 1. 更新1h布林带（只显示下轨）
+            if (indicators.bb_1h && ultraShortBb1hLower) {
                 const bb1h_lower = indicators.bb_1h.map(p => ({ time: p.time, value: p.lower })).filter(p => p.value !== null);
-                
-                ultraShortBb1hUpper.setData(bb1h_upper);
-                ultraShortBb1hMiddle.setData(bb1h_middle);
                 ultraShortBb1hLower.setData(bb1h_lower);
             }
             
@@ -7099,10 +7076,23 @@
                 ultraShortEma200.setData(ema200_data);
             }
             
-            // 4. 更新1h ZigZag低点
-            if (indicators.zigzag_lows_1h && ultraShortZigzagLows) {
-                const zigzag_data = indicators.zigzag_lows_1h.map(p => ({ time: p.time, value: p.value }));
-                ultraShortZigzagLows.setData(zigzag_data);
+            // 4. 更新1h ZigZag低点（用水平线显示，只显示3个）
+            if (indicators.zigzag_lows_1h && ultraShortCandleSeries) {
+                // 清除旧的ZigZag线
+                ultraShortClearZigzagLines();
+                
+                // 绘制新的ZigZag低点水平线（最多3个）
+                const zigzag_lows = indicators.zigzag_lows_1h.slice(0, 3);
+                zigzag_lows.forEach((low, index) => {
+                    const zigzagLine = ultraShortCandleSeries.createPriceLine({
+                        price: low.value,
+                        color: '#f44336',
+                        lineWidth: 1,
+                        lineStyle: LightweightCharts.LineStyle.Dashed,
+                        title: 'ZigZag低点' + (index + 1) + ': ' + low.value.toFixed(2)
+                    });
+                    ultraShortZigzagLines.push(zigzagLine);
+                });
             }
         }
         
@@ -7157,6 +7147,25 @@
                 }
             });
             ultraShortSignalLines = [];
+        }
+        
+        // 清除ZigZag线
+        function ultraShortClearZigzagLines() {
+            if (!ultraShortCandleSeries) return;
+            ultraShortZigzagLines.forEach(line => {
+                try {
+                    ultraShortCandleSeries.removePriceLine(line);
+                } catch (e) {
+                    console.warn('清除ZigZag线失败:', e);
+                }
+            });
+            ultraShortZigzagLines = [];
+        }
+        
+        // Auto按钮：自动调整视图到最合适
+        function ultraShortAutoFit() {
+            if (!ultraShortChart) return;
+            ultraShortChart.timeScale().fitContent();
         }
         
         async function ultraShortCheckSignal() {

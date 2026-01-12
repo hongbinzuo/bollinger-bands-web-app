@@ -448,7 +448,7 @@ def get_indicators():
         
         result = {}
         
-        # 1. 获取1h布林带
+        # 1. 获取1h布林带（只返回下轨）
         df_1h = strategy.get_klines(symbol, '1h', limit=200)
         if df_1h is not None and not df_1h.empty:
             df_1h = strategy.calculate_bollinger_bands(df_1h, period=20, std=2)
@@ -456,12 +456,11 @@ def get_indicators():
             if not df_1h.empty:
                 bb_1h = []
                 for idx, row in df_1h.iterrows():
-                    bb_1h.append({
-                        'time': int(idx.timestamp()),
-                        'upper': float(row['bb_upper']) if pd.notna(row['bb_upper']) else None,
-                        'middle': float(row['bb_middle']) if pd.notna(row['bb_middle']) else None,
-                        'lower': float(row['bb_lower']) if pd.notna(row['bb_lower']) else None
-                    })
+                    if pd.notna(row['bb_lower']):
+                        bb_1h.append({
+                            'time': int(idx.timestamp()),
+                            'lower': float(row['bb_lower'])
+                        })
                 result['bb_1h'] = bb_1h
         
         # 2. 获取1-5min布林带下轨，计算均值
@@ -527,7 +526,7 @@ def get_indicators():
                         })
                 result['ema200_1h'] = ema200_data
         
-        # 4. 获取1h ZigZag低点（简化实现，使用pivotlow逻辑）
+        # 4. 获取1h ZigZag低点（简化实现，使用pivotlow逻辑，只返回最近3个）
         df_1h_zigzag = strategy.get_klines(symbol, '1h', limit=200)
         if df_1h_zigzag is not None and not df_1h_zigzag.empty:
             # 使用pivotlow识别低点
@@ -552,6 +551,8 @@ def get_indicators():
                         'time': int(idx.timestamp()),
                         'value': float(current_low)
                     })
+            # 只返回最近3个低点
+            zigzag_lows = sorted(zigzag_lows, key=lambda x: x['time'], reverse=True)[:3]
             result['zigzag_lows_1h'] = zigzag_lows
         
         return jsonify({
