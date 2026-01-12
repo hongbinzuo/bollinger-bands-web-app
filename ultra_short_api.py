@@ -530,36 +530,50 @@ def get_price_info():
             result['weekly_low'] = None
         
         # 7. 获取买入条件状态
-        signal_info = strategy.check_signal(symbol)
-        if signal_info:
-            result['buy_conditions'] = {
-                'trend_1h': '多头' if signal_info.get('signal_type') == 'long' else '非多头',
-                'price_near_lower': True,
-                'support_level': signal_info.get('support_level'),
-                'signal_strength': signal_info.get('signal_strength', 'medium')
-            }
-        else:
-            # 检查趋势
-            df_1h_check = strategy.get_klines(symbol, '1h', limit=200)
-            is_bullish = False
-            if df_1h_check is not None and len(df_1h_check) >= 100:
-                df_1h_check = strategy.calculate_ema(df_1h_check, [89, 144, 233])
-                df_1h_check = df_1h_check.dropna()
-                if len(df_1h_check) >= 1:
-                    is_bullish = strategy.is_bullish_trend(df_1h_check)
+        # 检查ZigZag的1h低点是否越来越高
+        zigzag_ascending = False
+        df_1h_zigzag_check = strategy.get_klines(symbol, '1h', limit=200)
+        if df_1h_zigzag_check is not None and not df_1h_zigzag_check.empty:
+            # 使用pivotlow识别低点
+            zigzag_lows = []
+            depth = 12
+            for i in range(depth, len(df_1h_zigzag_check) - depth):
+                current_low = df_1h_zigzag_check.iloc[i]['low']
+                # 检查是否是pivot low
+                is_pivot = True
+                for j in range(i - depth, i):
+                    if df_1h_zigzag_check.iloc[j]['low'] < current_low:
+                        is_pivot = False
+                        break
+                for j in range(i + 1, i + depth + 1):
+                    if df_1h_zigzag_check.iloc[j]['low'] < current_low:
+                        is_pivot = False
+                        break
+                
+                if is_pivot:
+                    zigzag_lows.append(float(current_low))
             
-            # 检查价格是否接近下轨
-            price_near_lower = False
-            if result.get('current_price') and result.get('bb_lower_avg'):
-                ratio = result['current_price'] / result['bb_lower_avg']
-                price_near_lower = 0.99 <= ratio <= 1.005
-            
-            result['buy_conditions'] = {
-                'trend_1h': '多头' if is_bullish else '非多头',
-                'price_near_lower': price_near_lower,
-                'support_level': None,
-                'signal_strength': None
-            }
+            # 获取最近3个低点，判断是否越来越高
+            if len(zigzag_lows) >= 2:
+                recent_lows = zigzag_lows[-3:] if len(zigzag_lows) >= 3 else zigzag_lows
+                # 判断是否递增（每个低点都比前一个高）
+                is_ascending = True
+                for i in range(1, len(recent_lows)):
+                    if recent_lows[i] <= recent_lows[i-1]:
+                        is_ascending = False
+                        break
+                zigzag_ascending = is_ascending
+        
+        # 检查价格是否接近下轨
+        price_near_lower = False
+        if result.get('current_price') and result.get('bb_lower_avg'):
+            ratio = result['current_price'] / result['bb_lower_avg']
+            price_near_lower = 0.99 <= ratio <= 1.005
+        
+        result['buy_conditions'] = {
+            'zigzag_ascending': zigzag_ascending,
+            'price_near_lower': price_near_lower
+        }
         
         return jsonify({
             'success': True,
