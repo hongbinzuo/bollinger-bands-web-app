@@ -3458,9 +3458,9 @@
                         <label>时间框架</label>
                         <select id="ultraShortTimeframe" class="form-control">
                             <option value="1m">1分钟</option>
-                            <option value="2m">2分钟</option>
-                            <option value="3m">3分钟</option>
                             <option value="5m" selected>5分钟</option>
+                            <option value="15m">15分钟</option>
+                            <option value="1h">1小时</option>
                         </select>
                     </div>
                     
@@ -7286,6 +7286,18 @@
             document.getElementById('ultraShortMonitorStatus').textContent = '已停止';
         }
         
+        // 时间框架切换时重新加载图表数据
+        document.addEventListener('DOMContentLoaded', function() {
+            const timeframeSelect = document.getElementById('ultraShortTimeframe');
+            if (timeframeSelect) {
+                timeframeSelect.addEventListener('change', function() {
+                    if (ultraShortChart) {
+                        ultraShortLoadChartData();
+                    }
+                });
+            }
+        });
+        
         // Tab切换时初始化图表
         const originalShowTab = window.showTab;
         window.showTab = function(tabName, event) {
@@ -7296,6 +7308,15 @@
                     ultraShortLoadActiveSignals();
                     ultraShortLoadHistorySignals();
                     ultraShortLoadIndicators();
+                    
+                    // 绑定时间框架切换事件
+                    const timeframeSelect = document.getElementById('ultraShortTimeframe');
+                    if (timeframeSelect && !timeframeSelect.hasAttribute('data-listener-added')) {
+                        timeframeSelect.setAttribute('data-listener-added', 'true');
+                        timeframeSelect.addEventListener('change', function() {
+                            ultraShortLoadChartData();
+                        });
+                    }
                 }, 100);
             }
         };
