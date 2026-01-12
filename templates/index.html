@@ -3481,7 +3481,7 @@
                                 <span id="ultraShortCondition1">✓ ZigZag的1h低点越来越高</span>
                             </div>
                             <div style="margin-bottom: 5px;">
-                                <span id="ultraShortCondition2">✓ 1-5分钟或1h价格接近布林带下轨 (99%-100.5%)</span>
+                                <span id="ultraShortCondition2">✓ 1-5分钟或1h价格接近布林带下轨 (±0.01%)</span>
                             </div>
                             <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
                                 <div><strong>当前状态:</strong></div>
@@ -7202,9 +7202,9 @@
                 // 条件2: 价格接近下轨（1-5分钟或1h）
                 const condition2El = document.getElementById('ultraShortCondition2');
                 if (conditions.price_near_lower) {
-                    condition2El.innerHTML = '<span style="color: #4caf50;">✓</span> 1-5分钟或1h价格接近布林带下轨 (99%-100.5%)';
+                    condition2El.innerHTML = '<span style="color: #4caf50;">✓</span> 1-5分钟或1h价格接近布林带下轨 (±0.01%)';
                 } else {
-                    condition2El.innerHTML = '<span style="color: #f44336;">✗</span> 1-5分钟或1h价格接近布林带下轨 (99%-100.5%)';
+                    condition2El.innerHTML = '<span style="color: #f44336;">✗</span> 1-5分钟或1h价格接近布林带下轨 (±0.01%)';
                 }
                 
                 // 当前状态总结
