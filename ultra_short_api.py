@@ -439,6 +439,132 @@ def get_klines():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@ultra_short_bp.route('/get_indicators', methods=['GET', 'POST'])
+def get_indicators():
+    """获取所有指标数据（1h布林带、1-5min下轨均值、1h EMA200、1h ZigZag低点）"""
+    try:
+        data = request.json if request.is_json else {}
+        symbol = data.get('symbol', 'BTC')
+        
+        result = {}
+        
+        # 1. 获取1h布林带
+        df_1h = strategy.get_klines(symbol, '1h', limit=200)
+        if df_1h is not None and not df_1h.empty:
+            df_1h = strategy.calculate_bollinger_bands(df_1h, period=20, std=2)
+            df_1h = df_1h.dropna()
+            if not df_1h.empty:
+                bb_1h = []
+                for idx, row in df_1h.iterrows():
+                    bb_1h.append({
+                        'time': int(idx.timestamp()),
+                        'upper': float(row['bb_upper']) if pd.notna(row['bb_upper']) else None,
+                        'middle': float(row['bb_middle']) if pd.notna(row['bb_middle']) else None,
+                        'lower': float(row['bb_lower']) if pd.notna(row['bb_lower']) else None
+                    })
+                result['bb_1h'] = bb_1h
+        
+        # 2. 获取1-5min布林带下轨，计算均值
+        entry_timeframes = ['1m', '2m', '3m', '5m']
+        bb_lower_means = []
+        for tf in entry_timeframes:
+            df_short = strategy.get_klines(symbol, tf, limit=100)
+            if df_short is not None and not df_short.empty:
+                df_short = strategy.calculate_bollinger_bands(df_short, period=20, std=2)
+                df_short = df_short.dropna()
+                if not df_short.empty:
+                    bb_lower_data = []
+                    for idx, row in df_short.iterrows():
+                        if pd.notna(row['bb_lower']):
+                            bb_lower_data.append({
+                                'time': int(idx.timestamp()),
+                                'value': float(row['bb_lower'])
+                            })
+                    if bb_lower_data:
+                        bb_lower_means.append({
+                            'timeframe': tf,
+                            'data': bb_lower_data
+                        })
+        
+        # 计算1-5min下轨的均值（按时间对齐）
+        if bb_lower_means:
+            # 获取所有时间点
+            all_times = set()
+            for tf_data in bb_lower_means:
+                for point in tf_data['data']:
+                    all_times.add(point['time'])
+            
+            # 按时间计算均值
+            bb_lower_avg = []
+            for time in sorted(all_times):
+                values = []
+                for tf_data in bb_lower_means:
+                    # 找到该时间点的值
+                    for point in tf_data['data']:
+                        if point['time'] == time:
+                            values.append(point['value'])
+                            break
+                if len(values) > 0:
+                    avg_value = sum(values) / len(values)
+                    bb_lower_avg.append({
+                        'time': time,
+                        'value': avg_value
+                    })
+            result['bb_lower_avg'] = bb_lower_avg
+        
+        # 3. 获取1h EMA200（需要重新获取数据，因为之前可能已经修改了df_1h）
+        df_1h_ema = strategy.get_klines(symbol, '1h', limit=200)
+        if df_1h_ema is not None and not df_1h_ema.empty:
+            df_1h_ema = strategy.calculate_ema(df_1h_ema, [200])
+            df_1h_ema = df_1h_ema.dropna()
+            if not df_1h_ema.empty and 'ema200' in df_1h_ema.columns:
+                ema200_data = []
+                for idx, row in df_1h_ema.iterrows():
+                    if pd.notna(row['ema200']):
+                        ema200_data.append({
+                            'time': int(idx.timestamp()),
+                            'value': float(row['ema200'])
+                        })
+                result['ema200_1h'] = ema200_data
+        
+        # 4. 获取1h ZigZag低点（简化实现，使用pivotlow逻辑）
+        df_1h_zigzag = strategy.get_klines(symbol, '1h', limit=200)
+        if df_1h_zigzag is not None and not df_1h_zigzag.empty:
+            # 使用pivotlow识别低点
+            zigzag_lows = []
+            depth = 12
+            for i in range(depth, len(df_1h_zigzag) - depth):
+                current_low = df_1h_zigzag.iloc[i]['low']
+                # 检查是否是pivot low
+                is_pivot = True
+                for j in range(i - depth, i):
+                    if df_1h_zigzag.iloc[j]['low'] < current_low:
+                        is_pivot = False
+                        break
+                for j in range(i + 1, i + depth + 1):
+                    if df_1h_zigzag.iloc[j]['low'] < current_low:
+                        is_pivot = False
+                        break
+                
+                if is_pivot:
+                    idx = df_1h_zigzag.index[i]
+                    zigzag_lows.append({
+                        'time': int(idx.timestamp()),
+                        'value': float(current_low)
+                    })
+            result['zigzag_lows_1h'] = zigzag_lows
+        
+        return jsonify({
+            'success': True,
+            'indicators': result,
+            'symbol': symbol
+        })
+        
+    except Exception as e:
+        logger.error(f"获取指标数据API失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @ultra_short_bp.route('/get_support_levels', methods=['GET', 'POST'])
 def get_support_levels():
     """获取支撑位"""
