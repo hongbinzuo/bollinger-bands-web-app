@@ -511,22 +511,7 @@ def get_indicators():
                     })
             result['bb_lower_avg'] = bb_lower_avg
         
-        # 3. 获取1h EMA200（需要重新获取数据，因为之前可能已经修改了df_1h）
-        df_1h_ema = strategy.get_klines(symbol, '1h', limit=200)
-        if df_1h_ema is not None and not df_1h_ema.empty:
-            df_1h_ema = strategy.calculate_ema(df_1h_ema, [200])
-            df_1h_ema = df_1h_ema.dropna()
-            if not df_1h_ema.empty and 'ema200' in df_1h_ema.columns:
-                ema200_data = []
-                for idx, row in df_1h_ema.iterrows():
-                    if pd.notna(row['ema200']):
-                        ema200_data.append({
-                            'time': int(idx.timestamp()),
-                            'value': float(row['ema200'])
-                        })
-                result['ema200_1h'] = ema200_data
-        
-        # 4. 获取1h ZigZag低点（简化实现，使用pivotlow逻辑，只返回最近3个）
+        # 3. 获取1h ZigZag低点（简化实现，使用pivotlow逻辑，只返回最近3个）
         df_1h_zigzag = strategy.get_klines(symbol, '1h', limit=200)
         if df_1h_zigzag is not None and not df_1h_zigzag.empty:
             # 使用pivotlow识别低点

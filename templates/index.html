@@ -6901,7 +6901,6 @@
         // 指标系列
         let ultraShortBb1hLower = null;
         let ultraShortBbLowerAvg = null;
-        let ultraShortEma200 = null;
         let ultraShortZigzagLines = []; // 存储ZigZag低点水平线
         let ultraShortSignalLines = []; // 存储信号线（止损止盈）
         
@@ -6962,13 +6961,6 @@
                 lineWidth: 2,
                 lineStyle: LightweightCharts.LineStyle.Dashed,
                 title: '1-5min下轨均值'
-            });
-            
-            // 1h EMA200
-            ultraShortEma200 = ultraShortChart.addLineSeries({
-                color: '#00bcd4',
-                lineWidth: 2,
-                title: '1h EMA200'
             });
             
             // 1h ZigZag低点（使用水平线，不创建LineSeries，用PriceLine）
@@ -7070,13 +7062,7 @@
                 ultraShortBbLowerAvg.setData(bb_lower_avg_data);
             }
             
-            // 3. 更新1h EMA200
-            if (indicators.ema200_1h && ultraShortEma200) {
-                const ema200_data = indicators.ema200_1h.map(p => ({ time: p.time, value: p.value }));
-                ultraShortEma200.setData(ema200_data);
-            }
-            
-            // 4. 更新1h ZigZag低点（用水平线显示，只显示3个）
+            // 3. 更新1h ZigZag低点（用水平线显示，只显示3个）
             if (indicators.zigzag_lows_1h && ultraShortCandleSeries) {
                 // 清除旧的ZigZag线
                 ultraShortClearZigzagLines();
