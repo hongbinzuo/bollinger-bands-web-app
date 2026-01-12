@@ -7286,18 +7286,6 @@
             document.getElementById('ultraShortMonitorStatus').textContent = '已停止';
         }
         
-        // 时间框架切换时重新加载图表数据
-        document.addEventListener('DOMContentLoaded', function() {
-            const timeframeSelect = document.getElementById('ultraShortTimeframe');
-            if (timeframeSelect) {
-                timeframeSelect.addEventListener('change', function() {
-                    if (ultraShortChart) {
-                        ultraShortLoadChartData();
-                    }
-                });
-            }
-        });
-        
         // Tab切换时初始化图表
         const originalShowTab = window.showTab;
         window.showTab = function(tabName, event) {
