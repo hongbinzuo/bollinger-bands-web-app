@@ -553,9 +553,11 @@ def get_price_info():
                 if is_pivot:
                     zigzag_lows.append(float(current_low))
             
-            # 获取最近3个低点，判断是否越来越高
+            # 获取最近的低点，判断是否越来越高
+            # 要求：有3个HL最好，最差2个也行
             if len(zigzag_lows) >= 2:
-                recent_lows = zigzag_lows[-3:] if len(zigzag_lows) >= 3 else zigzag_lows
+                # 如果有3个或更多，取最近3个；如果只有2个，就用这2个
+                recent_lows = zigzag_lows[-3:] if len(zigzag_lows) >= 3 else zigzag_lows[-2:]
                 # 判断是否递增（每个低点都比前一个高）
                 is_ascending = True
                 for i in range(1, len(recent_lows)):
