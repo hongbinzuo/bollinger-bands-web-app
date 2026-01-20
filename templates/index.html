@@ -7642,15 +7642,24 @@
                 }
             }
 
-            function buildMarkers(signals) {
+            function formatPrice(value) {
+                if (value === null || value === undefined || !isFinite(value)) return '';
+                if (value >= 100) return value.toFixed(2);
+                if (value >= 1) return value.toFixed(4);
+                return value.toFixed(6);
+            }
+
+            function buildMarkers(signals, priceByTime) {
                 return (signals || []).map(signal => {
                     const isBuy = signal.signal === 'buy';
+                    const price = priceByTime ? priceByTime.get(signal.time) : null;
+                    const priceText = price ? ` ${formatPrice(price)}` : '';
                     return {
                         time: signal.time,
                         position: isBuy ? 'belowBar' : 'aboveBar',
                         color: isBuy ? '#4caf50' : '#ef5350',
                         shape: isBuy ? 'arrowUp' : 'arrowDown',
-                        text: isBuy ? '抄底' : '卖出',
+                        text: (isBuy ? '抄底' : '卖出') + priceText,
                         size: 1
                     };
                 });
@@ -7677,8 +7686,10 @@
                     if (!data.success) {
                         throw new Error(data.error || '加载失败');
                     }
-                    ref.candleSeries.setData(data.candles || []);
-                    ref.candleSeries.setMarkers(buildMarkers(data.signals || []));
+                    const candles = data.candles || [];
+                    ref.candleSeries.setData(candles);
+                    const priceByTime = new Map(candles.map(c => [c.time, c.close]));
+                    ref.candleSeries.setMarkers(buildMarkers(data.signals || [], priceByTime));
                     ref.chart.timeScale().fitContent();
                     setTfStatus(tf, `已加载 ${symbol} ${tf} (${(data.candles || []).length}根K线)`);
                 } catch (error) {
