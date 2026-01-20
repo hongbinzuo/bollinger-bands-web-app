@@ -424,8 +424,8 @@ def yoyo_chart():
         payload = request.get_json(silent=True) or {}
         symbol = _normalize_symbol(payload.get('symbol') or '')
         timeframe = (payload.get('timeframe') or '1h').strip()
-        display_limit = int(payload.get('display_limit') or 90)
-        raw_limit = int(payload.get('limit') or 200)
+        display_limit = int(payload.get('display_limit') or 1000)
+        raw_limit = int(payload.get('limit') or display_limit)
 
         if symbol not in SUPPORTED_SYMBOLS:
             return jsonify({'success': False, 'error': 'Unsupported symbol'}), 400
@@ -440,7 +440,7 @@ def yoyo_chart():
         signals = signals_payload['signals']
         latest_signals = signals_payload['latest']
 
-        display_limit = max(30, min(display_limit, 300))
+        display_limit = max(30, min(display_limit, 1000))
         df_display = df.tail(display_limit).reset_index(drop=True)
         display_times = set(int(ts.timestamp()) for ts in df_display['timestamp'])
         filtered_signals = [s for s in signals if s['time'] in display_times]
