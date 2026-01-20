@@ -65,6 +65,14 @@ def _normalize_symbol(symbol: str) -> str:
     return sym
 
 
+def _is_valid_symbol(symbol: str) -> bool:
+    if not symbol:
+        return False
+    if not symbol.isalnum():
+        return False
+    return 2 <= len(symbol) <= 15
+
+
 def _gate_symbol(symbol: str) -> str:
     sym = _normalize_symbol(symbol)
     if sym.endswith('USDT'):
@@ -427,8 +435,8 @@ def yoyo_chart():
         display_limit = int(payload.get('display_limit') or 1000)
         raw_limit = int(payload.get('limit') or display_limit)
 
-        if symbol not in SUPPORTED_SYMBOLS:
-            return jsonify({'success': False, 'error': 'Unsupported symbol'}), 400
+        if not _is_valid_symbol(symbol):
+            return jsonify({'success': False, 'error': 'Invalid symbol format'}), 400
         if timeframe not in SUPPORTED_TIMEFRAMES:
             return jsonify({'success': False, 'error': 'Unsupported timeframe'}), 400
 
@@ -475,3 +483,22 @@ def yoyo_chart():
 @yoyo_bp.route('/api/symbols', methods=['GET'])
 def yoyo_symbols():
     return jsonify({'success': True, 'symbols': SUPPORTED_SYMBOLS})
+
+
+@yoyo_bp.route('/api/test_telegram', methods=['POST'])
+def yoyo_test_telegram():
+    payload = request.get_json(silent=True) or {}
+    symbol = _normalize_symbol(payload.get('symbol') or 'BTCUSDT')
+    timeframe = (payload.get('timeframe') or '1h').strip()
+
+    if not _is_valid_symbol(symbol):
+        return jsonify({'success': False, 'error': 'Invalid symbol format'}), 400
+    if timeframe not in SUPPORTED_TIMEFRAMES:
+        return jsonify({'success': False, 'error': 'Unsupported timeframe'}), 400
+    if not _telegram_enabled():
+        return jsonify({'success': False, 'error': 'Telegram not configured'}), 400
+
+    now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+    message = f"YOYO test message - {symbol} {timeframe} ({now})"
+    _send_telegram_message(message)
+    return jsonify({'success': True, 'message': 'Test message sent'})

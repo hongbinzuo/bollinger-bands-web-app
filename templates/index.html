@@ -3487,8 +3487,14 @@
                         <option value="AAVEUSDT">AAVEUSDT</option>
                     </select>
                 </div>
+                <div>
+                    <label>新增币种</label>
+                    <input id="yoyoAddSymbolInput" class="form-control" placeholder="例如 BTC 或 BTCUSDT">
+                </div>
                 <div style="display:flex; gap:8px; align-items:flex-end;">
                     <button class="btn btn-primary" onclick="YOYO.loadAll()">刷新</button>
+                    <button class="btn" onclick="YOYO.addSymbol()">添加币种</button>
+                    <button class="btn" onclick="YOYO.testTelegram()">测试推送</button>
                     <button class="btn" id="yoyoAutoBtn" onclick="YOYO.toggleAuto()">开启自动刷新</button>
                 </div>
                 <div id="yoyoStatus" class="muted"></div>
@@ -7587,6 +7593,77 @@
                 return (el && el.value) ? el.value : 'BTCUSDT';
             }
 
+            function normalizeSymbol(raw) {
+                let value = (raw || '').trim().toUpperCase();
+                if (!value) return '';
+                if (!value.endsWith('USDT')) {
+                    value += 'USDT';
+                }
+                if (!/^[A-Z0-9]+$/.test(value)) {
+                    return '';
+                }
+                if (value.length < 2 || value.length > 15) {
+                    return '';
+                }
+                return value;
+            }
+
+            function getSymbolSelect() {
+                return document.getElementById('yoyoSymbol');
+            }
+
+            function getStoredSymbols() {
+                try {
+                    const raw = localStorage.getItem('yoyoSymbols');
+                    const data = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(data) ? data : [];
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            function saveStoredSymbols(list) {
+                try {
+                    localStorage.setItem('yoyoSymbols', JSON.stringify(list));
+                } catch (e) {
+                    // ignore storage failures
+                }
+            }
+
+            function addSymbolOption(symbol) {
+                const select = getSymbolSelect();
+                if (!select) return;
+                const exists = Array.from(select.options).some(opt => opt.value === symbol);
+                if (exists) {
+                    select.value = symbol;
+                    return;
+                }
+                const opt = document.createElement('option');
+                opt.value = symbol;
+                opt.textContent = symbol;
+                select.appendChild(opt);
+                select.value = symbol;
+            }
+
+            function addSymbol() {
+                const input = document.getElementById('yoyoAddSymbolInput');
+                if (!input) return;
+                const symbol = normalizeSymbol(input.value);
+                if (!symbol) {
+                    setStatus('币种格式无效，仅允许字母数字，长度2-15');
+                    return;
+                }
+                addSymbolOption(symbol);
+                const stored = getStoredSymbols();
+                if (!stored.includes(symbol)) {
+                    stored.push(symbol);
+                    saveStoredSymbols(stored);
+                }
+                input.value = '';
+                setStatus(`已添加币种 ${symbol}`);
+                loadAll();
+            }
+
             function setStatus(text) {
                 const el = document.getElementById('yoyoStatus');
                 if (el) {
@@ -7718,12 +7795,38 @@
                 setStatus('自动刷新中，每30秒更新');
             }
 
+            async function testTelegram() {
+                const symbol = getSymbol();
+                setStatus('发送测试推送中...');
+                try {
+                    const fetchFn = window.safeFetch || fetch;
+                    const response = await fetchFn('/yoyo/api/test_telegram', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            symbol: symbol,
+                            timeframe: '1h'
+                        })
+                    });
+                    const data = await response.json();
+                    if (!data.success) {
+                        throw new Error(data.error || '发送失败');
+                    }
+                    setStatus('测试推送已发送');
+                } catch (error) {
+                    console.error('YOYO testTelegram error:', error);
+                    setStatus(`测试推送失败: ${error.message}`);
+                }
+            }
+
             function init() {
                 if (initialized) return;
                 if (!window.LightweightCharts) {
                     setStatus('K线库未加载');
                     return;
                 }
+                const stored = getStoredSymbols();
+                stored.forEach(symbol => addSymbolOption(symbol));
                 timeframes.forEach(tf => initChart(tf));
                 const symbolSelect = document.getElementById('yoyoSymbol');
                 if (symbolSelect && !symbolSelect.hasAttribute('data-listener-added')) {
@@ -7734,7 +7837,7 @@
                 loadAll();
             }
 
-            return { init, loadAll, toggleAuto };
+            return { init, loadAll, toggleAuto, testTelegram, addSymbol };
         })();
 
         // Tab切换时初始化图表
