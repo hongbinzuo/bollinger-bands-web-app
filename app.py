@@ -19,6 +19,7 @@ from crypto_analysis_api import crypto_analysis_bp
 from crypto_advanced_analysis_api import crypto_advanced_bp
 from realtime_fibonacci_analyzer import realtime_fib_bp
 from ultra_short_api import ultra_short_bp
+from yoyo_signal_api import yoyo_bp
 
 app = Flask(__name__)
 
@@ -33,6 +34,7 @@ app.register_blueprint(crypto_analysis_bp)
 app.register_blueprint(crypto_advanced_bp)
 app.register_blueprint(realtime_fib_bp)
 app.register_blueprint(ultra_short_bp)
+app.register_blueprint(yoyo_bp)
 
 # 设置日志
 from logging.handlers import RotatingFileHandler

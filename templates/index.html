@@ -1889,6 +1889,27 @@
         .tab-content.active {
             display: block;
         }
+        .yoyo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 10px;
+        }
+        .yoyo-card {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #2b2b2b;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .yoyo-header {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .yoyo-chart {
+            height: 360px;
+            background: #0f111a;
+            position: relative;
+        }
         .btn {
             padding: 10px 20px;
             border: none;
@@ -2903,6 +2924,7 @@
             <button class="tab" onclick="showTab('multiTimeframe', event)">📈 多时间框架</button>
             <button class="tab" onclick="showTab('hotCoins', event)">🔥 热点币种分析</button>
             <button class="tab" onclick="showTab('klineDraw', event)">📉 K线绘制</button>
+            <button class="tab" onclick="showTab('yoyoSignals', event)">🧭 Yoyo信号</button>
             <button class="tab" onclick="showTab('ultraShort', event)">⚡ 超短BTC</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
@@ -3438,6 +3460,55 @@
                 </div>
                 <div>
                     <div id="kd_chart" style="height:620px; position:relative; background:#0f111a; z-index:10; pointer-events:auto; touch-action:none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Yoyo信号 Tab -->
+        <div id="yoyoSignals" class="tab-content">
+            <h3>🧭 Yoyo信号</h3>
+            <p class="muted">基于 Gate.io 实时K线与 MRMC 逻辑，展示 1h/4h/1d 信号（三角标记）。</p>
+
+            <div class="form-group" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <div>
+                    <label>币种</label>
+                    <select id="yoyoSymbol" class="form-control" style="min-width:160px;">
+                        <option value="BTCUSDT" selected>BTCUSDT</option>
+                        <option value="ETHUSDT">ETHUSDT</option>
+                        <option value="SOLUSDT">SOLUSDT</option>
+                        <option value="LTCUSDT">LTCUSDT</option>
+                        <option value="BCHUSDT">BCHUSDT</option>
+                        <option value="XRPUSDT">XRPUSDT</option>
+                        <option value="LINKUSDT">LINKUSDT</option>
+                        <option value="SUIUSDT">SUIUSDT</option>
+                        <option value="TAOUSDT">TAOUSDT</option>
+                        <option value="UNIUSDT">UNIUSDT</option>
+                        <option value="ADAUSDT">ADAUSDT</option>
+                        <option value="AAVEUSDT">AAVEUSDT</option>
+                    </select>
+                </div>
+                <div style="display:flex; gap:8px; align-items:flex-end;">
+                    <button class="btn btn-primary" onclick="YOYO.loadAll()">刷新</button>
+                    <button class="btn" id="yoyoAutoBtn" onclick="YOYO.toggleAuto()">开启自动刷新</button>
+                </div>
+                <div id="yoyoStatus" class="muted"></div>
+            </div>
+
+            <div class="yoyo-grid">
+                <div class="yoyo-card">
+                    <div class="yoyo-header">1H</div>
+                    <div id="yoyoChart1h" class="yoyo-chart"></div>
+                    <div id="yoyoStatus1h" class="muted"></div>
+                </div>
+                <div class="yoyo-card">
+                    <div class="yoyo-header">4H</div>
+                    <div id="yoyoChart4h" class="yoyo-chart"></div>
+                    <div id="yoyoStatus4h" class="muted"></div>
+                </div>
+                <div class="yoyo-card">
+                    <div class="yoyo-header">1D</div>
+                    <div id="yoyoChart1d" class="yoyo-chart"></div>
+                    <div id="yoyoStatus1d" class="muted"></div>
                 </div>
             </div>
         </div>
@@ -7504,10 +7575,166 @@
             document.getElementById('ultraShortMonitorStatus').textContent = '已停止';
         }
         
+        // ==================== Yoyo信号系统 ====================
+        window.YOYO = (function() {
+            const timeframes = ['1h', '4h', '1d'];
+            const chartRefs = {};
+            let initialized = false;
+            let autoTimer = null;
+
+            function getSymbol() {
+                const el = document.getElementById('yoyoSymbol');
+                return (el && el.value) ? el.value : 'BTCUSDT';
+            }
+
+            function setStatus(text) {
+                const el = document.getElementById('yoyoStatus');
+                if (el) {
+                    el.textContent = text || '';
+                }
+            }
+
+            function setTfStatus(tf, text) {
+                const el = document.getElementById(`yoyoStatus${tf}`);
+                if (el) {
+                    el.textContent = text || '';
+                }
+            }
+
+            function initChart(tf) {
+                const container = document.getElementById(`yoyoChart${tf}`);
+                if (!container) {
+                    return;
+                }
+                const chart = LightweightCharts.createChart(container, {
+                    layout: { background: { color: '#0f111a' }, textColor: '#e5e5e5' },
+                    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                    rightPriceScale: { borderVisible: false },
+                    timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+                    grid: { vertLines: { color: '#1f2335' }, horzLines: { color: '#1f2335' } }
+                });
+                const candleSeries = chart.addCandlestickSeries({
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    wickUpColor: '#26a69a',
+                    wickDownColor: '#ef5350',
+                    borderVisible: false
+                });
+                chartRefs[tf] = { chart, candleSeries };
+                setTimeout(() => resizeChart(tf), 0);
+                if (window.ResizeObserver) {
+                    new ResizeObserver(() => resizeChart(tf)).observe(container);
+                } else {
+                    window.addEventListener('resize', () => resizeChart(tf));
+                }
+            }
+
+            function resizeChart(tf) {
+                const ref = chartRefs[tf];
+                if (!ref) return;
+                const container = document.getElementById(`yoyoChart${tf}`);
+                if (!container) return;
+                const rect = container.getBoundingClientRect();
+                const w = Math.max(300, Math.floor(rect.width || container.clientWidth || 0));
+                const h = Math.max(260, Math.floor(rect.height || container.clientHeight || 360));
+                if (w > 0 && h > 0) {
+                    ref.chart.resize(w, h);
+                }
+            }
+
+            function buildMarkers(signals) {
+                return (signals || []).map(signal => {
+                    const isBuy = signal.signal === 'buy';
+                    return {
+                        time: signal.time,
+                        position: isBuy ? 'belowBar' : 'aboveBar',
+                        color: isBuy ? '#4caf50' : '#ef5350',
+                        shape: isBuy ? 'arrowUp' : 'arrowDown',
+                        text: isBuy ? '抄底' : '卖出',
+                        size: 1
+                    };
+                });
+            }
+
+            async function loadChart(tf) {
+                const ref = chartRefs[tf];
+                if (!ref) return;
+                const symbol = getSymbol();
+                setTfStatus(tf, `加载中...`);
+                try {
+                    const fetchFn = window.safeFetch || fetch;
+                    const response = await fetchFn('/yoyo/api/chart', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            symbol: symbol,
+                            timeframe: tf,
+                            display_limit: 90,
+                            limit: 200
+                        })
+                    });
+                    const data = await response.json();
+                    if (!data.success) {
+                        throw new Error(data.error || '加载失败');
+                    }
+                    ref.candleSeries.setData(data.candles || []);
+                    ref.candleSeries.setMarkers(buildMarkers(data.signals || []));
+                    ref.chart.timeScale().fitContent();
+                    setTfStatus(tf, `已加载 ${symbol} ${tf} (${(data.candles || []).length}根K线)`);
+                } catch (error) {
+                    console.error('YOYO loadChart error:', error);
+                    setTfStatus(tf, `加载失败: ${error.message}`);
+                }
+            }
+
+            function loadAll() {
+                const symbol = getSymbol();
+                setStatus(`正在加载 ${symbol}...`);
+                timeframes.forEach(tf => loadChart(tf));
+            }
+
+            function toggleAuto() {
+                const btn = document.getElementById('yoyoAutoBtn');
+                if (autoTimer) {
+                    clearInterval(autoTimer);
+                    autoTimer = null;
+                    if (btn) btn.textContent = '开启自动刷新';
+                    setStatus('自动刷新已关闭');
+                    return;
+                }
+                autoTimer = setInterval(loadAll, 30000);
+                if (btn) btn.textContent = '关闭自动刷新';
+                setStatus('自动刷新中，每30秒更新');
+            }
+
+            function init() {
+                if (initialized) return;
+                if (!window.LightweightCharts) {
+                    setStatus('K线库未加载');
+                    return;
+                }
+                timeframes.forEach(tf => initChart(tf));
+                const symbolSelect = document.getElementById('yoyoSymbol');
+                if (symbolSelect && !symbolSelect.hasAttribute('data-listener-added')) {
+                    symbolSelect.setAttribute('data-listener-added', 'true');
+                    symbolSelect.addEventListener('change', () => loadAll());
+                }
+                initialized = true;
+                loadAll();
+            }
+
+            return { init, loadAll, toggleAuto };
+        })();
+
         // Tab切换时初始化图表
         const originalShowTab = window.showTab;
         window.showTab = function(tabName, event) {
             originalShowTab(tabName, event);
+            if (tabName === 'yoyoSignals' && window.YOYO && typeof YOYO.init === 'function') {
+                setTimeout(function() {
+                    YOYO.init();
+                }, 100);
+            }
             if (tabName === 'ultraShort') {
                 setTimeout(function() {
                     ultraShortInitChart();
