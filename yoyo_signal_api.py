@@ -672,9 +672,11 @@ def _read_scheduler_lock() -> Dict[str, object]:
 def _send_startup_latest_signal(symbols: List[str], timeframes: List[str], limit: int) -> None:
     if not _telegram_enabled():
         return
-    latest_candidate = None
-    latest_types = []
-    latest_close = None
+    recent_hours = int(os.getenv('YOYO_STARTUP_SIGNAL_HOURS', '12'))
+    recent_hours = max(1, min(recent_hours, 168))
+    cutoff_ts = int(datetime.now(timezone.utc).timestamp()) - recent_hours * 3600
+    last_state = _load_last_signals()
+    sent_count = 0
 
     for symbol in symbols:
         for timeframe in timeframes:
@@ -685,37 +687,33 @@ def _send_startup_latest_signal(symbols: List[str], timeframes: List[str], limit
             signals = signals_payload['signals']
             if not signals:
                 continue
-            last_signal = max(signals, key=lambda s: s.get('time', 0))
+            recent_signals = [s for s in signals if s.get('time', 0) >= cutoff_ts]
+            if not recent_signals:
+                continue
+            last_signal = max(recent_signals, key=lambda s: s.get('time', 0))
             last_time = last_signal.get('time', 0)
             if not last_time:
                 continue
-            if latest_candidate and last_time <= latest_candidate['time']:
+            latest_types = sorted([s.get('signal') for s in recent_signals if s.get('time') == last_time])
+            key = f"{symbol}|{timeframe}"
+            last_entry = last_state.get(key, {})
+            if last_entry.get('time') == last_time and last_entry.get('signals') == latest_types:
                 continue
-            latest_candidate = {
-                'symbol': symbol,
-                'timeframe': timeframe,
-                'time': last_time
-            }
-            latest_types = sorted([s.get('signal') for s in signals if s.get('time') == last_time])
-            latest_close = float(df['close'].iloc[-1])
+            last_close = float(df['close'].iloc[-1])
+            signal_text = ", ".join(latest_types).upper()
+            message = (
+                f"YOYO signal {signal_text} - {symbol} {timeframe} @ {last_close:.6f} | "
+                f"信号时间: {_format_ts(last_time)}"
+            )
+            _send_telegram_message(message)
+            last_state[key] = {'time': last_time, 'signals': latest_types}
+            sent_count += 1
 
-    if not latest_candidate:
-        logger.info("YOYO startup: no historical signals found.")
+    if sent_count == 0:
+        logger.info("YOYO startup: no recent signals found.")
         return
-
-    signal_text = ", ".join(latest_types).upper()
-    message = (
-        f"YOYO signal {signal_text} - {latest_candidate['symbol']} "
-        f"{latest_candidate['timeframe']} @ {latest_close:.6f} | "
-        f"信号时间: {_format_ts(latest_candidate['time'])}"
-    )
-    _send_telegram_message(message)
-
-    last_state = _load_last_signals()
-    key = f"{latest_candidate['symbol']}|{latest_candidate['timeframe']}"
-    last_state[key] = {'time': latest_candidate['time'], 'signals': latest_types}
     _save_last_signals(last_state)
-    logger.info("YOYO startup: sent latest historical signal.")
+    logger.info("YOYO startup: sent %s startup signals.", sent_count)
 
 
 def _yoyo_scheduler_loop(symbols: List[str], timeframes: List[str], limit: int, interval: int) -> None:
