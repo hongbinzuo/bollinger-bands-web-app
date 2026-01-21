@@ -2931,7 +2931,7 @@
             <button class="tab" onclick="showTab('klineDraw', event)">📉 K线绘制</button>
             <button class="tab" onclick="showTab('yoyoSignals', event)">🧭 Yoyo信号</button>
             <button class="tab" onclick="showTab('topMoversSignals', event)">🚀 山寨信号榜</button>
-            <button class="tab" onclick="showTab('dailyBottom', event)">🌙 日线抄底</button>
+            <button class="tab" onclick="showTab('dailyBottom', event)">🌙 日线信号</button>
             <button class="tab" onclick="showTab('ultraShort', event)">⚡ 超短BTC</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
@@ -3574,9 +3574,9 @@
             <div id="topMoversChartContainer" style="position:absolute; top:52px; left:12px; right:12px; bottom:12px;"></div>
         </div>
 
-        <!-- 日线抄底 Tab -->
+        <!-- 日线信号 Tab -->
         <div id="dailyBottom" class="tab-content">
-            <h3>🌙 日线抄底</h3>
+            <h3>🌙 日线信号</h3>
             <p class="muted">每8小时扫描前1500市值币种，筛选近2周出现的日线买入/卖出信号（北京时间）。</p>
 
             <div class="form-group" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
@@ -8369,7 +8369,7 @@
             return { init, refresh, addSymbol, openChart, closeChart, switchTimeframe };
         })();
 
-        // ==================== 日线抄底 ====================
+        // ==================== 日线信号 ====================
         window.DAILY_BOTTOM = (function() {
             let initialized = false;
             let signals = [];

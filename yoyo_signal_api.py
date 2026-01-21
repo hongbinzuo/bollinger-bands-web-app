@@ -901,9 +901,13 @@ def _get_daily_signals(symbol: str, days: int, limit: int) -> Tuple[Optional[Dic
     ]
     if not recent_signals:
         return None, None
-    latest = max(recent_signals, key=lambda s: s.get('time', 0))
-    latest_time = latest.get('time', 0)
+    recent_signals.sort(key=lambda s: s.get('time', 0))
+    latest_time = recent_signals[-1].get('time', 0)
     if not latest_time:
+        return None, None
+    latest_types = [s.get('signal') for s in recent_signals if s.get('time') == latest_time]
+    latest_type = 'buy' if 'buy' in latest_types else (latest_types[0] if latest_types else None)
+    if not latest_type:
         return None, None
     time_to_close = {
         int(row.timestamp.timestamp()): float(row.close)
@@ -916,7 +920,7 @@ def _get_daily_signals(symbol: str, days: int, limit: int) -> Tuple[Optional[Dic
         'symbol': symbol,
         'latest_signal_time': latest_time,
         'latest_signal_price': signal_price,
-        'latest_signal_type': latest.get('signal'),
+        'latest_signal_type': latest_type,
         'signal_count': len(recent_signals)
     }, None
 
