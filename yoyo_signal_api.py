@@ -39,6 +39,12 @@ SCHEDULER_LOCK_FILE = os.path.join(CACHE_DIR, 'yoyo_scheduler.lock')
 DAILY_BOTTOM_CACHE_FILE = os.path.join(CACHE_DIR, 'daily_bottom_signals.json')
 DAILY_BOTTOM_LOCK_FILE = os.path.join(CACHE_DIR, 'daily_bottom_scheduler.lock')
 
+STABLECOIN_BASES = {
+    'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD', 'USDT', 'USDD', 'FRAX', 'LUSD',
+    'GUSD', 'SUSD', 'USDN', 'USTC', 'UST', 'CUSD', 'DUSD', 'VAI', 'RSV', 'USDX',
+    'USDJ', 'USDS'
+}
+
 _session = requests.Session()
 _session.headers.update({'User-Agent': 'Mozilla/5.0'})
 _scheduler_started = False
@@ -96,6 +102,13 @@ def _gate_symbol(symbol: str) -> str:
     return sym
 
 
+def _is_stablecoin_symbol(symbol: str) -> bool:
+    sym = (symbol or '').upper().strip()
+    if sym.endswith('USDT'):
+        sym = sym[:-4]
+    return sym in STABLECOIN_BASES
+
+
 def _get_gate_klines(symbol: str, interval: str, limit: int) -> Optional[pd.DataFrame]:
     try:
         url = 'https://api.gateio.ws/api/v4/spot/candlesticks'
@@ -135,11 +148,6 @@ def _get_gate_tickers() -> Optional[List[Dict[str, object]]]:
 
 
 def _filter_usdt_tickers(tickers: List[Dict[str, object]]) -> List[Dict[str, object]]:
-    stablecoin_bases = {
-        'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD', 'USDT', 'USDD', 'FRAX', 'LUSD',
-        'GUSD', 'SUSD', 'USDN', 'USTC', 'UST', 'CUSD', 'DUSD', 'VAI', 'RSV', 'USDX',
-        'USDJ', 'USDS'
-    }
     leverage_tokens = ['3L', '3S', '5L', '5S']
     excluded_patterns = ['BULL', 'BEAR', 'UP', 'DOWN', 'LONG', 'SHORT']
 
@@ -149,7 +157,7 @@ def _filter_usdt_tickers(tickers: List[Dict[str, object]]) -> List[Dict[str, obj
         if not currency_pair.endswith('_USDT'):
             continue
         base_asset = currency_pair.replace('_USDT', '')
-        if base_asset in stablecoin_bases:
+        if _is_stablecoin_symbol(base_asset):
             continue
         if any(base_asset.endswith(token) for token in leverage_tokens):
             continue
@@ -926,10 +934,14 @@ def _get_daily_signals(symbol: str, days: int, limit: int) -> Tuple[Optional[Dic
     }, None
 
 
-def _scan_daily_bottom_signals(limit: int = 1500, days: int = 14, kline_limit: int = 30) -> Dict[str, object]:
+def _scan_daily_bottom_signals(limit: int = 1500, days: int = 30, kline_limit: int = 30) -> Dict[str, object]:
     market_list = _load_marketcap_symbols(limit)
     if not market_list:
         market_list = _get_coingecko_top_marketcap(limit)
+    market_list = [
+        item for item in market_list
+        if item.get('symbol') and not _is_stablecoin_symbol(item.get('symbol'))
+    ]
     market_map = {item['symbol']: item for item in market_list}
     symbols = [item['symbol'] for item in market_list]
 
@@ -1062,7 +1074,7 @@ def maybe_start_daily_bottom_scheduler() -> bool:
 
     limit = int(os.getenv('DAILY_BOTTOM_TOP_N', '1500'))
     limit = max(100, min(limit, 1500))
-    days = int(os.getenv('DAILY_BOTTOM_SIGNAL_DAYS', '14'))
+    days = int(os.getenv('DAILY_BOTTOM_SIGNAL_DAYS', '30'))
     days = max(7, min(days, 30))
     kline_limit = int(os.getenv('DAILY_BOTTOM_KLINE_LIMIT', '30'))
     kline_limit = max(20, min(kline_limit, 200))
