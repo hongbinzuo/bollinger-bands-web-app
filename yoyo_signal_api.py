@@ -3,7 +3,7 @@ import logging
 import os
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -412,7 +412,8 @@ def _send_telegram_message(text: str) -> None:
 
 
 def _format_ts(ts: int) -> str:
-    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+    beijing_tz = timezone(timedelta(hours=8))
+    return datetime.fromtimestamp(ts, tz=beijing_tz).strftime('%Y-%m-%d %H:%M 北京时间')
 
 
 def _maybe_send_latest_signal(
@@ -435,7 +436,10 @@ def _maybe_send_latest_signal(
         return False
 
     signal_text = ", ".join(latest_types).upper()
-    message = f"YOYO signal {signal_text} - {symbol} {timeframe} @ {close_price:.6f} ({_format_ts(latest_time)})"
+    message = (
+        f"YOYO signal {signal_text} - {symbol} {timeframe} @ {close_price:.6f} | "
+        f"信号时间: {_format_ts(latest_time)}"
+    )
     _send_telegram_message(message)
 
     last_state[key] = {'time': latest_time, 'signals': latest_types}
@@ -623,8 +627,8 @@ def _send_startup_latest_signal(symbols: List[str], timeframes: List[str], limit
     signal_text = ", ".join(latest_types).upper()
     message = (
         f"YOYO signal {signal_text} - {latest_candidate['symbol']} "
-        f"{latest_candidate['timeframe']} @ {latest_close:.6f} "
-        f"({_format_ts(latest_candidate['time'])})"
+        f"{latest_candidate['timeframe']} @ {latest_close:.6f} | "
+        f"信号时间: {_format_ts(latest_candidate['time'])}"
     )
     _send_telegram_message(message)
 
@@ -787,7 +791,7 @@ def yoyo_test_telegram():
     if not _telegram_enabled():
         return jsonify({'success': False, 'error': 'Telegram not configured'}), 400
 
-    now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-    message = f"YOYO test message - {symbol} {timeframe} ({now})"
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    message = f"YOYO test message - {symbol} {timeframe} | 时间: {_format_ts(now_ts)}"
     _send_telegram_message(message)
     return jsonify({'success': True, 'message': 'Test message sent'})
