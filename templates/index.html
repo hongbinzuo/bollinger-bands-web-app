@@ -7627,6 +7627,22 @@
                 }
             }
 
+            function getAllSymbols() {
+                const current = normalizeSymbol(getSymbol());
+                const stored = getStoredSymbols();
+                const all = new Set();
+                if (current) {
+                    all.add(current);
+                }
+                stored.forEach(symbol => {
+                    const normalized = normalizeSymbol(symbol);
+                    if (normalized) {
+                        all.add(normalized);
+                    }
+                });
+                return Array.from(all);
+            }
+
             function saveStoredSymbols(list) {
                 try {
                     localStorage.setItem('yoyoSymbols', JSON.stringify(list));
@@ -7780,9 +7796,33 @@
                 }
             }
 
+            async function scanSymbols() {
+                const symbols = getAllSymbols();
+                if (!symbols.length) return;
+                try {
+                    const fetchFn = window.safeFetch || fetch;
+                    const response = await fetchFn('/yoyo/api/scan', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            symbols: symbols,
+                            timeframes: timeframes,
+                            limit: 300
+                        })
+                    });
+                    const data = await response.json();
+                    if (!data.success) {
+                        throw new Error(data.error || '扫描失败');
+                    }
+                } catch (error) {
+                    console.error('YOYO scan error:', error);
+                }
+            }
+
             function loadAll() {
                 const symbol = getSymbol();
                 setStatus(`正在加载 ${symbol}...`);
+                scanSymbols();
                 timeframes.forEach(tf => loadChart(tf));
             }
 

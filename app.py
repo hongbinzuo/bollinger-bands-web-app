@@ -19,7 +19,7 @@ from crypto_analysis_api import crypto_analysis_bp
 from crypto_advanced_analysis_api import crypto_advanced_bp
 from realtime_fibonacci_analyzer import realtime_fib_bp
 from ultra_short_api import ultra_short_bp
-from yoyo_signal_api import yoyo_bp
+from yoyo_signal_api import yoyo_bp, maybe_start_yoyo_scheduler
 
 app = Flask(__name__)
 
@@ -53,6 +53,8 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+maybe_start_yoyo_scheduler()
 
 # 缓存文件路径
 CACHE_DIR = "cache"

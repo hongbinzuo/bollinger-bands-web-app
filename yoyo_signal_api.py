@@ -1,8 +1,10 @@
 import json
 import logging
 import os
+import threading
+import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -26,9 +28,11 @@ SUPPORTED_TIMEFRAMES = {
 
 CACHE_DIR = 'cache'
 LAST_SIGNAL_FILE = os.path.join(CACHE_DIR, 'yoyo_last_signals.json')
+SCHEDULER_LOCK_FILE = os.path.join(CACHE_DIR, 'yoyo_scheduler.lock')
 
 _session = requests.Session()
 _session.headers.update({'User-Agent': 'Mozilla/5.0'})
+_scheduler_started = False
 
 
 def _ensure_cache_dir() -> None:
@@ -407,23 +411,217 @@ def _format_ts(ts: int) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
 
 
-def _maybe_send_latest_signal(symbol: str, timeframe: str, latest_signals: List[Dict[str, object]], close_price: float) -> None:
+def _maybe_send_latest_signal(
+    symbol: str,
+    timeframe: str,
+    latest_signals: List[Dict[str, object]],
+    close_price: float,
+    last_state: Optional[Dict[str, Dict[str, object]]] = None,
+    persist: bool = True
+) -> bool:
     if not latest_signals or not _telegram_enabled():
-        return
+        return False
+    if last_state is None:
+        last_state = _load_last_signals()
     key = f"{symbol}|{timeframe}"
-    last_state = _load_last_signals()
     latest_time = latest_signals[0]['time']
     latest_types = sorted([s['signal'] for s in latest_signals])
     last_entry = last_state.get(key, {})
     if last_entry.get('time') == latest_time and last_entry.get('signals') == latest_types:
-        return
+        return False
 
     signal_text = ", ".join(latest_types).upper()
     message = f"YOYO signal {signal_text} - {symbol} {timeframe} @ {close_price:.6f} ({_format_ts(latest_time)})"
     _send_telegram_message(message)
 
     last_state[key] = {'time': latest_time, 'signals': latest_types}
+    if persist:
+        _save_last_signals(last_state)
+    return True
+
+
+def scan_yoyo_symbols(
+    symbols: List[str],
+    timeframes: Optional[List[str]] = None,
+    limit: int = 300
+) -> Tuple[Dict[str, object], int]:
+    if not _telegram_enabled():
+        return {'success': False, 'error': 'Telegram not configured'}, 400
+    if not isinstance(symbols, list):
+        return {'success': False, 'error': 'symbols must be a list'}, 400
+    if timeframes is None:
+        timeframes = list(SUPPORTED_TIMEFRAMES.keys())
+    if not isinstance(timeframes, list):
+        return {'success': False, 'error': 'timeframes must be a list'}, 400
+
+    limit = max(100, min(int(limit or 300), 1000))
+
+    normalized_symbols = []
+    for raw in symbols:
+        sym = _normalize_symbol(str(raw))
+        if _is_valid_symbol(sym):
+            normalized_symbols.append(sym)
+    normalized_symbols = list(dict.fromkeys(normalized_symbols))
+    if not normalized_symbols:
+        return {'success': False, 'error': 'No valid symbols'}, 400
+
+    valid_timeframes = [tf for tf in timeframes if tf in SUPPORTED_TIMEFRAMES]
+    if not valid_timeframes:
+        return {'success': False, 'error': 'No valid timeframes'}, 400
+
+    last_state = _load_last_signals()
+    sent = []
+    errors = []
+
+    for symbol in normalized_symbols:
+        for timeframe in valid_timeframes:
+            df = _get_gate_klines(symbol, SUPPORTED_TIMEFRAMES[timeframe], limit)
+            if df is None or df.empty:
+                errors.append({'symbol': symbol, 'timeframe': timeframe, 'error': 'No kline data'})
+                continue
+            signals_payload = _compute_yoyo_signals(df)
+            latest_signals = signals_payload['latest']
+            if not latest_signals:
+                continue
+            last_close = float(df['close'].iloc[-1])
+            did_send = _maybe_send_latest_signal(
+                symbol,
+                timeframe,
+                latest_signals,
+                last_close,
+                last_state=last_state,
+                persist=False
+            )
+            if did_send:
+                sent.append({
+                    'symbol': symbol,
+                    'timeframe': timeframe,
+                    'signals': [s.get('signal') for s in latest_signals],
+                    'time': latest_signals[0].get('time')
+                })
+
     _save_last_signals(last_state)
+
+    return {
+        'success': True,
+        'symbols': normalized_symbols,
+        'timeframes': valid_timeframes,
+        'limit': limit,
+        'sent_count': len(sent),
+        'sent': sent,
+        'errors': errors
+    }, 200
+
+
+def _parse_bool_env(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _parse_csv_env(name: str) -> List[str]:
+    raw = os.getenv(name, '')
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(',') if item.strip()]
+
+
+def _pid_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except Exception:
+        return True
+    return True
+
+
+def _acquire_scheduler_lock() -> bool:
+    _ensure_cache_dir()
+    pid = os.getpid()
+    try:
+        fd = os.open(SCHEDULER_LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            handle.write(str(pid))
+        return True
+    except FileExistsError:
+        existing_pid = 0
+        try:
+            with open(SCHEDULER_LOCK_FILE, 'r', encoding='utf-8') as handle:
+                existing_pid = int((handle.read() or '').strip() or 0)
+        except Exception:
+            existing_pid = 0
+        if existing_pid and _pid_is_running(existing_pid):
+            return False
+        try:
+            os.remove(SCHEDULER_LOCK_FILE)
+        except OSError:
+            return False
+        return _acquire_scheduler_lock()
+    except Exception:
+        return False
+
+
+def _yoyo_scheduler_loop(symbols: List[str], timeframes: List[str], limit: int, interval: int) -> None:
+    logger.info(
+        "YOYO scheduler loop started (symbols=%s, timeframes=%s, interval=%ss, limit=%s)",
+        len(symbols),
+        timeframes,
+        interval,
+        limit
+    )
+    while True:
+        started = time.time()
+        try:
+            result, _ = scan_yoyo_symbols(symbols, timeframes, limit)
+            if not result.get('success'):
+                logger.warning("YOYO scheduler scan failed: %s", result.get('error'))
+            elif result.get('sent_count'):
+                logger.info("YOYO scheduler sent %s signals", result.get('sent_count'))
+        except Exception as e:
+            logger.error(f"YOYO scheduler error: {e}", exc_info=True)
+        elapsed = time.time() - started
+        sleep_for = max(5, interval - elapsed)
+        time.sleep(sleep_for)
+
+
+def maybe_start_yoyo_scheduler() -> bool:
+    global _scheduler_started
+    if _scheduler_started:
+        return False
+    if not _parse_bool_env(os.getenv('YOYO_SCHEDULER_ENABLED')):
+        return False
+    if not _telegram_enabled():
+        logger.warning("YOYO scheduler enabled but Telegram not configured; skipping start.")
+        return False
+    if not _acquire_scheduler_lock():
+        logger.info("YOYO scheduler lock exists; skipping start.")
+        return False
+
+    symbols = _parse_csv_env('YOYO_SCHEDULER_SYMBOLS') or SUPPORTED_SYMBOLS
+    timeframes = _parse_csv_env('YOYO_SCHEDULER_TIMEFRAMES') or list(SUPPORTED_TIMEFRAMES.keys())
+    limit = int(os.getenv('YOYO_SCHEDULER_LIMIT', '300'))
+    interval = int(os.getenv('YOYO_SCHEDULER_INTERVAL', '1800'))
+    interval = max(15, interval)
+
+    thread = threading.Thread(
+        target=_yoyo_scheduler_loop,
+        args=(symbols, timeframes, limit, interval),
+        daemon=True
+    )
+    thread.start()
+    _scheduler_started = True
+    logger.info(
+        "YOYO scheduler started (interval=%ss, symbols=%s, timeframes=%s)",
+        interval,
+        len(symbols),
+        timeframes
+    )
+    return True
 
 
 @yoyo_bp.route('/api/chart', methods=['POST'])
@@ -478,6 +676,16 @@ def yoyo_chart():
     except Exception as e:
         logger.error(f"Yoyo chart failed: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@yoyo_bp.route('/api/scan', methods=['POST'])
+def yoyo_scan():
+    payload = request.get_json(silent=True) or {}
+    symbols = payload.get('symbols') or []
+    timeframes = payload.get('timeframes')
+    limit = payload.get('limit')
+    result, status = scan_yoyo_symbols(symbols, timeframes, limit)
+    return jsonify(result), status
 
 
 @yoyo_bp.route('/api/symbols', methods=['GET'])
