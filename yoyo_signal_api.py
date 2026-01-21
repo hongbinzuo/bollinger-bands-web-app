@@ -12,6 +12,8 @@ import pandas as pd
 import requests
 from flask import Blueprint, jsonify, request
 
+from database import DatabaseManager
+
 logger = logging.getLogger(__name__)
 _gunicorn_logger = logging.getLogger('gunicorn.error')
 if _gunicorn_logger and _gunicorn_logger.handlers:
@@ -42,6 +44,7 @@ _session.headers.update({'User-Agent': 'Mozilla/5.0'})
 _scheduler_started = False
 _daily_bottom_started = False
 _daily_bottom_running = False
+_db_manager = DatabaseManager()
 
 
 def _ensure_cache_dir() -> None:
@@ -698,6 +701,147 @@ def _save_daily_bottom_cache(data: Dict[str, object]) -> None:
         logger.error(f"Failed to save daily bottom cache: {e}")
 
 
+def _ensure_daily_bottom_tables() -> None:
+    create_sql_sqlite = """
+    CREATE TABLE IF NOT EXISTS daily_bottom_symbols (
+        symbol TEXT PRIMARY KEY,
+        market_cap_rank INTEGER,
+        market_cap REAL,
+        current_price REAL,
+        updated_at TEXT
+    );
+    """
+    create_sql_mysql = """
+    CREATE TABLE IF NOT EXISTS daily_bottom_symbols (
+        symbol VARCHAR(20) PRIMARY KEY,
+        market_cap_rank INT,
+        market_cap DOUBLE,
+        current_price DOUBLE,
+        updated_at DATETIME
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """
+    with _db_manager.get_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(create_sql_mysql if _db_manager.db_type == 'mysql' else create_sql_sqlite)
+            if _db_manager.db_type != 'mysql':
+                conn.commit()
+        finally:
+            cursor.close()
+
+
+def _get_marketcap_cache_status() -> Tuple[int, Optional[str]]:
+    with _db_manager.get_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT COUNT(*) as cnt, MAX(updated_at) as updated_at FROM daily_bottom_symbols")
+            row = cursor.fetchone()
+            if row is None:
+                return 0, None
+            if isinstance(row, dict):
+                return int(row.get('cnt') or 0), row.get('updated_at')
+            return int(row[0] or 0), row[1]
+        finally:
+            cursor.close()
+
+
+def _should_refresh_marketcap(limit: int) -> bool:
+    count, updated_at = _get_marketcap_cache_status()
+    if count < limit:
+        return True
+    if not updated_at:
+        return True
+    try:
+        if isinstance(updated_at, datetime):
+            last_dt = updated_at
+        else:
+            last_dt = datetime.fromisoformat(str(updated_at))
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=timezone.utc)
+        else:
+            last_dt = last_dt.astimezone(timezone.utc)
+        age = datetime.now(timezone.utc) - last_dt
+        return age.total_seconds() >= 86400
+    except Exception:
+        return True
+
+
+def _refresh_marketcap_symbols(limit: int) -> List[Dict[str, object]]:
+    market_list = _get_coingecko_top_marketcap(limit)
+    if not market_list:
+        return []
+    now_dt = datetime.now(timezone.utc)
+    now_ts = now_dt.strftime('%Y-%m-%d %H:%M:%S') if _db_manager.db_type == 'mysql' else now_dt.isoformat()
+    with _db_manager.get_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("DELETE FROM daily_bottom_symbols")
+            if _db_manager.db_type == 'mysql':
+                insert_sql = (
+                    "INSERT INTO daily_bottom_symbols "
+                    "(symbol, market_cap_rank, market_cap, current_price, updated_at) "
+                    "VALUES (%s, %s, %s, %s, %s)"
+                )
+                rows = [
+                    (item['symbol'], item['market_cap_rank'], item['market_cap'], item['current_price'], now_ts)
+                    for item in market_list
+                ]
+                cursor.executemany(insert_sql, rows)
+            else:
+                insert_sql = (
+                    "INSERT INTO daily_bottom_symbols "
+                    "(symbol, market_cap_rank, market_cap, current_price, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?)"
+                )
+                rows = [
+                    (item['symbol'], item['market_cap_rank'], item['market_cap'], item['current_price'], now_ts)
+                    for item in market_list
+                ]
+                cursor.executemany(insert_sql, rows)
+                conn.commit()
+        finally:
+            cursor.close()
+    return market_list
+
+
+def _load_marketcap_symbols(limit: int) -> List[Dict[str, object]]:
+    _ensure_daily_bottom_tables()
+    if _should_refresh_marketcap(limit):
+        market_list = _refresh_marketcap_symbols(limit)
+        if market_list:
+            return market_list
+    with _db_manager.get_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT symbol, market_cap_rank, market_cap, current_price FROM daily_bottom_symbols "
+                "ORDER BY market_cap_rank ASC LIMIT %s" % (limit,)
+                if _db_manager.db_type == 'mysql'
+                else "SELECT symbol, market_cap_rank, market_cap, current_price FROM daily_bottom_symbols "
+                     "ORDER BY market_cap_rank ASC LIMIT ?",
+                (limit,) if _db_manager.db_type != 'mysql' else ()
+            )
+            rows = cursor.fetchall()
+            results = []
+            for row in rows:
+                if isinstance(row, dict):
+                    results.append({
+                        'symbol': row.get('symbol'),
+                        'market_cap_rank': row.get('market_cap_rank') or 0,
+                        'market_cap': row.get('market_cap') or 0,
+                        'current_price': row.get('current_price') or 0
+                    })
+                else:
+                    results.append({
+                        'symbol': row[0],
+                        'market_cap_rank': row[1] or 0,
+                        'market_cap': row[2] or 0,
+                        'current_price': row[3] or 0
+                    })
+            return results
+        finally:
+            cursor.close()
+
 def _get_coingecko_top_marketcap(limit: int = 1500) -> List[Dict[str, object]]:
     per_page = 250
     pages = (limit + per_page - 1) // per_page
@@ -741,7 +885,7 @@ def _get_coingecko_top_marketcap(limit: int = 1500) -> List[Dict[str, object]]:
     return results
 
 
-def _get_daily_buy_signal(symbol: str, days: int, limit: int) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
+def _get_daily_signals(symbol: str, days: int, limit: int) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
     df = _get_gate_klines(symbol, SUPPORTED_TIMEFRAMES['1d'], limit)
     if df is None or df.empty:
         return None, 'No kline data'
@@ -751,13 +895,13 @@ def _get_daily_buy_signal(symbol: str, days: int, limit: int) -> Tuple[Optional[
         return None, None
     now_ts = int(datetime.now(timezone.utc).timestamp())
     cutoff = now_ts - (days * 86400)
-    recent_buy = [
+    recent_signals = [
         s for s in signals
-        if s.get('signal') == 'buy' and s.get('time', 0) >= cutoff
+        if s.get('signal') in {'buy', 'sell'} and s.get('time', 0) >= cutoff
     ]
-    if not recent_buy:
+    if not recent_signals:
         return None, None
-    latest = max(recent_buy, key=lambda s: s.get('time', 0))
+    latest = max(recent_signals, key=lambda s: s.get('time', 0))
     latest_time = latest.get('time', 0)
     if not latest_time:
         return None, None
@@ -772,12 +916,15 @@ def _get_daily_buy_signal(symbol: str, days: int, limit: int) -> Tuple[Optional[
         'symbol': symbol,
         'latest_signal_time': latest_time,
         'latest_signal_price': signal_price,
-        'signal_count': len(recent_buy)
+        'latest_signal_type': latest.get('signal'),
+        'signal_count': len(recent_signals)
     }, None
 
 
 def _scan_daily_bottom_signals(limit: int = 1500, days: int = 14, kline_limit: int = 30) -> Dict[str, object]:
-    market_list = _get_coingecko_top_marketcap(limit)
+    market_list = _load_marketcap_symbols(limit)
+    if not market_list:
+        market_list = _get_coingecko_top_marketcap(limit)
     market_map = {item['symbol']: item for item in market_list}
     symbols = [item['symbol'] for item in market_list]
 
@@ -787,7 +934,7 @@ def _scan_daily_bottom_signals(limit: int = 1500, days: int = 14, kline_limit: i
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(_get_daily_buy_signal, symbol, days, kline_limit): symbol
+            executor.submit(_get_daily_signals, symbol, days, kline_limit): symbol
             for symbol in symbols
         }
         for future in as_completed(futures):
@@ -810,6 +957,7 @@ def _scan_daily_bottom_signals(limit: int = 1500, days: int = 14, kline_limit: i
                 'current_price': market.get('current_price', 0),
                 'latest_signal_time': result['latest_signal_time'],
                 'latest_signal_price': result['latest_signal_price'],
+                'latest_signal_type': result.get('latest_signal_type', ''),
                 'signal_count': result['signal_count']
             })
 

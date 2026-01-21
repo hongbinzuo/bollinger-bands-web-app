@@ -3577,7 +3577,7 @@
         <!-- 日线抄底 Tab -->
         <div id="dailyBottom" class="tab-content">
             <h3>🌙 日线抄底</h3>
-            <p class="muted">每8小时扫描前1500市值币种，筛选近2周出现的日线抄底信号（北京时间）。</p>
+            <p class="muted">每8小时扫描前1500市值币种，筛选近2周出现的日线买入/卖出信号（北京时间）。</p>
 
             <div class="form-group" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                 <div>
@@ -3587,9 +3587,9 @@
                 <div>
                     <label>排序</label>
                     <select id="dailyBottomSort" class="form-control" style="min-width:160px;">
-                        <option value="signal_time" selected>抄底时间</option>
+                        <option value="signal_time" selected>信号时间</option>
                         <option value="market_cap_rank">市值排名</option>
-                        <option value="signal_price">抄底价格</option>
+                        <option value="signal_price">信号价</option>
                         <option value="signal_count">信号次数</option>
                         <option value="symbol">币种</option>
                     </select>
@@ -3623,14 +3623,15 @@
                         <tr>
                             <th>币种</th>
                             <th>市值排名</th>
-                            <th>抄底价</th>
-                            <th>抄底时间</th>
+                            <th>信号类型</th>
+                            <th>信号价</th>
+                            <th>信号时间</th>
                             <th>信号次数</th>
                         </tr>
                     </thead>
                     <tbody id="dailyBottomTableBody">
                         <tr>
-                            <td colspan="5" style="text-align:center; color:#666;">暂无数据</td>
+                            <td colspan="6" style="text-align:center; color:#666;">暂无数据</td>
                         </tr>
                     </tbody>
                 </table>
@@ -8469,15 +8470,23 @@
                 const tbody = document.getElementById('dailyBottomTableBody');
                 if (!tbody) return;
                 if (!list.length) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#666;">暂无数据</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#666;">暂无数据</td></tr>';
                     return;
                 }
                 let html = '';
                 list.forEach(item => {
                     const symbol = item.symbol || '';
+                    const type = (item.latest_signal_type || '').toLowerCase();
+                    let typeLabel = '-';
+                    if (type === 'buy') {
+                        typeLabel = '<span style="color:#4caf50;">抄底</span>';
+                    } else if (type === 'sell') {
+                        typeLabel = '<span style="color:#ef5350;">卖出</span>';
+                    }
                     html += '<tr>';
                     html += `<td><span style="color:#4da3ff; cursor:pointer;" onclick="DAILY_BOTTOM.openChart('${symbol}')">${symbol}</span></td>`;
                     html += `<td>${item.market_cap_rank || '-'}</td>`;
+                    html += `<td>${typeLabel}</td>`;
                     html += `<td>${formatPrice(item.latest_signal_price)}</td>`;
                     html += `<td>${formatTime(item.latest_signal_time)}</td>`;
                     html += `<td>${item.signal_count || 0}</td>`;
