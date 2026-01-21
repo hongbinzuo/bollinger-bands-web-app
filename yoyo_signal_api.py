@@ -586,6 +586,55 @@ def _read_scheduler_lock() -> Dict[str, object]:
     }
 
 
+def _send_startup_latest_signal(symbols: List[str], timeframes: List[str], limit: int) -> None:
+    if not _telegram_enabled():
+        return
+    latest_candidate = None
+    latest_types = []
+    latest_close = None
+
+    for symbol in symbols:
+        for timeframe in timeframes:
+            df = _get_gate_klines(symbol, SUPPORTED_TIMEFRAMES[timeframe], limit)
+            if df is None or df.empty:
+                continue
+            signals_payload = _compute_yoyo_signals(df)
+            signals = signals_payload['signals']
+            if not signals:
+                continue
+            last_signal = max(signals, key=lambda s: s.get('time', 0))
+            last_time = last_signal.get('time', 0)
+            if not last_time:
+                continue
+            if latest_candidate and last_time <= latest_candidate['time']:
+                continue
+            latest_candidate = {
+                'symbol': symbol,
+                'timeframe': timeframe,
+                'time': last_time
+            }
+            latest_types = sorted([s.get('signal') for s in signals if s.get('time') == last_time])
+            latest_close = float(df['close'].iloc[-1])
+
+    if not latest_candidate:
+        logger.info("YOYO startup: no historical signals found.")
+        return
+
+    signal_text = ", ".join(latest_types).upper()
+    message = (
+        f"YOYO signal {signal_text} - {latest_candidate['symbol']} "
+        f"{latest_candidate['timeframe']} @ {latest_close:.6f} "
+        f"({_format_ts(latest_candidate['time'])})"
+    )
+    _send_telegram_message(message)
+
+    last_state = _load_last_signals()
+    key = f"{latest_candidate['symbol']}|{latest_candidate['timeframe']}"
+    last_state[key] = {'time': latest_candidate['time'], 'signals': latest_types}
+    _save_last_signals(last_state)
+    logger.info("YOYO startup: sent latest historical signal.")
+
+
 def _yoyo_scheduler_loop(symbols: List[str], timeframes: List[str], limit: int, interval: int) -> None:
     logger.info(
         "YOYO scheduler loop started (symbols=%s, timeframes=%s, interval=%ss, limit=%s)",
@@ -594,6 +643,7 @@ def _yoyo_scheduler_loop(symbols: List[str], timeframes: List[str], limit: int, 
         interval,
         limit
     )
+    _send_startup_latest_signal(symbols, timeframes, limit)
     while True:
         started = time.time()
         try:
