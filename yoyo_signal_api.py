@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
 
@@ -113,6 +114,55 @@ def _get_gate_klines(symbol: str, interval: str, limit: int) -> Optional[pd.Data
         logger.error(f"Gate.io kline fetch failed for {symbol} {interval}: {e}")
         return None
 
+
+def _get_gate_tickers() -> Optional[List[Dict[str, object]]]:
+    try:
+        url = 'https://api.gateio.ws/api/v4/spot/tickers'
+        resp = _session.get(url, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        return data if isinstance(data, list) else None
+    except Exception as e:
+        logger.error(f"Gate.io tickers fetch failed: {e}")
+        return None
+
+
+def _filter_usdt_tickers(tickers: List[Dict[str, object]]) -> List[Dict[str, object]]:
+    stablecoin_bases = {
+        'USDC', 'BUSD', 'TUSD', 'USDP', 'DAI', 'FDUSD', 'USDT', 'USDD', 'FRAX', 'LUSD',
+        'GUSD', 'SUSD', 'USDN', 'USTC', 'UST', 'CUSD', 'DUSD', 'VAI', 'RSV', 'USDX',
+        'USDJ', 'USDS'
+    }
+    leverage_tokens = ['3L', '3S', '5L', '5S']
+    excluded_patterns = ['BULL', 'BEAR', 'UP', 'DOWN', 'LONG', 'SHORT']
+
+    results = []
+    for item in tickers:
+        currency_pair = item.get('currency_pair', '')
+        if not currency_pair.endswith('_USDT'):
+            continue
+        base_asset = currency_pair.replace('_USDT', '')
+        if base_asset in stablecoin_bases:
+            continue
+        if any(base_asset.endswith(token) for token in leverage_tokens):
+            continue
+        if any(pattern in base_asset for pattern in excluded_patterns):
+            continue
+        try:
+            change_pct = float(item.get('change_percentage', 0) or 0)
+            last = float(item.get('last', 0) or 0)
+            quote_volume = float(item.get('quote_volume', 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if last <= 0 or quote_volume <= 0:
+            continue
+        results.append({
+            'symbol': f"{base_asset}USDT",
+            'change_24h': change_pct,
+            'last_price': last,
+            'quote_volume': quote_volume
+        })
+    return results
 
 def _ema(series: np.ndarray, period: int) -> np.ndarray:
     if len(series) == 0:
@@ -448,6 +498,35 @@ def _maybe_send_latest_signal(
     return True
 
 
+def _get_recent_1h_signals(symbol: str, hours: int, limit: int) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
+    df = _get_gate_klines(symbol, SUPPORTED_TIMEFRAMES['1h'], limit)
+    if df is None or df.empty:
+        return None, 'No kline data'
+    signals_payload = _compute_yoyo_signals(df)
+    signals = signals_payload['signals']
+    if not signals:
+        return {
+            'symbol': symbol,
+            'signals_recent': [],
+            'latest_signal_time': None
+        }, None
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    cutoff = now_ts - (hours * 3600)
+    recent = [s for s in signals if s.get('time', 0) >= cutoff]
+    if not recent:
+        return {
+            'symbol': symbol,
+            'signals_recent': [],
+            'latest_signal_time': None
+        }, None
+    latest_time = max(s.get('time', 0) for s in recent)
+    return {
+        'symbol': symbol,
+        'signals_recent': recent,
+        'latest_signal_time': latest_time
+    }, None
+
+
 def scan_yoyo_symbols(
     symbols: List[str],
     timeframes: Optional[List[str]] = None,
@@ -771,6 +850,119 @@ def yoyo_scan():
     limit = payload.get('limit')
     result, status = scan_yoyo_symbols(symbols, timeframes, limit)
     return jsonify(result), status
+
+
+@yoyo_bp.route('/api/top_movers_signals', methods=['POST'])
+def yoyo_top_movers_signals():
+    payload = request.get_json(silent=True) or {}
+    top_n = int(payload.get('top_n') or 100)
+    hours = int(payload.get('hours') or 12)
+    include_symbols = payload.get('include_symbols') or []
+    limit = int(payload.get('limit') or 300)
+
+    if not isinstance(include_symbols, list):
+        return jsonify({'success': False, 'error': 'include_symbols must be a list'}), 400
+
+    top_n = max(10, min(top_n, 200))
+    hours = max(1, min(hours, 72))
+    limit = max(120, min(limit, 1000))
+
+    tickers = _get_gate_tickers()
+    if not tickers:
+        return jsonify({'success': False, 'error': 'Failed to fetch tickers'}), 502
+
+    filtered = _filter_usdt_tickers(tickers)
+    if not filtered:
+        return jsonify({'success': False, 'error': 'No valid tickers found'}), 502
+
+    sorted_by_change = sorted(filtered, key=lambda x: x['change_24h'], reverse=True)
+    top_gainers = sorted_by_change[:top_n]
+    top_losers = sorted(filtered, key=lambda x: x['change_24h'])[:top_n]
+
+    ticker_map = {item['symbol']: item for item in filtered}
+
+    normalized_includes = []
+    for raw in include_symbols:
+        sym = _normalize_symbol(str(raw))
+        if _is_valid_symbol(sym):
+            normalized_includes.append(sym)
+    normalized_includes = list(dict.fromkeys(normalized_includes))
+
+    include_missing = [sym for sym in normalized_includes if sym not in ticker_map]
+    include_symbols = [sym for sym in normalized_includes if sym in ticker_map]
+
+    gainer_symbols = [item['symbol'] for item in top_gainers]
+    loser_symbols = [item['symbol'] for item in top_losers]
+
+    for sym in include_symbols:
+        if sym in gainer_symbols or sym in loser_symbols:
+            continue
+        if ticker_map[sym]['change_24h'] >= 0:
+            gainer_symbols.append(sym)
+        else:
+            loser_symbols.append(sym)
+
+    symbols_to_scan = list(set(gainer_symbols + loser_symbols))
+    signals_by_symbol: Dict[str, Dict[str, object]] = {}
+    errors = []
+
+    max_workers = min(8, max(1, len(symbols_to_scan)))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_get_recent_1h_signals, symbol, hours, limit): symbol
+            for symbol in symbols_to_scan
+        }
+        for future in as_completed(futures):
+            symbol = futures[future]
+            try:
+                result, err = future.result()
+            except Exception as e:
+                errors.append({'symbol': symbol, 'error': str(e)})
+                continue
+            if err:
+                errors.append({'symbol': symbol, 'error': err})
+                continue
+            if result is None:
+                continue
+            signals_by_symbol[symbol] = result
+
+    def _build_list(symbols: List[str]) -> List[Dict[str, object]]:
+        output = []
+        for sym in symbols:
+            sig_info = signals_by_symbol.get(sym)
+            if not sig_info or not sig_info.get('signals_recent'):
+                continue
+            ticker = ticker_map.get(sym)
+            if not ticker:
+                continue
+            recent_signals = sig_info['signals_recent']
+            signal_types = sorted({s.get('signal') for s in recent_signals if s.get('signal')})
+            output.append({
+                'symbol': sym,
+                'change_24h': ticker['change_24h'],
+                'last_price': ticker['last_price'],
+                'signal_count': len(recent_signals),
+                'signal_types': signal_types,
+                'latest_signal_time': sig_info.get('latest_signal_time'),
+                'signals_recent': recent_signals,
+                'is_watchlist': sym in include_symbols
+            })
+        return output
+
+    gainers_with_signals = _build_list(gainer_symbols)
+    losers_with_signals = _build_list(loser_symbols)
+
+    return jsonify({
+        'success': True,
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'top_n': top_n,
+        'hours': hours,
+        'limit': limit,
+        'gainers': gainers_with_signals,
+        'losers': losers_with_signals,
+        'include_missing': include_missing,
+        'errors': errors
+    })
 
 
 @yoyo_bp.route('/api/symbols', methods=['GET'])

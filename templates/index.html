@@ -2930,6 +2930,7 @@
             <button class="tab" onclick="showTab('hotCoins', event)">🔥 热点币种分析</button>
             <button class="tab" onclick="showTab('klineDraw', event)">📉 K线绘制</button>
             <button class="tab" onclick="showTab('yoyoSignals', event)">🧭 Yoyo信号</button>
+            <button class="tab" onclick="showTab('topMoversSignals', event)">🚀 山寨信号榜</button>
             <button class="tab" onclick="showTab('ultraShort', event)">⚡ 超短BTC</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
@@ -3520,6 +3521,40 @@
                     <div class="yoyo-header">1D</div>
                     <div id="yoyoChart1d" class="yoyo-chart"></div>
                     <div id="yoyoStatus1d" class="muted"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 12H信号榜 Tab -->
+        <div id="topMoversSignals" class="tab-content">
+            <h3>🚀 山寨信号榜</h3>
+            <p class="muted">基于 Gate.io 24h 涨跌幅 TOP100，筛选最近12小时内出现 1H 买入/卖出信号的币种（北京时间）。</p>
+
+            <div class="form-group" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <div>
+                    <label>搜索币种</label>
+                    <input id="topMoversSearch" class="form-control" placeholder="例如 BTC 或 BTCUSDT">
+                </div>
+                <div>
+                    <label>添加自选</label>
+                    <input id="topMoversAddSymbol" class="form-control" placeholder="例如 SOL 或 SOLUSDT">
+                </div>
+                <div style="display:flex; gap:8px; align-items:flex-end;">
+                    <button class="btn btn-primary" onclick="TOP_MOVERS.refresh()">刷新</button>
+                    <button class="btn" onclick="TOP_MOVERS.addSymbol()">添加</button>
+                </div>
+                <div id="topMoversStatus" class="muted"></div>
+            </div>
+            <div id="topMoversWatchlist" class="muted" style="margin-bottom:10px;"></div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                <div>
+                    <h4 style="color: #28a745;">🚀 涨幅榜100内有信号</h4>
+                    <div id="topMoversGainers"></div>
+                </div>
+                <div>
+                    <h4 style="color: #dc3545;">📉 跌幅榜100内有信号</h4>
+                    <div id="topMoversLosers"></div>
                 </div>
             </div>
         </div>
@@ -7885,6 +7920,214 @@
             return { init, loadAll, toggleAuto, testTelegram, addSymbol };
         })();
 
+        // ==================== 12H信号榜 ====================
+        window.TOP_MOVERS = (function() {
+            const storageKey = 'topMoversWatchlist';
+            let initialized = false;
+            let gainers = [];
+            let losers = [];
+
+            function normalizeSymbol(raw) {
+                let value = (raw || '').trim().toUpperCase();
+                if (!value) return '';
+                if (!value.endsWith('USDT')) {
+                    value += 'USDT';
+                }
+                if (!/^[A-Z0-9]+$/.test(value)) {
+                    return '';
+                }
+                if (value.length < 2 || value.length > 15) {
+                    return '';
+                }
+                return value;
+            }
+
+            function getStoredSymbols() {
+                try {
+                    const raw = localStorage.getItem(storageKey);
+                    const data = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(data) ? data : [];
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            function saveStoredSymbols(list) {
+                try {
+                    localStorage.setItem(storageKey, JSON.stringify(list));
+                } catch (e) {
+                    // ignore storage failures
+                }
+            }
+
+            function setStatus(text) {
+                const el = document.getElementById('topMoversStatus');
+                if (el) {
+                    el.textContent = text || '';
+                }
+            }
+
+            function formatPrice(value) {
+                if (value === null || value === undefined || !isFinite(value)) return '';
+                if (value >= 100) return value.toFixed(2);
+                if (value >= 1) return value.toFixed(4);
+                return value.toFixed(6);
+            }
+
+            function formatTime(ts) {
+                if (!ts) return '';
+                const dt = new Date(ts * 1000);
+                const text = dt.toLocaleString('zh-CN', {
+                    timeZone: 'Asia/Shanghai',
+                    hour12: false
+                });
+                return `${text} 北京时间`;
+            }
+
+            function updateWatchlistDisplay(list) {
+                const el = document.getElementById('topMoversWatchlist');
+                if (!el) return;
+                if (!list.length) {
+                    el.textContent = '自选币种：无';
+                    return;
+                }
+                el.textContent = `自选币种：${list.join(', ')}`;
+            }
+
+            function getSearchValue() {
+                const el = document.getElementById('topMoversSearch');
+                return el ? el.value.trim().toUpperCase() : '';
+            }
+
+            function filterList(list) {
+                const keyword = getSearchValue();
+                if (!keyword) return list;
+                return list.filter(item => (item.symbol || '').includes(keyword));
+            }
+
+            function renderList(list, containerId) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                if (!list || list.length === 0) {
+                    container.innerHTML = '<div class="muted">暂无符合条件的信号</div>';
+                    return;
+                }
+                let html = '<div style="background:#2b2b2b; padding:12px; border-radius:8px; border:1px solid #444;">';
+                html += '<table style="width:100%; border-collapse:collapse;">';
+                html += '<thead><tr style="background:#1a1a1a;">';
+                html += '<th style="text-align:left; padding:8px; color:#bbb;">#</th>';
+                html += '<th style="text-align:left; padding:8px; color:#bbb;">币种</th>';
+                html += '<th style="text-align:right; padding:8px; color:#bbb;">24h</th>';
+                html += '<th style="text-align:right; padding:8px; color:#bbb;">价格</th>';
+                html += '<th style="text-align:left; padding:8px; color:#bbb;">信号</th>';
+                html += '<th style="text-align:left; padding:8px; color:#bbb;">最新时间</th>';
+                html += '</tr></thead><tbody>';
+                list.forEach((item, index) => {
+                    const change = item.change_24h || 0;
+                    const changeColor = change >= 0 ? '#28a745' : '#dc3545';
+                    const signalText = (item.signal_types || []).join('/') || '-';
+                    const watch = item.is_watchlist ? '⭐' : '';
+                    html += '<tr style="border-bottom:1px solid #333;">';
+                    html += `<td style="padding:8px; color:#999;">${index + 1}</td>`;
+                    html += `<td style="padding:8px; color:#e0e0e0;">${item.symbol} ${watch}</td>`;
+                    html += `<td style="padding:8px; text-align:right; color:${changeColor};">${change.toFixed(2)}%</td>`;
+                    html += `<td style="padding:8px; text-align:right; color:#e0e0e0;">${formatPrice(item.last_price)}</td>`;
+                    html += `<td style="padding:8px; color:#e0e0e0;">${signalText} (${item.signal_count || 0})</td>`;
+                    html += `<td style="padding:8px; color:#bbb;">${formatTime(item.latest_signal_time)}</td>`;
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+            }
+
+            function renderAll() {
+                const filteredGainers = filterList(gainers);
+                const filteredLosers = filterList(losers);
+                renderList(filteredGainers, 'topMoversGainers');
+                renderList(filteredLosers, 'topMoversLosers');
+            }
+
+            async function refresh() {
+                const watchlist = getStoredSymbols();
+                updateWatchlistDisplay(watchlist);
+                setStatus('加载中...');
+                try {
+                    const fetchFn = window.safeFetch || fetch;
+                    const response = await fetchFn('/yoyo/api/top_movers_signals', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            top_n: 100,
+                            hours: 12,
+                            limit: 300,
+                            include_symbols: watchlist
+                        })
+                    });
+                    const data = await response.json();
+                    if (!data.success) {
+                        throw new Error(data.error || '加载失败');
+                    }
+                    gainers = data.gainers || [];
+                    losers = data.losers || [];
+                    if (data.include_missing && data.include_missing.length) {
+                        setStatus(`部分自选币种无行情数据：${data.include_missing.join(', ')}`);
+                    } else {
+                        const ts = new Date();
+                        const text = ts.toLocaleTimeString('zh-CN', {
+                            hour12: false,
+                            timeZone: 'Asia/Shanghai'
+                        });
+                        setStatus(`已更新 ${text} 北京时间`);
+                    }
+                    renderAll();
+                } catch (error) {
+                    console.error('TOP_MOVERS refresh error:', error);
+                    setStatus(`加载失败: ${error.message}`);
+                }
+            }
+
+            function addSymbol() {
+                const input = document.getElementById('topMoversAddSymbol');
+                if (!input) return;
+                const symbol = normalizeSymbol(input.value);
+                if (!symbol) {
+                    setStatus('币种格式无效，仅允许字母数字，长度2-15');
+                    return;
+                }
+                const stored = getStoredSymbols();
+                if (!stored.includes(symbol)) {
+                    stored.push(symbol);
+                    saveStoredSymbols(stored);
+                    updateWatchlistDisplay(stored);
+                }
+                input.value = '';
+                refresh();
+            }
+
+            function init() {
+                if (initialized) return;
+                const searchInput = document.getElementById('topMoversSearch');
+                if (searchInput && !searchInput.hasAttribute('data-listener-added')) {
+                    searchInput.setAttribute('data-listener-added', 'true');
+                    searchInput.addEventListener('input', () => renderAll());
+                }
+                const addInput = document.getElementById('topMoversAddSymbol');
+                if (addInput && !addInput.hasAttribute('data-listener-added')) {
+                    addInput.setAttribute('data-listener-added', 'true');
+                    addInput.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter') {
+                            addSymbol();
+                        }
+                    });
+                }
+                updateWatchlistDisplay(getStoredSymbols());
+                initialized = true;
+                refresh();
+            }
+
+            return { init, refresh, addSymbol };
+        })();
+
         // Tab切换时初始化图表
         const originalShowTab = window.showTab;
         window.showTab = function(tabName, event) {
@@ -7892,6 +8135,11 @@
             if (tabName === 'yoyoSignals' && window.YOYO && typeof YOYO.init === 'function') {
                 setTimeout(function() {
                     YOYO.init();
+                }, 100);
+            }
+            if (tabName === 'topMoversSignals' && window.TOP_MOVERS && typeof TOP_MOVERS.init === 'function') {
+                setTimeout(function() {
+                    TOP_MOVERS.init();
                 }, 100);
             }
             if (tabName === 'ultraShort') {
