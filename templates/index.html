@@ -3561,7 +3561,13 @@
 
         <div id="topMoversChartModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.92); z-index:10000;">
             <div style="position:absolute; top:12px; left:20px; right:20px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
-                <div id="topMoversChartTitle" style="color:#e0e0e0; font-size:16px;"></div>
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <div id="topMoversChartTitle" style="color:#e0e0e0; font-size:16px;"></div>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn" id="topMoversTf1h" onclick="TOP_MOVERS.switchTimeframe('1h')">1H</button>
+                        <button class="btn" id="topMoversTf4h" onclick="TOP_MOVERS.switchTimeframe('4h')">4H</button>
+                    </div>
+                </div>
                 <button class="btn" onclick="TOP_MOVERS.closeChart()">关闭</button>
             </div>
             <div id="topMoversChartContainer" style="position:absolute; top:52px; left:12px; right:12px; bottom:12px;"></div>
@@ -7934,6 +7940,10 @@
             let initialized = false;
             let gainers = [];
             let losers = [];
+            let chartInstance = null;
+            let candleSeriesRef = null;
+            let currentSymbol = '';
+            let currentTimeframe = '1h';
 
             function normalizeSymbol(raw) {
                 let value = (raw || '').trim().toUpperCase();
@@ -8135,6 +8145,59 @@
                     modal.style.display = 'none';
                 }
                 document.body.style.overflow = '';
+                chartInstance = null;
+                candleSeriesRef = null;
+            }
+
+            function updateTimeframeButtons(tf) {
+                const btn1h = document.getElementById('topMoversTf1h');
+                const btn4h = document.getElementById('topMoversTf4h');
+                if (btn1h) {
+                    btn1h.className = tf === '1h' ? 'btn btn-primary' : 'btn';
+                }
+                if (btn4h) {
+                    btn4h.className = tf === '4h' ? 'btn btn-primary' : 'btn';
+                }
+            }
+
+            function loadChartData() {
+                if (!currentSymbol || !chartInstance || !candleSeriesRef) return;
+                const fetchFn = window.safeFetch || fetch;
+                fetchFn('/yoyo/api/chart', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: currentSymbol,
+                        timeframe: currentTimeframe,
+                        display_limit: 1000,
+                        limit: 1000
+                    })
+                }).then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            throw new Error(data.error || '加载失败');
+                        }
+                        const candles = data.candles || [];
+                        candleSeriesRef.setData(candles);
+                        const priceByTime = new Map(candles.map(c => [c.time, c.close]));
+                        candleSeriesRef.setMarkers(buildMarkers(data.signals || [], priceByTime));
+                        chartInstance.timeScale().fitContent();
+                    })
+                    .catch(error => {
+                        console.error('TOP_MOVERS loadChartData error:', error);
+                        setStatus(`加载失败: ${error.message}`);
+                    });
+            }
+
+            function switchTimeframe(tf) {
+                if (!tf || (tf !== '1h' && tf !== '4h')) return;
+                currentTimeframe = tf;
+                const title = document.getElementById('topMoversChartTitle');
+                if (title && currentSymbol) {
+                    title.textContent = `${currentSymbol} ${tf.toUpperCase()} | 时间轴：北京时间`;
+                }
+                updateTimeframeButtons(tf);
+                loadChartData();
             }
 
             function openChart(symbol) {
@@ -8147,11 +8210,14 @@
                 const container = document.getElementById('topMoversChartContainer');
                 const title = document.getElementById('topMoversChartTitle');
                 if (!modal || !container || !title) return;
+                currentSymbol = symbol;
+                currentTimeframe = '1h';
                 title.textContent = `${symbol} 1H | 时间轴：北京时间`;
+                updateTimeframeButtons('1h');
                 modal.style.display = 'block';
                 document.body.style.overflow = 'hidden';
                 container.innerHTML = '';
-                const chart = LightweightCharts.createChart(container, {
+                chartInstance = LightweightCharts.createChart(container, {
                     layout: { background: { color: '#0f111a' }, textColor: '#e5e5e5' },
                     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
                     rightPriceScale: { borderVisible: false },
@@ -8167,7 +8233,7 @@
                         }
                     }
                 });
-                const candleSeries = chart.addCandlestickSeries({
+                candleSeriesRef = chartInstance.addCandlestickSeries({
                     upColor: '#26a69a',
                     downColor: '#ef5350',
                     wickUpColor: '#26a69a',
@@ -8180,7 +8246,7 @@
                     const w = Math.max(300, Math.floor(rect.width || container.clientWidth || 0));
                     const h = Math.max(300, Math.floor(rect.height || container.clientHeight || 0));
                     if (w > 0 && h > 0) {
-                        chart.resize(w, h);
+                        chartInstance.resize(w, h);
                     }
                 };
                 resizeChart();
@@ -8189,32 +8255,7 @@
                 } else {
                     window.addEventListener('resize', () => resizeChart());
                 }
-
-                const fetchFn = window.safeFetch || fetch;
-                fetchFn('/yoyo/api/chart', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        symbol: symbol,
-                        timeframe: '1h',
-                        display_limit: 1000,
-                        limit: 1000
-                    })
-                }).then(response => response.json())
-                    .then(data => {
-                        if (!data.success) {
-                            throw new Error(data.error || '加载失败');
-                        }
-                        const candles = data.candles || [];
-                        candleSeries.setData(candles);
-                        const priceByTime = new Map(candles.map(c => [c.time, c.close]));
-                        candleSeries.setMarkers(buildMarkers(data.signals || [], priceByTime));
-                        chart.timeScale().fitContent();
-                    })
-                    .catch(error => {
-                        console.error('TOP_MOVERS openChart error:', error);
-                        setStatus(`加载失败: ${error.message}`);
-                    });
+                loadChartData();
             }
 
             function init() {
@@ -8252,7 +8293,7 @@
                 refresh();
             }
 
-            return { init, refresh, addSymbol, openChart, closeChart };
+            return { init, refresh, addSymbol, openChart, closeChart, switchTimeframe };
         })();
 
         // Tab切换时初始化图表
