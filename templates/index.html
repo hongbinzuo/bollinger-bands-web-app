@@ -3559,6 +3559,14 @@
             </div>
         </div>
 
+        <div id="topMoversChartModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.92); z-index:10000;">
+            <div style="position:absolute; top:12px; left:20px; right:20px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                <div id="topMoversChartTitle" style="color:#e0e0e0; font-size:16px;"></div>
+                <button class="btn" onclick="TOP_MOVERS.closeChart()">关闭</button>
+            </div>
+            <div id="topMoversChartContainer" style="position:absolute; top:52px; left:12px; right:12px; bottom:12px;"></div>
+        </div>
+
         <!-- 超短BTC Tab -->
         <div id="ultraShort" class="tab-content">
             <h3>⚡ 超短BTC信号系统</h3>
@@ -7984,6 +7992,22 @@
                 return `${text} 北京时间`;
             }
 
+            function buildMarkers(signals, priceByTime) {
+                return (signals || []).map(signal => {
+                    const isBuy = signal.signal === 'buy';
+                    const price = priceByTime ? priceByTime.get(signal.time) : null;
+                    const priceText = price ? ` ${formatPrice(price)}` : '';
+                    return {
+                        time: signal.time,
+                        position: isBuy ? 'belowBar' : 'aboveBar',
+                        color: isBuy ? '#4caf50' : '#ef5350',
+                        shape: isBuy ? 'arrowUp' : 'arrowDown',
+                        text: (isBuy ? '抄底' : '卖出') + priceText,
+                        size: 1
+                    };
+                });
+            }
+
             function updateWatchlistDisplay(list) {
                 const el = document.getElementById('topMoversWatchlist');
                 if (!el) return;
@@ -8027,9 +8051,10 @@
                     const changeColor = change >= 0 ? '#28a745' : '#dc3545';
                     const signalText = (item.signal_types || []).join('/') || '-';
                     const watch = item.is_watchlist ? '⭐' : '';
+                    const symbol = item.symbol || '';
                     html += '<tr style="border-bottom:1px solid #333;">';
                     html += `<td style="padding:8px; color:#999;">${index + 1}</td>`;
-                    html += `<td style="padding:8px; color:#e0e0e0;">${item.symbol} ${watch}</td>`;
+                    html += `<td style="padding:8px; color:#e0e0e0;"><span style="color:#4da3ff; cursor:pointer;" onclick="TOP_MOVERS.openChart('${symbol}')">${symbol}</span> ${watch}</td>`;
                     html += `<td style="padding:8px; text-align:right; color:${changeColor};">${change.toFixed(2)}%</td>`;
                     html += `<td style="padding:8px; text-align:right; color:#e0e0e0;">${formatPrice(item.last_price)}</td>`;
                     html += `<td style="padding:8px; color:#e0e0e0;">${signalText} (${item.signal_count || 0})</td>`;
@@ -8104,6 +8129,94 @@
                 refresh();
             }
 
+            function closeChart() {
+                const modal = document.getElementById('topMoversChartModal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+                document.body.style.overflow = '';
+            }
+
+            function openChart(symbol) {
+                if (!symbol) return;
+                if (!window.LightweightCharts) {
+                    setStatus('K线库未加载');
+                    return;
+                }
+                const modal = document.getElementById('topMoversChartModal');
+                const container = document.getElementById('topMoversChartContainer');
+                const title = document.getElementById('topMoversChartTitle');
+                if (!modal || !container || !title) return;
+                title.textContent = `${symbol} 1H | 时间轴：北京时间`;
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+                container.innerHTML = '';
+                const chart = LightweightCharts.createChart(container, {
+                    layout: { background: { color: '#0f111a' }, textColor: '#e5e5e5' },
+                    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                    rightPriceScale: { borderVisible: false },
+                    timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+                    grid: { vertLines: { color: '#1f2335' }, horzLines: { color: '#1f2335' } },
+                    localization: {
+                        timeFormatter: (time) => {
+                            const dt = new Date(time * 1000);
+                            return dt.toLocaleString('zh-CN', {
+                                timeZone: 'Asia/Shanghai',
+                                hour12: false
+                            });
+                        }
+                    }
+                });
+                const candleSeries = chart.addCandlestickSeries({
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    wickUpColor: '#26a69a',
+                    wickDownColor: '#ef5350',
+                    borderVisible: false
+                });
+
+                const resizeChart = () => {
+                    const rect = container.getBoundingClientRect();
+                    const w = Math.max(300, Math.floor(rect.width || container.clientWidth || 0));
+                    const h = Math.max(300, Math.floor(rect.height || container.clientHeight || 0));
+                    if (w > 0 && h > 0) {
+                        chart.resize(w, h);
+                    }
+                };
+                resizeChart();
+                if (window.ResizeObserver) {
+                    new ResizeObserver(() => resizeChart()).observe(container);
+                } else {
+                    window.addEventListener('resize', () => resizeChart());
+                }
+
+                const fetchFn = window.safeFetch || fetch;
+                fetchFn('/yoyo/api/chart', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        timeframe: '1h',
+                        display_limit: 1000,
+                        limit: 1000
+                    })
+                }).then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            throw new Error(data.error || '加载失败');
+                        }
+                        const candles = data.candles || [];
+                        candleSeries.setData(candles);
+                        const priceByTime = new Map(candles.map(c => [c.time, c.close]));
+                        candleSeries.setMarkers(buildMarkers(data.signals || [], priceByTime));
+                        chart.timeScale().fitContent();
+                    })
+                    .catch(error => {
+                        console.error('TOP_MOVERS openChart error:', error);
+                        setStatus(`加载失败: ${error.message}`);
+                    });
+            }
+
             function init() {
                 if (initialized) return;
                 const searchInput = document.getElementById('topMoversSearch');
@@ -8120,12 +8233,26 @@
                         }
                     });
                 }
+                const modal = document.getElementById('topMoversChartModal');
+                if (modal && !modal.hasAttribute('data-listener-added')) {
+                    modal.setAttribute('data-listener-added', 'true');
+                    modal.addEventListener('click', (event) => {
+                        if (event.target === modal) {
+                            closeChart();
+                        }
+                    });
+                    document.addEventListener('keydown', (event) => {
+                        if (event.key === 'Escape') {
+                            closeChart();
+                        }
+                    });
+                }
                 updateWatchlistDisplay(getStoredSymbols());
                 initialized = true;
                 refresh();
             }
 
-            return { init, refresh, addSymbol };
+            return { init, refresh, addSymbol, openChart, closeChart };
         })();
 
         // Tab切换时初始化图表
