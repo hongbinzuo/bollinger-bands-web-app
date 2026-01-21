@@ -886,6 +886,7 @@ def _get_coingecko_top_marketcap(limit: int = 1500) -> List[Dict[str, object]]:
 
 
 def _get_daily_signals(symbol: str, days: int, limit: int) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
+    limit = max(int(limit or 0), 120)
     df = _get_gate_klines(symbol, SUPPORTED_TIMEFRAMES['1d'], limit)
     if df is None or df.empty:
         return None, 'No kline data'
