@@ -930,12 +930,10 @@ def yoyo_top_movers_signals():
         output = []
         for sym in symbols:
             sig_info = signals_by_symbol.get(sym)
-            if not sig_info or not sig_info.get('signals_recent'):
-                continue
             ticker = ticker_map.get(sym)
             if not ticker:
                 continue
-            recent_signals = sig_info['signals_recent']
+            recent_signals = sig_info.get('signals_recent', []) if sig_info else []
             signal_types = sorted({s.get('signal') for s in recent_signals if s.get('signal')})
             output.append({
                 'symbol': sym,
@@ -943,8 +941,9 @@ def yoyo_top_movers_signals():
                 'last_price': ticker['last_price'],
                 'signal_count': len(recent_signals),
                 'signal_types': signal_types,
-                'latest_signal_time': sig_info.get('latest_signal_time'),
+                'latest_signal_time': sig_info.get('latest_signal_time') if sig_info else None,
                 'signals_recent': recent_signals,
+                'has_signal': bool(recent_signals),
                 'is_watchlist': sym in include_symbols
             })
         return output
