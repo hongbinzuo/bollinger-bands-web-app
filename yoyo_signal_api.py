@@ -12,6 +12,10 @@ import requests
 from flask import Blueprint, jsonify, request
 
 logger = logging.getLogger(__name__)
+_gunicorn_logger = logging.getLogger('gunicorn.error')
+if _gunicorn_logger and _gunicorn_logger.handlers:
+    logger.handlers = _gunicorn_logger.handlers
+    logger.setLevel(_gunicorn_logger.level)
 
 yoyo_bp = Blueprint('yoyo', __name__, url_prefix='/yoyo')
 
@@ -566,6 +570,22 @@ def _acquire_scheduler_lock() -> bool:
         return False
 
 
+def _read_scheduler_lock() -> Dict[str, object]:
+    if not os.path.exists(SCHEDULER_LOCK_FILE):
+        return {'exists': False}
+    pid = 0
+    try:
+        with open(SCHEDULER_LOCK_FILE, 'r', encoding='utf-8') as handle:
+            pid = int((handle.read() or '').strip() or 0)
+    except Exception:
+        pid = 0
+    return {
+        'exists': True,
+        'pid': pid,
+        'running': _pid_is_running(pid) if pid else False
+    }
+
+
 def _yoyo_scheduler_loop(symbols: List[str], timeframes: List[str], limit: int, interval: int) -> None:
     logger.info(
         "YOYO scheduler loop started (symbols=%s, timeframes=%s, interval=%ss, limit=%s)",
@@ -622,6 +642,17 @@ def maybe_start_yoyo_scheduler() -> bool:
         timeframes
     )
     return True
+
+
+@yoyo_bp.route('/api/scheduler_status', methods=['GET'])
+def yoyo_scheduler_status():
+    return jsonify({
+        'success': True,
+        'enabled': _parse_bool_env(os.getenv('YOYO_SCHEDULER_ENABLED')),
+        'telegram_configured': _telegram_enabled(),
+        'scheduler_started': _scheduler_started,
+        'lock': _read_scheduler_lock()
+    })
 
 
 @yoyo_bp.route('/api/chart', methods=['POST'])
