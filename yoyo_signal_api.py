@@ -34,10 +34,14 @@ SUPPORTED_TIMEFRAMES = {
 CACHE_DIR = 'cache'
 LAST_SIGNAL_FILE = os.path.join(CACHE_DIR, 'yoyo_last_signals.json')
 SCHEDULER_LOCK_FILE = os.path.join(CACHE_DIR, 'yoyo_scheduler.lock')
+DAILY_BOTTOM_CACHE_FILE = os.path.join(CACHE_DIR, 'daily_bottom_signals.json')
+DAILY_BOTTOM_LOCK_FILE = os.path.join(CACHE_DIR, 'daily_bottom_scheduler.lock')
 
 _session = requests.Session()
 _session.headers.update({'User-Agent': 'Mozilla/5.0'})
 _scheduler_started = False
+_daily_bottom_started = False
+_daily_bottom_running = False
 
 
 def _ensure_cache_dir() -> None:
@@ -627,30 +631,34 @@ def _pid_is_running(pid: int) -> bool:
     return True
 
 
-def _acquire_scheduler_lock() -> bool:
+def _acquire_lock(lock_file: str) -> bool:
     _ensure_cache_dir()
     pid = os.getpid()
     try:
-        fd = os.open(SCHEDULER_LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         with os.fdopen(fd, 'w', encoding='utf-8') as handle:
             handle.write(str(pid))
         return True
     except FileExistsError:
         existing_pid = 0
         try:
-            with open(SCHEDULER_LOCK_FILE, 'r', encoding='utf-8') as handle:
+            with open(lock_file, 'r', encoding='utf-8') as handle:
                 existing_pid = int((handle.read() or '').strip() or 0)
         except Exception:
             existing_pid = 0
         if existing_pid and _pid_is_running(existing_pid):
             return False
         try:
-            os.remove(SCHEDULER_LOCK_FILE)
+            os.remove(lock_file)
         except OSError:
             return False
-        return _acquire_scheduler_lock()
+        return _acquire_lock(lock_file)
     except Exception:
         return False
+
+
+def _acquire_scheduler_lock() -> bool:
+    return _acquire_lock(SCHEDULER_LOCK_FILE)
 
 
 def _read_scheduler_lock() -> Dict[str, object]:
@@ -668,6 +676,152 @@ def _read_scheduler_lock() -> Dict[str, object]:
         'running': _pid_is_running(pid) if pid else False
     }
 
+
+def _load_daily_bottom_cache() -> Optional[Dict[str, object]]:
+    _ensure_cache_dir()
+    if not os.path.exists(DAILY_BOTTOM_CACHE_FILE):
+        return None
+    try:
+        with open(DAILY_BOTTOM_CACHE_FILE, 'r', encoding='utf-8') as handle:
+            data = json.load(handle)
+            return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _save_daily_bottom_cache(data: Dict[str, object]) -> None:
+    _ensure_cache_dir()
+    try:
+        with open(DAILY_BOTTOM_CACHE_FILE, 'w', encoding='utf-8') as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save daily bottom cache: {e}")
+
+
+def _get_coingecko_top_marketcap(limit: int = 1500) -> List[Dict[str, object]]:
+    per_page = 250
+    pages = (limit + per_page - 1) // per_page
+    results = []
+    seen = set()
+
+    for page in range(1, pages + 1):
+        try:
+            url = "https://api.coingecko.com/api/v3/coins/markets"
+            params = {
+                'vs_currency': 'usd',
+                'order': 'market_cap_desc',
+                'per_page': per_page,
+                'page': page,
+                'sparkline': 'false'
+            }
+            resp = _session.get(url, params=params, timeout=20)
+            resp.raise_for_status()
+            data = resp.json()
+            if not data:
+                break
+            for item in data:
+                symbol = str(item.get('symbol', '')).upper()
+                if not symbol or symbol in seen:
+                    continue
+                seen.add(symbol)
+                results.append({
+                    'symbol': f"{symbol}USDT",
+                    'market_cap_rank': int(item.get('market_cap_rank') or 0),
+                    'market_cap': float(item.get('market_cap') or 0),
+                    'current_price': float(item.get('current_price') or 0)
+                })
+                if len(results) >= limit:
+                    break
+            if len(results) >= limit:
+                break
+            time.sleep(0.2)
+        except Exception as e:
+            logger.error(f"CoinGecko market cap fetch failed on page {page}: {e}")
+            break
+    return results
+
+
+def _get_daily_buy_signal(symbol: str, days: int, limit: int) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
+    df = _get_gate_klines(symbol, SUPPORTED_TIMEFRAMES['1d'], limit)
+    if df is None or df.empty:
+        return None, 'No kline data'
+    signals_payload = _compute_yoyo_signals(df)
+    signals = signals_payload['signals']
+    if not signals:
+        return None, None
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    cutoff = now_ts - (days * 86400)
+    recent_buy = [
+        s for s in signals
+        if s.get('signal') == 'buy' and s.get('time', 0) >= cutoff
+    ]
+    if not recent_buy:
+        return None, None
+    latest = max(recent_buy, key=lambda s: s.get('time', 0))
+    latest_time = latest.get('time', 0)
+    if not latest_time:
+        return None, None
+    time_to_close = {
+        int(row.timestamp.timestamp()): float(row.close)
+        for row in df.itertuples(index=False)
+    }
+    signal_price = time_to_close.get(latest_time)
+    if signal_price is None:
+        signal_price = float(df['close'].iloc[-1])
+    return {
+        'symbol': symbol,
+        'latest_signal_time': latest_time,
+        'latest_signal_price': signal_price,
+        'signal_count': len(recent_buy)
+    }, None
+
+
+def _scan_daily_bottom_signals(limit: int = 1500, days: int = 14, kline_limit: int = 30) -> Dict[str, object]:
+    market_list = _get_coingecko_top_marketcap(limit)
+    market_map = {item['symbol']: item for item in market_list}
+    symbols = [item['symbol'] for item in market_list]
+
+    signals = []
+    errors = []
+    max_workers = min(6, max(1, len(symbols) // 100))
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_get_daily_buy_signal, symbol, days, kline_limit): symbol
+            for symbol in symbols
+        }
+        for future in as_completed(futures):
+            symbol = futures[future]
+            try:
+                result, err = future.result()
+            except Exception as e:
+                errors.append({'symbol': symbol, 'error': str(e)})
+                continue
+            if err:
+                errors.append({'symbol': symbol, 'error': err})
+                continue
+            if not result:
+                continue
+            market = market_map.get(symbol, {})
+            signals.append({
+                'symbol': symbol,
+                'market_cap_rank': market.get('market_cap_rank', 0),
+                'market_cap': market.get('market_cap', 0),
+                'current_price': market.get('current_price', 0),
+                'latest_signal_time': result['latest_signal_time'],
+                'latest_signal_price': result['latest_signal_price'],
+                'signal_count': result['signal_count']
+            })
+
+    return {
+        'success': True,
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'window_days': days,
+        'top_n': limit,
+        'scanned_symbols': len(symbols),
+        'signals': signals,
+        'errors': errors
+    }
 
 def _send_startup_latest_signal(symbols: List[str], timeframes: List[str], limit: int) -> None:
     if not _telegram_enabled():
@@ -714,6 +868,68 @@ def _send_startup_latest_signal(symbols: List[str], timeframes: List[str], limit
         return
     _save_last_signals(last_state)
     logger.info("YOYO startup: sent %s startup signals.", sent_count)
+
+
+def _daily_bottom_scheduler_loop(limit: int, days: int, kline_limit: int, interval: int) -> None:
+    global _daily_bottom_running
+    logger.info(
+        "Daily bottom scheduler loop started (top_n=%s, days=%s, interval=%ss)",
+        limit,
+        days,
+        interval
+    )
+    while True:
+        started = time.time()
+        if _daily_bottom_running:
+            logger.info("Daily bottom scan already running, skipping this cycle.")
+        else:
+            _daily_bottom_running = True
+            try:
+                payload = _scan_daily_bottom_signals(limit, days, kline_limit)
+                _save_daily_bottom_cache(payload)
+                logger.info("Daily bottom scan completed: %s signals", len(payload.get('signals', [])))
+            except Exception as e:
+                logger.error(f"Daily bottom scan failed: {e}", exc_info=True)
+            finally:
+                _daily_bottom_running = False
+        elapsed = time.time() - started
+        sleep_for = max(60, interval - elapsed)
+        time.sleep(sleep_for)
+
+
+def maybe_start_daily_bottom_scheduler() -> bool:
+    global _daily_bottom_started
+    if _daily_bottom_started:
+        return False
+    if not _parse_bool_env(os.getenv('DAILY_BOTTOM_SCHEDULER_ENABLED', '1')):
+        return False
+    if not _acquire_lock(DAILY_BOTTOM_LOCK_FILE):
+        logger.info("Daily bottom scheduler lock exists; skipping start.")
+        return False
+
+    limit = int(os.getenv('DAILY_BOTTOM_TOP_N', '1500'))
+    limit = max(100, min(limit, 1500))
+    days = int(os.getenv('DAILY_BOTTOM_SIGNAL_DAYS', '14'))
+    days = max(7, min(days, 30))
+    kline_limit = int(os.getenv('DAILY_BOTTOM_KLINE_LIMIT', '30'))
+    kline_limit = max(20, min(kline_limit, 200))
+    interval = int(os.getenv('DAILY_BOTTOM_SCHEDULER_INTERVAL', '28800'))
+    interval = max(3600, interval)
+
+    thread = threading.Thread(
+        target=_daily_bottom_scheduler_loop,
+        args=(limit, days, kline_limit, interval),
+        daemon=True
+    )
+    thread.start()
+    _daily_bottom_started = True
+    logger.info(
+        "Daily bottom scheduler started (top_n=%s, days=%s, interval=%ss)",
+        limit,
+        days,
+        interval
+    )
+    return True
 
 
 def _yoyo_scheduler_loop(symbols: List[str], timeframes: List[str], limit: int, interval: int) -> None:
@@ -848,6 +1064,19 @@ def yoyo_scan():
     limit = payload.get('limit')
     result, status = scan_yoyo_symbols(symbols, timeframes, limit)
     return jsonify(result), status
+
+
+@yoyo_bp.route('/api/daily_bottom_signals', methods=['GET'])
+def daily_bottom_signals():
+    cache = _load_daily_bottom_cache()
+    if not cache:
+        return jsonify({
+            'success': False,
+            'error': 'No cached data',
+            'running': _daily_bottom_running
+        }), 404
+    cache['running'] = _daily_bottom_running
+    return jsonify(cache)
 
 
 @yoyo_bp.route('/api/top_movers_signals', methods=['POST'])

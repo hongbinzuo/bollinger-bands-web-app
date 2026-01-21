@@ -2931,6 +2931,7 @@
             <button class="tab" onclick="showTab('klineDraw', event)">📉 K线绘制</button>
             <button class="tab" onclick="showTab('yoyoSignals', event)">🧭 Yoyo信号</button>
             <button class="tab" onclick="showTab('topMoversSignals', event)">🚀 山寨信号榜</button>
+            <button class="tab" onclick="showTab('dailyBottom', event)">🌙 日线抄底</button>
             <button class="tab" onclick="showTab('ultraShort', event)">⚡ 超短BTC</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
@@ -3571,6 +3572,77 @@
                 <button class="btn" onclick="TOP_MOVERS.closeChart()">关闭</button>
             </div>
             <div id="topMoversChartContainer" style="position:absolute; top:52px; left:12px; right:12px; bottom:12px;"></div>
+        </div>
+
+        <!-- 日线抄底 Tab -->
+        <div id="dailyBottom" class="tab-content">
+            <h3>🌙 日线抄底</h3>
+            <p class="muted">每8小时扫描前1500市值币种，筛选近2周出现的日线抄底信号（北京时间）。</p>
+
+            <div class="form-group" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <div>
+                    <label>搜索币种</label>
+                    <input id="dailyBottomSearch" class="form-control" placeholder="例如 BTC 或 BTCUSDT">
+                </div>
+                <div>
+                    <label>排序</label>
+                    <select id="dailyBottomSort" class="form-control" style="min-width:160px;">
+                        <option value="signal_time" selected>抄底时间</option>
+                        <option value="market_cap_rank">市值排名</option>
+                        <option value="signal_price">抄底价格</option>
+                        <option value="signal_count">信号次数</option>
+                        <option value="symbol">币种</option>
+                    </select>
+                </div>
+                <div style="display:flex; align-items:flex-end;">
+                    <button class="btn" id="dailyBottomSortOrder" onclick="DAILY_BOTTOM.toggleSort()">↓</button>
+                </div>
+                <div>
+                    <label>每页显示</label>
+                    <select id="dailyBottomPageSize" class="form-control" style="min-width:120px;">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+                <div style="display:flex; align-items:flex-end;">
+                    <button class="btn btn-primary" onclick="DAILY_BOTTOM.refresh()">刷新</button>
+                </div>
+                <div id="dailyBottomStatus" class="muted"></div>
+            </div>
+
+            <div class="pagination-controls" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <button class="btn btn-sm btn-outline-primary" onclick="DAILY_BOTTOM.prevPage()" id="dailyBottomPrev">上一页</button>
+                <span id="dailyBottomPageInfo" class="muted"></span>
+                <button class="btn btn-sm btn-outline-primary" onclick="DAILY_BOTTOM.nextPage()" id="dailyBottomNext">下一页</button>
+            </div>
+
+            <div class="table-container" style="margin-top:10px;">
+                <table class="analysis-table">
+                    <thead>
+                        <tr>
+                            <th>币种</th>
+                            <th>市值排名</th>
+                            <th>抄底价</th>
+                            <th>抄底时间</th>
+                            <th>信号次数</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dailyBottomTableBody">
+                        <tr>
+                            <td colspan="5" style="text-align:center; color:#666;">暂无数据</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="dailyBottomChartModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.92); z-index:10000;">
+            <div style="position:absolute; top:12px; left:20px; right:20px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                <div id="dailyBottomChartTitle" style="color:#e0e0e0; font-size:16px;"></div>
+                <button class="btn" onclick="DAILY_BOTTOM.closeChart()">关闭</button>
+            </div>
+            <div id="dailyBottomChartContainer" style="position:absolute; top:52px; left:12px; right:12px; bottom:12px;"></div>
         </div>
 
         <!-- 超短BTC Tab -->
@@ -8296,6 +8368,332 @@
             return { init, refresh, addSymbol, openChart, closeChart, switchTimeframe };
         })();
 
+        // ==================== 日线抄底 ====================
+        window.DAILY_BOTTOM = (function() {
+            let initialized = false;
+            let signals = [];
+            let currentPage = 1;
+            let pageSize = 20;
+            let sortKey = 'signal_time';
+            let sortOrder = 'desc';
+            let chartInstance = null;
+            let candleSeriesRef = null;
+            let currentSymbol = '';
+
+            function formatPrice(value) {
+                if (value === null || value === undefined || !isFinite(value)) return '';
+                if (value >= 100) return value.toFixed(2);
+                if (value >= 1) return value.toFixed(4);
+                return value.toFixed(6);
+            }
+
+            function formatTime(ts) {
+                if (!ts) return '';
+                const dt = new Date(ts * 1000);
+                return dt.toLocaleString('zh-CN', {
+                    timeZone: 'Asia/Shanghai',
+                    hour12: false
+                }) + ' 北京时间';
+            }
+
+            function buildMarkers(signalsList, priceByTime) {
+                return (signalsList || []).map(signal => {
+                    const isBuy = signal.signal === 'buy';
+                    const price = priceByTime ? priceByTime.get(signal.time) : null;
+                    const priceText = price ? ` ${formatPrice(price)}` : '';
+                    return {
+                        time: signal.time,
+                        position: isBuy ? 'belowBar' : 'aboveBar',
+                        color: isBuy ? '#4caf50' : '#ef5350',
+                        shape: isBuy ? 'arrowUp' : 'arrowDown',
+                        text: (isBuy ? '抄底' : '卖出') + priceText,
+                        size: 1
+                    };
+                });
+            }
+
+            function setStatus(text) {
+                const el = document.getElementById('dailyBottomStatus');
+                if (el) {
+                    el.textContent = text || '';
+                }
+            }
+
+            function getSearchValue() {
+                const el = document.getElementById('dailyBottomSearch');
+                return el ? el.value.trim().toUpperCase() : '';
+            }
+
+            function filterSignals(list) {
+                const keyword = getSearchValue();
+                if (!keyword) return list;
+                return list.filter(item => (item.symbol || '').includes(keyword));
+            }
+
+            function sortSignals(list) {
+                const sorted = list.slice();
+                sorted.sort((a, b) => {
+                    let va;
+                    let vb;
+                    switch (sortKey) {
+                        case 'market_cap_rank':
+                            va = Number(a.market_cap_rank || 0);
+                            vb = Number(b.market_cap_rank || 0);
+                            break;
+                        case 'signal_price':
+                            va = Number(a.latest_signal_price || 0);
+                            vb = Number(b.latest_signal_price || 0);
+                            break;
+                        case 'signal_count':
+                            va = Number(a.signal_count || 0);
+                            vb = Number(b.signal_count || 0);
+                            break;
+                        case 'symbol':
+                            va = (a.symbol || '');
+                            vb = (b.symbol || '');
+                            break;
+                        case 'signal_time':
+                        default:
+                            va = Number(a.latest_signal_time || 0);
+                            vb = Number(b.latest_signal_time || 0);
+                            break;
+                    }
+                    if (va < vb) return sortOrder === 'asc' ? -1 : 1;
+                    if (va > vb) return sortOrder === 'asc' ? 1 : -1;
+                    return 0;
+                });
+                return sorted;
+            }
+
+            function renderTable(list) {
+                const tbody = document.getElementById('dailyBottomTableBody');
+                if (!tbody) return;
+                if (!list.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#666;">暂无数据</td></tr>';
+                    return;
+                }
+                let html = '';
+                list.forEach(item => {
+                    const symbol = item.symbol || '';
+                    html += '<tr>';
+                    html += `<td><span style="color:#4da3ff; cursor:pointer;" onclick="DAILY_BOTTOM.openChart('${symbol}')">${symbol}</span></td>`;
+                    html += `<td>${item.market_cap_rank || '-'}</td>`;
+                    html += `<td>${formatPrice(item.latest_signal_price)}</td>`;
+                    html += `<td>${formatTime(item.latest_signal_time)}</td>`;
+                    html += `<td>${item.signal_count || 0}</td>`;
+                    html += '</tr>';
+                });
+                tbody.innerHTML = html;
+            }
+
+            function render() {
+                const filtered = sortSignals(filterSignals(signals));
+                const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+                currentPage = Math.min(currentPage, totalPages);
+                const start = (currentPage - 1) * pageSize;
+                const pageItems = filtered.slice(start, start + pageSize);
+                renderTable(pageItems);
+
+                const pageInfo = document.getElementById('dailyBottomPageInfo');
+                if (pageInfo) {
+                    pageInfo.textContent = `第 ${currentPage} / ${totalPages} 页，共 ${filtered.length} 条`;
+                }
+                const prevBtn = document.getElementById('dailyBottomPrev');
+                const nextBtn = document.getElementById('dailyBottomNext');
+                if (prevBtn) prevBtn.disabled = currentPage <= 1;
+                if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+            }
+
+            async function refresh() {
+                setStatus('加载中...');
+                try {
+                    const fetchFn = window.safeFetch || fetch;
+                    const response = await fetchFn('/yoyo/api/daily_bottom_signals');
+                    const data = await response.json();
+                    if (!data.success) {
+                        const running = data.running ? ' (扫描中...)' : '';
+                        setStatus(`${data.error || '暂无数据'}${running}`);
+                        signals = [];
+                        render();
+                        return;
+                    }
+                    signals = data.signals || [];
+                    currentPage = 1;
+                    const ts = data.timestamp ? new Date(data.timestamp) : new Date();
+                    const timeText = ts.toLocaleString('zh-CN', {
+                        timeZone: 'Asia/Shanghai',
+                        hour12: false
+                    });
+                    const runningLabel = data.running ? ' | 扫描中...' : '';
+                    setStatus(`最近更新: ${timeText} 北京时间${runningLabel}`);
+                    render();
+                } catch (error) {
+                    console.error('DAILY_BOTTOM refresh error:', error);
+                    setStatus(`加载失败: ${error.message}`);
+                }
+            }
+
+            function prevPage() {
+                currentPage = Math.max(1, currentPage - 1);
+                render();
+            }
+
+            function nextPage() {
+                const filtered = sortSignals(filterSignals(signals));
+                const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+                currentPage = Math.min(totalPages, currentPage + 1);
+                render();
+            }
+
+            function toggleSort() {
+                sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+                const btn = document.getElementById('dailyBottomSortOrder');
+                if (btn) {
+                    btn.textContent = sortOrder === 'asc' ? '↑' : '↓';
+                }
+                render();
+            }
+
+            function closeChart() {
+                const modal = document.getElementById('dailyBottomChartModal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+                document.body.style.overflow = '';
+                chartInstance = null;
+                candleSeriesRef = null;
+            }
+
+            function openChart(symbol) {
+                if (!symbol) return;
+                if (!window.LightweightCharts) {
+                    setStatus('K线库未加载');
+                    return;
+                }
+                const modal = document.getElementById('dailyBottomChartModal');
+                const container = document.getElementById('dailyBottomChartContainer');
+                const title = document.getElementById('dailyBottomChartTitle');
+                if (!modal || !container || !title) return;
+                currentSymbol = symbol;
+                title.textContent = `${symbol} 1D | 时间轴：北京时间`;
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+                container.innerHTML = '';
+                chartInstance = LightweightCharts.createChart(container, {
+                    layout: { background: { color: '#0f111a' }, textColor: '#e5e5e5' },
+                    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                    rightPriceScale: { borderVisible: false },
+                    timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+                    grid: { vertLines: { color: '#1f2335' }, horzLines: { color: '#1f2335' } },
+                    localization: {
+                        timeFormatter: (time) => {
+                            const dt = new Date(time * 1000);
+                            return dt.toLocaleString('zh-CN', {
+                                timeZone: 'Asia/Shanghai',
+                                hour12: false
+                            });
+                        }
+                    }
+                });
+                candleSeriesRef = chartInstance.addCandlestickSeries({
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    wickUpColor: '#26a69a',
+                    wickDownColor: '#ef5350',
+                    borderVisible: false
+                });
+
+                const resizeChart = () => {
+                    const rect = container.getBoundingClientRect();
+                    const w = Math.max(300, Math.floor(rect.width || container.clientWidth || 0));
+                    const h = Math.max(300, Math.floor(rect.height || container.clientHeight || 0));
+                    if (w > 0 && h > 0) {
+                        chartInstance.resize(w, h);
+                    }
+                };
+                resizeChart();
+                if (window.ResizeObserver) {
+                    new ResizeObserver(() => resizeChart()).observe(container);
+                } else {
+                    window.addEventListener('resize', () => resizeChart());
+                }
+
+                const fetchFn = window.safeFetch || fetch;
+                fetchFn('/yoyo/api/chart', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        timeframe: '1d',
+                        display_limit: 400,
+                        limit: 400
+                    })
+                }).then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            throw new Error(data.error || '加载失败');
+                        }
+                        const candles = data.candles || [];
+                        candleSeriesRef.setData(candles);
+                        const priceByTime = new Map(candles.map(c => [c.time, c.close]));
+                        candleSeriesRef.setMarkers(buildMarkers(data.signals || [], priceByTime));
+                        chartInstance.timeScale().fitContent();
+                    })
+                    .catch(error => {
+                        console.error('DAILY_BOTTOM openChart error:', error);
+                        setStatus(`加载失败: ${error.message}`);
+                    });
+            }
+
+            function init() {
+                if (initialized) return;
+                const searchInput = document.getElementById('dailyBottomSearch');
+                if (searchInput && !searchInput.hasAttribute('data-listener-added')) {
+                    searchInput.setAttribute('data-listener-added', 'true');
+                    searchInput.addEventListener('input', () => {
+                        currentPage = 1;
+                        render();
+                    });
+                }
+                const sortSelect = document.getElementById('dailyBottomSort');
+                if (sortSelect && !sortSelect.hasAttribute('data-listener-added')) {
+                    sortSelect.setAttribute('data-listener-added', 'true');
+                    sortSelect.addEventListener('change', () => {
+                        sortKey = sortSelect.value || 'signal_time';
+                        currentPage = 1;
+                        render();
+                    });
+                }
+                const pageSizeSelect = document.getElementById('dailyBottomPageSize');
+                if (pageSizeSelect && !pageSizeSelect.hasAttribute('data-listener-added')) {
+                    pageSizeSelect.setAttribute('data-listener-added', 'true');
+                    pageSizeSelect.addEventListener('change', () => {
+                        pageSize = parseInt(pageSizeSelect.value || '20', 10) || 20;
+                        currentPage = 1;
+                        render();
+                    });
+                }
+                const modal = document.getElementById('dailyBottomChartModal');
+                if (modal && !modal.hasAttribute('data-listener-added')) {
+                    modal.setAttribute('data-listener-added', 'true');
+                    modal.addEventListener('click', (event) => {
+                        if (event.target === modal) {
+                            closeChart();
+                        }
+                    });
+                    document.addEventListener('keydown', (event) => {
+                        if (event.key === 'Escape') {
+                            closeChart();
+                        }
+                    });
+                }
+                initialized = true;
+                refresh();
+            }
+
+            return { init, refresh, prevPage, nextPage, toggleSort, openChart, closeChart };
+        })();
+
         // Tab切换时初始化图表
         const originalShowTab = window.showTab;
         window.showTab = function(tabName, event) {
@@ -8308,6 +8706,11 @@
             if (tabName === 'topMoversSignals' && window.TOP_MOVERS && typeof TOP_MOVERS.init === 'function') {
                 setTimeout(function() {
                     TOP_MOVERS.init();
+                }, 100);
+            }
+            if (tabName === 'dailyBottom' && window.DAILY_BOTTOM && typeof DAILY_BOTTOM.init === 'function') {
+                setTimeout(function() {
+                    DAILY_BOTTOM.init();
                 }, 100);
             }
             if (tabName === 'ultraShort') {
