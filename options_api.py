@@ -16,15 +16,15 @@ def _build_deribit_instrument_name(symbol: str, expiry_ms: int, strike_value: fl
     return f'{symbol}-{date_str}-{int(strike_value)}-{option_char}'
 
 
-def _choose_fallback_instrument(
+def _rank_fallback_instruments(
     options: list,
     target_expiry_ms: int,
     target_strike: float,
     option_char: str,
-) -> str:
-    """Deribit兜底：在同方向(C/P)里按到期日和执行价最近匹配"""
+) -> list:
+    """Deribit兜底候选：同方向(C/P)按到期日和执行价最近排序"""
     if not isinstance(options, list):
-        return ''
+        return []
 
     target_option_type = 'call' if option_char == 'C' else 'put'
     candidates = []
@@ -48,9 +48,13 @@ def _choose_fallback_instrument(
             continue
 
     if not candidates:
-        return ''
+        return []
     candidates.sort(key=lambda x: (x[0], x[1]))
-    return candidates[0][2]
+    ranked = []
+    for _, _, name in candidates:
+        if name not in ranked:
+            ranked.append(name)
+    return ranked
 
 
 def _fetch_deribit_kline(instrument_name: str, resolution: str, start_time: int, end_time: int):
@@ -74,6 +78,17 @@ def _fetch_deribit_kline(instrument_name: str, resolution: str, start_time: int,
     if not isinstance(payload.get('result'), dict):
         return payload, 'Deribit返回缺少result'
     return payload, ''
+
+
+def _payload_has_rows(payload: dict) -> bool:
+    """判断Deribit返回是否包含有效K线"""
+    if not isinstance(payload, dict):
+        return False
+    result = payload.get('result')
+    if not isinstance(result, dict):
+        return False
+    ticks = result.get('ticks')
+    return isinstance(ticks, list) and len(ticks) > 0
 
 
 @options_bp.route('/get_options', methods=['GET'])
@@ -214,9 +229,6 @@ def get_kline_data():
         # 构建目标期权合约名称
         instrument_name = _build_deribit_instrument_name(symbol, expiry_ms, strike_value, option_char)
 
-        # 从Deribit获取期权K线数据
-        url = "https://www.deribit.com/api/v2/public/get_tradingview_chart_data"
-
         resolution_map = {'1h': '60', '4h': '240', '1d': '1D'}
         resolution = resolution_map.get(interval, '60')
 
@@ -227,8 +239,11 @@ def get_kline_data():
         result, err_msg = _fetch_deribit_kline(instrument_name, resolution, start_time, end_time)
 
         used_instrument = instrument_name
-        if err_msg:
-            # Deribit报错时兜底：拉取可交易期权，找最近的同方向合约
+        fallback_tried = 0
+        fallback_used = False
+        need_fallback = bool(err_msg) or (result is not None and not _payload_has_rows(result))
+        if need_fallback:
+            # Deribit报错或无成交K线时兜底：拉取可交易期权并按最近候选依次尝试
             try:
                 inst_resp = requests.get(
                     "https://www.deribit.com/api/v2/public/get_instruments",
@@ -237,20 +252,28 @@ def get_kline_data():
                 )
                 inst_resp.raise_for_status()
                 inst_data = inst_resp.json()
-                fallback_name = _choose_fallback_instrument(
+                fallback_names = _rank_fallback_instruments(
                     inst_data.get('result', []),
                     target_expiry_ms=expiry_ms,
                     target_strike=strike_value,
                     option_char=option_char
                 )
-                if fallback_name and fallback_name != instrument_name:
+                for fallback_name in fallback_names[:30]:
+                    if fallback_name == instrument_name:
+                        continue
+                    fallback_tried += 1
                     second_result, second_err = _fetch_deribit_kline(
                         fallback_name, resolution, start_time, end_time
                     )
-                    if not second_err:
-                        result = second_result
-                        used_instrument = fallback_name
-                        err_msg = ''
+                    if second_err:
+                        continue
+                    if not _payload_has_rows(second_result):
+                        continue
+                    result = second_result
+                    used_instrument = fallback_name
+                    err_msg = ''
+                    fallback_used = True
+                    break
             except Exception:
                 pass
 
@@ -258,8 +281,17 @@ def get_kline_data():
             return jsonify({
                 'success': False,
                 'error': f'Deribit API错误: {err_msg}',
-                'instrument': instrument_name
+                'instrument': instrument_name,
+                'fallback_tried': fallback_tried
             }), 400
+
+        if not _payload_has_rows(result):
+            return jsonify({
+                'success': False,
+                'error': '无K线数据',
+                'instrument': instrument_name,
+                'fallback_tried': fallback_tried
+            }), 404
 
         kline_data = result['result']
         required_keys = ['ticks', 'open', 'high', 'low', 'close', 'volume']
@@ -314,6 +346,7 @@ def get_kline_data():
         result = {
             'success': True,
             'instrument': used_instrument,
+            'fallback_used': fallback_used,
             'klines': df[['time', 'open', 'high', 'low', 'close', 'volume']].to_dict('records'),
             'indicators': {
                 **ema_data,
