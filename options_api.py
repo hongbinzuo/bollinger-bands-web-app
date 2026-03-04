@@ -80,6 +80,73 @@ def _fetch_deribit_kline(instrument_name: str, resolution: str, start_time: int,
     return payload, ''
 
 
+def _fetch_deribit_ticker(instrument_name: str) -> dict:
+    """获取Deribit ticker快照（含last/mark/bid/ask）。失败返回空dict。"""
+    try:
+        resp = requests.get(
+            "https://www.deribit.com/api/v2/public/ticker",
+            params={"instrument_name": instrument_name},
+            timeout=10
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        if payload.get('error'):
+            return {}
+        result = payload.get('result')
+        return result if isinstance(result, dict) else {}
+    except Exception:
+        return {}
+
+
+def _fetch_deribit_mark_history(instrument_name: str, start_time: int, end_time: int) -> tuple:
+    """获取Deribit标记价格历史，返回 (DataFrame[time, mark], error_message)。"""
+    url = "https://www.deribit.com/api/v2/public/get_mark_price_history"
+    params = {
+        "instrument_name": instrument_name,
+        "start_timestamp": start_time,
+        "end_timestamp": end_time
+    }
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        resp.raise_for_status()
+        payload = resp.json()
+    except Exception as e:
+        return pd.DataFrame(columns=['time', 'mark']), str(e)
+
+    if payload.get('error'):
+        return pd.DataFrame(columns=['time', 'mark']), payload['error'].get('message', 'Deribit请求失败')
+
+    result = payload.get('result')
+    rows = []
+    if isinstance(result, list):
+        for item in result:
+            if isinstance(item, dict):
+                ts = item.get('timestamp', item.get('time', item.get('tick')))
+                mark = item.get('mark_price', item.get('markPrice', item.get('value')))
+            elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                ts, mark = item[0], item[1]
+            else:
+                continue
+            rows.append((ts, mark))
+    elif isinstance(result, dict):
+        ticks = result.get('ticks')
+        marks = result.get('mark_price', result.get('mark_prices', result.get('close')))
+        if isinstance(ticks, list) and isinstance(marks, list):
+            for ts, mark in zip(ticks, marks):
+                rows.append((ts, mark))
+
+    if not rows:
+        return pd.DataFrame(columns=['time', 'mark']), '无标记价格历史'
+
+    df = pd.DataFrame(rows, columns=['time', 'mark'])
+    df['time'] = pd.to_numeric(df['time'], errors='coerce')
+    df['mark'] = pd.to_numeric(df['mark'], errors='coerce')
+    df = df.dropna(subset=['time', 'mark']).sort_values('time').drop_duplicates(subset=['time'])
+    if df.empty:
+        return pd.DataFrame(columns=['time', 'mark']), '无标记价格历史'
+    return df, ''
+
+
 def _payload_has_rows(payload: dict) -> bool:
     """判断Deribit返回是否包含有效K线"""
     if not isinstance(payload, dict):
@@ -117,6 +184,60 @@ def _fetch_deribit_perp_last_price(symbol: str) -> float:
         return 0.0
 
 
+def _fetch_underlying_close_series(symbol: str, resolution: str, start_time: int, end_time: int) -> pd.DataFrame:
+    """获取标的永续close序列（毫秒时间戳）。"""
+    base = str(symbol or '').upper().strip()
+    perp_payload, perp_err = _fetch_deribit_kline(f"{base}-PERPETUAL", resolution, start_time, end_time)
+    if perp_err or not _payload_has_rows(perp_payload):
+        return pd.DataFrame(columns=['time', 'u_close'])
+    result = perp_payload['result']
+    under = pd.DataFrame({
+        'time': pd.to_numeric(result.get('ticks', []), errors='coerce'),
+        'u_close': pd.to_numeric(result.get('close', []), errors='coerce'),
+    }).dropna().sort_values('time')
+    return under
+
+
+def _convert_price_columns_to_usdc(
+    df: pd.DataFrame,
+    price_cols: list,
+    symbol: str,
+    resolution: str,
+    start_time: int,
+    end_time: int,
+) -> tuple:
+    """将指定价格列从币本位转换为USDC(≈USD)。"""
+    base = str(symbol or '').upper().strip()
+    if base not in {'BTC', 'ETH'}:
+        return df, 'NATIVE'
+
+    work = df.copy()
+    work['time'] = pd.to_numeric(work['time'], errors='coerce')
+    for col in price_cols:
+        work[col] = pd.to_numeric(work[col], errors='coerce')
+    work = work.dropna(subset=['time'] + price_cols).sort_values('time')
+    if work.empty:
+        return work, 'NATIVE'
+
+    under = _fetch_underlying_close_series(base, resolution, start_time, end_time)
+    if not under.empty:
+        merged = pd.merge_asof(work, under, on='time', direction='nearest')
+        merged['u_close'] = pd.to_numeric(merged['u_close'], errors='coerce').ffill().bfill()
+        merged = merged.dropna(subset=['u_close'])
+        if not merged.empty:
+            for col in price_cols:
+                merged[col] = merged[col] * merged['u_close']
+            return merged[work.columns], 'USDC~'
+
+    perp_last = _fetch_deribit_perp_last_price(base)
+    if perp_last > 0:
+        for col in price_cols:
+            work[col] = work[col] * perp_last
+        return work, 'USDC~'
+
+    return work, 'NATIVE'
+
+
 def _convert_native_option_to_usdc(
     df: pd.DataFrame,
     symbol: str,
@@ -128,46 +249,24 @@ def _convert_native_option_to_usdc(
     将Deribit币本位期权价格换算为USDC(≈USD)。
     优先使用同时间的永续OHLC逐列换算，其次使用永续最新价近似换算。
     """
-    base = str(symbol or '').upper().strip()
-    if base not in {'BTC', 'ETH'}:
-        return df, 'NATIVE'
+    return _convert_price_columns_to_usdc(
+        df=df,
+        price_cols=['open', 'high', 'low', 'close'],
+        symbol=symbol,
+        resolution=resolution,
+        start_time=start_time,
+        end_time=end_time,
+    )
 
-    work = df.copy()
-    for col in ['time', 'open', 'high', 'low', 'close', 'volume']:
-        work[col] = pd.to_numeric(work[col], errors='coerce')
-    work = work.dropna(subset=['time', 'open', 'high', 'low', 'close', 'volume']).sort_values('time')
-    if work.empty:
-        return work, 'NATIVE'
 
-    perp_payload, perp_err = _fetch_deribit_kline(f"{base}-PERPETUAL", resolution, start_time, end_time)
-    if not perp_err and _payload_has_rows(perp_payload):
-        result = perp_payload['result']
-        under = pd.DataFrame({
-            'time': pd.to_numeric(result.get('ticks', []), errors='coerce'),
-            'u_open': pd.to_numeric(result.get('open', []), errors='coerce'),
-            'u_high': pd.to_numeric(result.get('high', []), errors='coerce'),
-            'u_low': pd.to_numeric(result.get('low', []), errors='coerce'),
-            'u_close': pd.to_numeric(result.get('close', []), errors='coerce'),
-        }).dropna().sort_values('time')
-        if not under.empty:
-            merged = pd.merge_asof(work, under, on='time', direction='nearest')
-            for col in ['u_open', 'u_high', 'u_low', 'u_close']:
-                merged[col] = merged[col].ffill().bfill()
-            merged = merged.dropna(subset=['u_open', 'u_high', 'u_low', 'u_close'])
-            if not merged.empty:
-                merged['open'] = merged['open'] * merged['u_open']
-                merged['high'] = merged['high'] * merged['u_high']
-                merged['low'] = merged['low'] * merged['u_low']
-                merged['close'] = merged['close'] * merged['u_close']
-                return merged[['time', 'open', 'high', 'low', 'close', 'volume']], 'USDC~'
-
-    perp_last = _fetch_deribit_perp_last_price(base)
-    if perp_last > 0:
-        for col in ['open', 'high', 'low', 'close']:
-            work[col] = work[col] * perp_last
-        return work, 'USDC~'
-
-    return work, 'NATIVE'
+def _safe_float(value):
+    try:
+        v = float(value)
+        if np.isfinite(v):
+            return v
+    except Exception:
+        return None
+    return None
 
 
 def _normalize_interval_and_resolution(interval: str) -> tuple:
@@ -323,6 +422,9 @@ def get_kline_data():
         option_type = str(data.get('option_type', 'call')).strip().lower()
         ema_periods = data.get('ema_periods', [13, 21, 34, 55, 89, 144, 233])
         prefer_usdc = bool(data.get('prefer_usdc', True))
+        requested_price_source = str(data.get('price_source', 'close')).strip().lower()
+        if requested_price_source not in {'close', 'mark'}:
+            requested_price_source = 'close'
 
         if not symbol:
             return jsonify({'success': False, 'error': '缺少symbol参数'}), 400
@@ -452,8 +554,9 @@ def get_kline_data():
             'close': kline_data['close'],
             'volume': kline_data['volume']
         })
-        price_unit = _detect_price_unit_by_name(used_instrument)
-        if price_unit == 'NATIVE':
+        instrument_native = _detect_price_unit_by_name(used_instrument) == 'NATIVE'
+        price_unit = 'NATIVE' if instrument_native else 'USDC'
+        if instrument_native:
             df, price_unit = _convert_native_option_to_usdc(
                 df=df,
                 symbol=symbol,
@@ -476,21 +579,74 @@ def get_kline_data():
                 'fallback_tried': fallback_tried
             }), 404
 
+        effective_price_source = 'close'
+        df['indicator_price'] = pd.to_numeric(df['close'], errors='coerce')
+        source_note = ''
+
+        if requested_price_source == 'mark':
+            mark_df, mark_err = _fetch_deribit_mark_history(used_instrument, start_time, end_time)
+            if not mark_err and not mark_df.empty:
+                if instrument_native:
+                    mark_df, mark_unit = _convert_price_columns_to_usdc(
+                        df=mark_df,
+                        price_cols=['mark'],
+                        symbol=symbol,
+                        resolution=resolution,
+                        start_time=start_time,
+                        end_time=end_time,
+                    )
+                    if mark_unit == 'NATIVE' and price_unit != 'NATIVE':
+                        # 主K线已换算成功但mark换算失败时，放弃mark来源，避免单位混淆
+                        mark_df = pd.DataFrame(columns=['time', 'mark'])
+                mark_df['time'] = pd.to_numeric(mark_df['time'], errors='coerce')
+                mark_df['mark'] = pd.to_numeric(mark_df['mark'], errors='coerce')
+                mark_df = mark_df.dropna(subset=['time', 'mark']).sort_values('time')
+                if not mark_df.empty:
+                    mark_df['time'] = (mark_df['time'] // 1000).astype('int64')
+                    mark_df['dt'] = pd.to_datetime(mark_df['time'], unit='s', utc=True)
+                    mark_df = mark_df.set_index('dt')
+                    if interval == '4h':
+                        mark_df = mark_df[['time', 'mark']].resample('4h').last().dropna()
+                    elif interval == '1d':
+                        mark_df = mark_df[['time', 'mark']].resample('1D').last().dropna()
+                    else:
+                        mark_df = mark_df[['time', 'mark']]
+                    if not mark_df.empty:
+                        mark_df = mark_df.reset_index(drop=True).sort_values('time')
+                        aligned = pd.merge_asof(
+                            df[['time']].sort_values('time'),
+                            mark_df[['time', 'mark']],
+                            on='time',
+                            direction='nearest'
+                        )
+                        aligned['mark'] = pd.to_numeric(aligned['mark'], errors='coerce').ffill().bfill()
+                        if aligned['mark'].notna().sum() >= max(10, int(len(df) * 0.3)):
+                            df['indicator_price'] = aligned['mark'].values
+                            effective_price_source = 'mark'
+            if effective_price_source != 'mark':
+                source_note = '标记价格不可用，已回退成交价'
+
+        df['indicator_price'] = pd.to_numeric(df['indicator_price'], errors='coerce')
+        if df['indicator_price'].isna().all():
+            df['indicator_price'] = pd.to_numeric(df['close'], errors='coerce')
+            effective_price_source = 'close'
+            source_note = '价格源异常，已回退成交价'
+
         # 计算EMA均线
         ema_data = {}
         for period in ema_periods:
-            df[f'ema{period}'] = df['close'].ewm(span=period).mean()
+            df[f'ema{period}'] = df['indicator_price'].ewm(span=period).mean()
             ema_data[f'ema{period}'] = df[['time', f'ema{period}']].dropna().to_dict('records')
 
         # 布林带
-        df['bb_middle'] = df['close'].rolling(20).mean()
-        std = df['close'].rolling(20).std()
+        df['bb_middle'] = df['indicator_price'].rolling(20).mean()
+        std = df['indicator_price'].rolling(20).std()
         df['bb_upper'] = df['bb_middle'] + 2 * std
         df['bb_lower'] = df['bb_middle'] - 2 * std
 
         # MACD
-        ema12 = df['close'].ewm(span=12).mean()
-        ema26 = df['close'].ewm(span=26).mean()
+        ema12 = df['indicator_price'].ewm(span=12).mean()
+        ema26 = df['indicator_price'].ewm(span=26).mean()
         df['macd'] = ema12 - ema26
         df['signal'] = df['macd'].ewm(span=9).mean()
         df['histogram'] = df['macd'] - df['signal']
@@ -498,16 +654,60 @@ def get_kline_data():
         # KDJ
         low_min = df['low'].rolling(9).min()
         high_max = df['high'].rolling(9).max()
-        rsv = (df['close'] - low_min) / (high_max - low_min) * 100
+        rsv = (df['indicator_price'] - low_min) / (high_max - low_min) * 100
         df['k'] = rsv.ewm(com=2).mean()
         df['d'] = df['k'].ewm(com=2).mean()
         df['j'] = 3 * df['k'] - 2 * df['d']
+
+        ticker = _fetch_deribit_ticker(used_instrument)
+        ticker_last = _safe_float(ticker.get('last_price'))
+        ticker_mark = _safe_float(ticker.get('mark_price'))
+        best_bid = _safe_float(ticker.get('best_bid_price'))
+        best_ask = _safe_float(ticker.get('best_ask_price'))
+
+        if price_unit == 'USDC~':
+            fx = _fetch_deribit_perp_last_price(symbol)
+            if fx > 0:
+                if ticker_last is not None:
+                    ticker_last = ticker_last * fx
+                if ticker_mark is not None:
+                    ticker_mark = ticker_mark * fx
+                if best_bid is not None:
+                    best_bid = best_bid * fx
+                if best_ask is not None:
+                    best_ask = best_ask * fx
+
+        mid_price = None
+        spread_pct = None
+        if best_bid is not None and best_ask is not None and best_bid > 0 and best_ask > 0:
+            mid_price = (best_bid + best_ask) / 2.0
+            if mid_price > 0:
+                spread_pct = (best_ask - best_bid) / mid_price * 100.0
+
+        selected_price = _safe_float(df['indicator_price'].iloc[-1]) if not df.empty else None
+        close_price = _safe_float(df['close'].iloc[-1]) if not df.empty else None
+        if selected_price is None:
+            selected_price = close_price
 
         result = {
             'success': True,
             'instrument': used_instrument,
             'fallback_used': fallback_used,
             'price_unit': price_unit,
+            'price_source_requested': requested_price_source,
+            'effective_price_source': effective_price_source,
+            'source_note': source_note,
+            'current_price': selected_price,
+            'current_prices': {
+                'selected': selected_price,
+                'close': close_price,
+                'mark': ticker_mark,
+                'last': ticker_last,
+                'best_bid': best_bid,
+                'best_ask': best_ask,
+                'mid': mid_price,
+                'spread_pct': spread_pct
+            },
             'klines': df[['time', 'open', 'high', 'low', 'close', 'volume']].to_dict('records'),
             'indicators': {
                 **ema_data,

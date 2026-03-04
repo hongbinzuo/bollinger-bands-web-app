@@ -3153,7 +3153,7 @@
         <div id="optionsBollinger" class="tab-content">
             <h3>🧮 期权布林带</h3>
             <div class="help-text">
-                <strong>说明：</strong>全量扫描期权组合（到期日 × 行权价），仅展示“价格在中轨下方且接近下轨”的点位。
+                <strong>说明：</strong>全量扫描期权组合（到期日 × 行权价），仅展示“价格在中轨下方且接近下轨”的点位。默认按标记价格计算，更适合低流动性期权。
             </div>
             <div class="form-group">
                 <label>币种</label>
@@ -3177,6 +3177,13 @@
                 </select>
             </div>
             <div class="form-group">
+                <label>价格基准</label>
+                <select id="optionBbPriceSource" class="form-control">
+                    <option value="mark" selected>标记价格（推荐）</option>
+                    <option value="close">成交收盘价</option>
+                </select>
+            </div>
+            <div class="form-group">
                 <label>接近下轨阈值</label>
                 <select id="optionBbNearThreshold" class="form-control">
                     <option value="0.3" selected>30%（默认）</option>
@@ -3184,6 +3191,15 @@
                     <option value="0.1">10%</option>
                     <option value="0.5">50%</option>
                     <option value="1">100%（仅中轨下方）</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>最大价差过滤</label>
+                <select id="optionBbMaxSpread" class="form-control">
+                    <option value="0" selected>不过滤</option>
+                    <option value="5">≤ 5%</option>
+                    <option value="2">≤ 2%</option>
+                    <option value="1">≤ 1%</option>
                 </select>
             </div>
             <div class="form-group" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
@@ -8915,9 +8931,9 @@
             if (!Number.isFinite(n)) return '-';
             const abs = Math.abs(n);
             let precision = 6;
-            if (abs >= 1000) precision = 2;
-            else if (abs >= 100) precision = 3;
-            else if (abs >= 1) precision = 4;
+            if (abs >= 1000) precision = 4;
+            else if (abs >= 100) precision = 4;
+            else if (abs >= 1) precision = 5;
             else if (abs >= 0.1) precision = 5;
             else if (abs >= 0.01) precision = 6;
             else if (abs >= 0.001) precision = 7;
@@ -9050,7 +9066,7 @@
             }
         }
 
-        async function fetchOptionBbSignal(symbol, period, optionType, expiry, strike) {
+        async function fetchOptionBbSignal(symbol, period, optionType, expiry, strike, priceSource) {
             const response = await fetch('/options/get_kline_data', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -9060,6 +9076,7 @@
                     expiry: parseInt(expiry, 10),
                     strike: parseFloat(strike),
                     option_type: String(optionType || 'CALL').toLowerCase(),
+                    price_source: priceSource || 'mark',
                     prefer_usdc: true
                 })
             });
@@ -9082,21 +9099,26 @@
             const bbUpper = Number(bbUpperArr[bbUpperArr.length - 1]?.bb_upper);
             const bbMiddle = Number(bbMiddleArr[bbMiddleArr.length - 1]?.bb_middle);
             const bbLower = Number(bbLowerArr[bbLowerArr.length - 1]?.bb_lower);
-            const currentPrice = Number(currentKline?.close);
+            const currentPrice = Number(result.current_price ?? currentKline?.close);
+            const spreadPct = Number(result.current_prices?.spread_pct);
+            const effectivePriceSource = result.effective_price_source || 'close';
 
             if (![currentPrice, bbUpper, bbMiddle, bbLower].every(v => Number.isFinite(v))) {
                 throw new Error('布林带数据不足');
             }
 
-            return { currentPrice, bbUpper, bbMiddle, bbLower };
+            return { currentPrice, bbUpper, bbMiddle, bbLower, spreadPct, effectivePriceSource };
         }
 
         async function scanOptionBollingerTable() {
             const symbol = document.getElementById('optionBbSymbol')?.value || 'BTC';
             const period = document.getElementById('optionBbPeriod')?.value || '1h';
             const optionType = document.getElementById('optionBbType')?.value || 'CALL';
+            const priceSource = document.getElementById('optionBbPriceSource')?.value || 'mark';
             const nearThreshold = Number(document.getElementById('optionBbNearThreshold')?.value || 0.3);
+            const maxSpread = Number(document.getElementById('optionBbMaxSpread')?.value || 0);
             const safeNearThreshold = Number.isFinite(nearThreshold) ? Math.max(0, Math.min(1, nearThreshold)) : 0.3;
+            const safeMaxSpread = Number.isFinite(maxSpread) ? Math.max(0, maxSpread) : 0;
 
             if (!optionBbData) {
                 await loadOptionBbMeta();
@@ -9123,7 +9145,7 @@
             optionBbCurrentPage = 1;
             optionBbSelectedKey = '';
             renderOptionBollingerTable();
-            setOptionBbStatus(`开始扫描 ${combos.length} 个组合...`);
+            setOptionBbStatus(`开始扫描 ${combos.length} 个组合（价格基准: ${priceSource}）...`);
 
             let cursor = 0;
             let processed = 0;
@@ -9145,8 +9167,12 @@
                             period,
                             optionType,
                             combo.expiry,
-                            combo.strike
+                            combo.strike,
+                            priceSource
                         );
+                        if (safeMaxSpread > 0 && Number.isFinite(signal.spreadPct) && signal.spreadPct > safeMaxSpread) {
+                            continue;
+                        }
 
                         // 参考币种分析规则：挂单触发区间为 [下轨, 中轨]，仅展示该区间的组合
                         if (signal.currentPrice >= signal.bbLower && signal.currentPrice <= signal.bbMiddle) {
@@ -9179,7 +9205,8 @@
                                 expiry_ts: Number(combo.expiry),
                                 strike_raw: Number(combo.strike),
                                 period_raw: period,
-                                option_type_raw: String(optionType || 'CALL').toLowerCase()
+                                option_type_raw: String(optionType || 'CALL').toLowerCase(),
+                                price_source_raw: signal.effectivePriceSource || priceSource
                             });
                         }
                     } catch (e) {
@@ -9200,14 +9227,14 @@
             renderOptionBollingerTable();
 
             if (!optionBbRows.length) {
-                setOptionBbStatus(`扫描完成：${total} 个组合，无命中（${optionType} / ${period} / 阈值${Math.round(safeNearThreshold * 100)}%）`);
+                setOptionBbStatus(`扫描完成：${total} 个组合，无命中（${optionType} / ${period} / ${priceSource} / 阈值${Math.round(safeNearThreshold * 100)}%）`);
                 setOptionStatus('暂无可展示的期权图表');
                 return;
             }
             optionBbSelectedKey = optionBbRows[0].key;
             renderOptionBollingerTable();
             loadOptionChartForSelection(optionBbRows[0], true);
-            setOptionBbStatus(`扫描完成：${total} 个组合，命中 ${optionBbRows.length}（${optionType} / ${period} / 阈值${Math.round(safeNearThreshold * 100)}%）`);
+            setOptionBbStatus(`扫描完成：${total} 个组合，命中 ${optionBbRows.length}（${optionType} / ${period} / ${priceSource} / 阈值${Math.round(safeNearThreshold * 100)}%）`);
         }
 
         function clearOptionBollingerRows() {
@@ -9246,6 +9273,7 @@
                         expiry: parseInt(row.expiry_ts, 10),
                         strike: parseFloat(row.strike_raw),
                         option_type: row.option_type_raw || 'call',
+                        price_source: row.price_source_raw || 'mark',
                         ema_periods: emaPeriods,
                         prefer_usdc: true
                     })
@@ -9259,7 +9287,11 @@
                     const fb = result.fallback_used ? '（已兜底）' : '';
                     const unit = result.price_unit ? ` 单位: ${result.price_unit}` : '';
                     const instrumentText = result.instrument ? ` 合约: ${result.instrument}` : '';
-                    setOptionStatus(`已加载 ${result.klines?.length || 0} 根K线 ${fb}${instrumentText}${unit}`.trim());
+                    const sourceText = result.effective_price_source ? ` 价格基准: ${result.effective_price_source}` : '';
+                    const spreadPct = Number(result.current_prices?.spread_pct);
+                    const spreadText = Number.isFinite(spreadPct) ? ` 价差: ${spreadPct.toFixed(2)}%` : '';
+                    const noteText = result.source_note ? ` ${result.source_note}` : '';
+                    setOptionStatus(`已加载 ${result.klines?.length || 0} 根K线 ${fb}${instrumentText}${unit}${sourceText}${spreadText}${noteText}`.trim());
                 } else {
                     const extra = result.fallback_tried ? `，已尝试兜底 ${result.fallback_tried} 个合约` : '';
                     setOptionStatus(`加载K线数据失败: ${result.error || '未知错误'}${extra}`, true);
