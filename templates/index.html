@@ -8931,8 +8931,8 @@
             if (!Number.isFinite(n)) return '-';
             const abs = Math.abs(n);
             let precision = 6;
-            if (abs >= 1000) precision = 4;
-            else if (abs >= 100) precision = 4;
+            if (abs >= 1000) precision = 6;
+            else if (abs >= 100) precision = 6;
             else if (abs >= 1) precision = 5;
             else if (abs >= 0.1) precision = 5;
             else if (abs >= 0.01) precision = 6;
@@ -9102,12 +9102,15 @@
             const currentPrice = Number(result.current_price ?? currentKline?.close);
             const spreadPct = Number(result.current_prices?.spread_pct);
             const effectivePriceSource = result.effective_price_source || 'close';
+            const bandWidthRatio = Number.isFinite(currentPrice) && Math.abs(currentPrice) > 0
+                ? Math.abs(bbUpper - bbLower) / Math.abs(currentPrice)
+                : 0;
 
             if (![currentPrice, bbUpper, bbMiddle, bbLower].every(v => Number.isFinite(v))) {
                 throw new Error('布林带数据不足');
             }
 
-            return { currentPrice, bbUpper, bbMiddle, bbLower, spreadPct, effectivePriceSource };
+            return { currentPrice, bbUpper, bbMiddle, bbLower, spreadPct, effectivePriceSource, bandWidthRatio };
         }
 
         async function scanOptionBollingerTable() {
@@ -9150,6 +9153,8 @@
             let cursor = 0;
             let processed = 0;
             let matched = 0;
+            let skippedNoMark = 0;
+            let skippedFlat = 0;
             const total = combos.length;
             const maxConcurrent = Math.min(4, total);
             const newRows = [];
@@ -9171,6 +9176,15 @@
                             priceSource
                         );
                         if (safeMaxSpread > 0 && Number.isFinite(signal.spreadPct) && signal.spreadPct > safeMaxSpread) {
+                            continue;
+                        }
+                        if (priceSource === 'mark' && signal.effectivePriceSource !== 'mark') {
+                            skippedNoMark += 1;
+                            continue;
+                        }
+                        if (!Number.isFinite(signal.bandWidthRatio) || signal.bandWidthRatio < 0.0002) {
+                            // 波动过小（上下轨几乎重合）会导致信号失真，直接过滤
+                            skippedFlat += 1;
                             continue;
                         }
 
@@ -9214,7 +9228,7 @@
                     } finally {
                         processed += 1;
                         if (processed % 10 === 0 || processed === total) {
-                            setOptionBbStatus(`扫描中：${processed}/${total}，命中 ${matched}`);
+                            setOptionBbStatus(`扫描中：${processed}/${total}，命中 ${matched}，过滤无mark ${skippedNoMark}，过滤平带 ${skippedFlat}`);
                         }
                     }
                 }
@@ -9227,14 +9241,14 @@
             renderOptionBollingerTable();
 
             if (!optionBbRows.length) {
-                setOptionBbStatus(`扫描完成：${total} 个组合，无命中（${optionType} / ${period} / ${priceSource} / 阈值${Math.round(safeNearThreshold * 100)}%）`);
+                setOptionBbStatus(`扫描完成：${total} 个组合，无命中（${optionType} / ${period} / ${priceSource} / 阈值${Math.round(safeNearThreshold * 100)}%，无mark过滤${skippedNoMark}，平带过滤${skippedFlat}）`);
                 setOptionStatus('暂无可展示的期权图表');
                 return;
             }
             optionBbSelectedKey = optionBbRows[0].key;
             renderOptionBollingerTable();
             loadOptionChartForSelection(optionBbRows[0], true);
-            setOptionBbStatus(`扫描完成：${total} 个组合，命中 ${optionBbRows.length}（${optionType} / ${period} / ${priceSource} / 阈值${Math.round(safeNearThreshold * 100)}%）`);
+            setOptionBbStatus(`扫描完成：${total} 个组合，命中 ${optionBbRows.length}（${optionType} / ${period} / ${priceSource} / 阈值${Math.round(safeNearThreshold * 100)}%，无mark过滤${skippedNoMark}，平带过滤${skippedFlat}）`);
         }
 
         function clearOptionBollingerRows() {
