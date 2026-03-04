@@ -8849,15 +8849,18 @@
         async function loadOptionChart() {
             const symbol = document.getElementById('optionSymbol').value;
             const period = document.getElementById('optionPeriod').value;
+            const expiry = document.getElementById('optionExpiry').value;
+            const strike = document.getElementById('optionStrike').value;
+            const optionType = document.getElementById('optionType').value.toLowerCase();
             const emaPeriods = document.getElementById('emaPeriods').value.split(',').map(p => parseInt(p.trim())).filter(p => p > 0);
 
-            if (!period) return;
+            if (!period || !expiry || !strike) return;
 
             try {
                 const response = await fetch('/options/get_kline_data', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({symbol, interval: period, ema_periods: emaPeriods})
+                    body: JSON.stringify({symbol, interval: period, expiry: parseInt(expiry), strike: parseFloat(strike), option_type: optionType, ema_periods: emaPeriods})
                 });
                 const result = await response.json();
 

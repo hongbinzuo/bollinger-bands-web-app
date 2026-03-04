@@ -3,6 +3,7 @@ import requests
 import logging
 import pandas as pd
 import numpy as np
+from datetime import datetime, timezone
 
 options_bp = Blueprint('options', __name__, url_prefix='/options')
 logger = logging.getLogger(__name__)
@@ -108,31 +109,93 @@ def get_option_data():
 
 @options_bp.route('/get_kline_data', methods=['POST'])
 def get_kline_data():
-    """获取K线数据和技术指标"""
+    """获取期权K线数据和技术指标"""
     try:
-        data = request.json
-        symbol = data.get('symbol', 'BTC')
+        data = request.get_json(silent=True) or {}
+        symbol = str(data.get('symbol', 'BTC')).upper().strip()
         interval = data.get('interval', '1h')
+        expiry = data.get('expiry')
+        strike = data.get('strike')
+        option_type = str(data.get('option_type', 'call')).strip().lower()
         ema_periods = data.get('ema_periods', [13, 21, 34, 55, 89, 144, 233])
 
-        # 从Gate.io获取K线数据
-        url = "https://api.gateio.ws/api/v4/spot/candlesticks"
+        if not symbol:
+            return jsonify({'success': False, 'error': '缺少symbol参数'}), 400
+        if expiry is None or strike is None:
+            return jsonify({'success': False, 'error': '缺少expiry或strike参数'}), 400
+        try:
+            expiry_ms = int(expiry)
+            strike_value = float(strike)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'expiry或strike格式错误'}), 400
+
+        option_char = option_type[:1].upper()
+        if option_char not in {'C', 'P'}:
+            return jsonify({'success': False, 'error': 'option_type必须为call或put'}), 400
+
+        safe_periods = []
+        for p in ema_periods if isinstance(ema_periods, list) else []:
+            try:
+                pv = int(p)
+                if 1 <= pv <= 500:
+                    safe_periods.append(pv)
+            except Exception:
+                continue
+        ema_periods = safe_periods or [13, 21, 34, 55, 89, 144, 233]
+
+        # 构建期权合约名称
+        expiry_date = datetime.fromtimestamp(expiry_ms / 1000, tz=timezone.utc)
+        date_str = expiry_date.strftime('%d%b%y').upper()
+        instrument_name = f'{symbol}-{date_str}-{int(strike_value)}-{option_char}'
+
+        # 从Deribit获取期权K线数据
+        url = "https://www.deribit.com/api/v2/public/get_tradingview_chart_data"
+
+        resolution_map = {'1h': '60', '4h': '240', '1d': '1D'}
+        resolution = resolution_map.get(interval, '60')
+
+        import time
+        end_time = int(time.time() * 1000)
+        start_time = end_time - (500 * 3600 * 1000)
+
         params = {
-            'currency_pair': f'{symbol}_USDT',
-            'interval': interval,
-            'limit': 500
+            'instrument_name': instrument_name,
+            'start_timestamp': start_time,
+            'end_timestamp': end_time,
+            'resolution': resolution
         }
 
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
-        klines = response.json()
+        result = response.json()
 
-        if not klines:
+        if result.get('error'):
+            api_msg = result['error'].get('message', 'Deribit请求失败')
+            return jsonify({'success': False, 'error': f'Deribit API错误: {api_msg}'}), 400
+        if not isinstance(result.get('result'), dict):
             return jsonify({'success': False, 'error': '无K线数据'})
 
-        # 转换为DataFrame
-        df = pd.DataFrame(klines, columns=['time', 'volume', 'close', 'high', 'low', 'open', 'amount'])
-        df = df.astype({'time': int, 'open': float, 'high': float, 'low': float, 'close': float, 'volume': float})
+        kline_data = result['result']
+        required_keys = ['ticks', 'open', 'high', 'low', 'close', 'volume']
+        if not all(isinstance(kline_data.get(k), list) for k in required_keys):
+            return jsonify({'success': False, 'error': 'K线数据格式异常'}), 500
+        if not kline_data['ticks']:
+            return jsonify({'success': False, 'error': '无K线数据'})
+
+        df = pd.DataFrame({
+            'time': kline_data['ticks'],
+            'open': kline_data['open'],
+            'high': kline_data['high'],
+            'low': kline_data['low'],
+            'close': kline_data['close'],
+            'volume': kline_data['volume']
+        })
+        for col in ['time', 'open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        df = df.dropna(subset=['time', 'open', 'high', 'low', 'close', 'volume'])
+        if df.empty:
+            return jsonify({'success': False, 'error': 'K线数据为空'}), 500
+
         df = df.sort_values('time')
 
         # 计算EMA均线
@@ -162,7 +225,6 @@ def get_kline_data():
         df['d'] = df['k'].ewm(com=2).mean()
         df['j'] = 3 * df['k'] - 2 * df['d']
 
-        # 转换为前端格式
         result = {
             'success': True,
             'klines': df[['time', 'open', 'high', 'low', 'close', 'volume']].to_dict('records'),
