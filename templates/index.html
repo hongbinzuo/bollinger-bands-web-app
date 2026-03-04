@@ -2933,7 +2933,6 @@
             <button class="tab" onclick="showTab('topMoversSignals', event)">🚀 山寨信号榜</button>
             <button class="tab" onclick="showTab('dailyBottom', event)">🌙 日线信号</button>
             <button class="tab" onclick="showTab('ultraShort', event)">⚡ 超短BTC</button>
-            <button class="tab" onclick="showTab('options', event)">📊 期权图表</button>
             <button class="tab" onclick="showTab('optionsBollinger', event)">🧮 期权布林带</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
@@ -3150,67 +3149,6 @@
             </div>
         </div>
 
-        <!-- 期权图表Tab -->
-        <div id="options" class="tab-content">
-            <h3>📊 期权图表</h3>
-            <div class="form-group">
-                <label>币种</label>
-                <select id="optionSymbol" class="form-control" onchange="loadOptionData()">
-                    <option value="BTC">BTC</option>
-                    <option value="ETH" disabled>ETH（暂不支持）</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>时间周期</label>
-                <select id="optionPeriod" class="form-control" onchange="loadOptionChart()">
-                    <option value="">请先加载数据</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>到期日</label>
-                <select id="optionExpiry" class="form-control" onchange="updateStrikes()">
-                    <option value="">请先加载数据</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>执行价格</label>
-                <select id="optionStrike" class="form-control" onchange="loadOptionChart()">
-                    <option value="">请先选择到期日</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>期权类型</label>
-                <select id="optionType" class="form-control" onchange="loadOptionChart()">
-                    <option value="CALL">Call</option>
-                    <option value="PUT">Put</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>EMA均线周期（逗号分隔）</label>
-                <input type="text" id="emaPeriods" class="form-control" value="13,21,34,55,89,144,233" onchange="loadOptionChart()">
-            </div>
-            <div class="form-group" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
-                <label style="display:flex; align-items:center; gap:6px; margin:0;">
-                    <input type="checkbox" id="optionShowEma" onchange="redrawOptionChart()"> 显示EMA
-                </label>
-                <label style="display:flex; align-items:center; gap:6px; margin:0;">
-                    <input type="checkbox" id="optionShowBoll" onchange="redrawOptionChart()"> 显示BOLL
-                </label>
-            </div>
-            <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
-                <div style="background: rgba(0,0,0,0.3); border-radius: 5px; padding: 10px;">
-                    <div id="optionChartContainer" style="width: 100%; height: 520px;"></div>
-                </div>
-                <div style="background: rgba(0,0,0,0.3); border-radius: 5px; padding: 10px;">
-                    <div id="macdChart" style="width: 100%; height: 180px;"></div>
-                </div>
-                <div style="background: rgba(0,0,0,0.3); border-radius: 5px; padding: 10px;">
-                    <div id="kdjChart" style="width: 100%; height: 180px;"></div>
-                </div>
-            </div>
-            <div id="optionChartStatus" style="margin-top: 8px; font-size: 13px; color: #9fb3c8;"></div>
-        </div>
-
         <!-- 期权布林带Tab -->
         <div id="optionsBollinger" class="tab-content">
             <h3>🧮 期权布林带</h3>
@@ -3274,6 +3212,46 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+            <div class="pagination-controls" style="margin-top: 10px;">
+                <button onclick="changeOptionBbPage(-1)" id="optionBbPrevPage">上一页</button>
+                <span id="optionBbPageInfo">第 1 页，共 1 页</span>
+                <button onclick="changeOptionBbPage(1)" id="optionBbNextPage">下一页</button>
+                <select id="optionBbPageSize" onchange="changeOptionBbPageSize()">
+                    <option value="10" selected>10条/页</option>
+                    <option value="20">20条/页</option>
+                    <option value="30">30条/页</option>
+                </select>
+            </div>
+
+            <div style="margin-top: 16px;">
+                <h4 style="margin-bottom: 10px;">📊 期权图表</h4>
+                <div class="form-group">
+                    <label>EMA均线周期（逗号分隔）</label>
+                    <input type="text" id="emaPeriods" class="form-control" value="13,21,34,55,89,144,233" onchange="reloadSelectedOptionBbChart()">
+                </div>
+                <div class="form-group" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+                    <label style="display:flex; align-items:center; gap:6px; margin:0;">
+                        <input type="checkbox" id="optionShowEma" onchange="redrawOptionChart()"> 显示EMA
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; margin:0;">
+                        <input type="checkbox" id="optionShowBoll" checked onchange="redrawOptionChart()"> 显示BOLL
+                    </label>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+                    <div style="background: rgba(0,0,0,0.3); border-radius: 5px; padding: 10px;">
+                        <div id="optionChartContainer" style="width: 100%; height: 520px;"></div>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.3); border-radius: 5px; padding: 10px;">
+                        <div style="font-size:13px; color:#9fb3c8; margin-bottom:6px;">MACD</div>
+                        <div id="macdChart" style="width: 100%; height: 180px;"></div>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.3); border-radius: 5px; padding: 10px;">
+                        <div style="font-size:13px; color:#9fb3c8; margin-bottom:6px;">KDJ</div>
+                        <div id="kdjChart" style="width: 100%; height: 180px;"></div>
+                    </div>
+                </div>
+                <div id="optionChartStatus" style="margin-top: 8px; font-size: 13px; color: #9fb3c8;"></div>
             </div>
         </div>
 
@@ -8874,7 +8852,6 @@
         // ==================== 超短BTC信号系统结束 ====================
 
         // ==================== 期权图表系统 ====================
-        let optionsData = null;
         let optionLastResult = null;
         let optionChart = null;
         let macdChart = null;
@@ -8882,6 +8859,9 @@
         let optionResizeBound = false;
         let optionBbData = null;
         let optionBbRows = [];
+        let optionBbCurrentPage = 1;
+        let optionBbPageSize = 10;
+        let optionBbSelectedKey = '';
 
         function getOptionEmaPeriods() {
             return document.getElementById('emaPeriods').value
@@ -8975,11 +8955,19 @@
 
             if (!optionBbRows.length) {
                 tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#999;">请选择参数并点击“全量扫描并筛选”</td></tr>';
+                updateOptionBbPagination();
                 return;
             }
 
-            tbody.innerHTML = optionBbRows.map(row => `
-                <tr>
+            const startIndex = (optionBbCurrentPage - 1) * optionBbPageSize;
+            const pageRows = optionBbRows.slice(startIndex, startIndex + optionBbPageSize);
+            tbody.innerHTML = pageRows.map((row, idx) => {
+                const absoluteIndex = startIndex + idx;
+                const activeStyle = row.key === optionBbSelectedKey
+                    ? 'background: rgba(33,150,243,0.22);'
+                    : '';
+                return `
+                <tr onclick="selectOptionBbRow(${absoluteIndex})" style="cursor:pointer; ${activeStyle}">
                     <td>${row.symbol}</td>
                     <td>${row.expiry}</td>
                     <td>${row.current_price}</td>
@@ -8990,7 +8978,52 @@
                     <td>${row.bb_middle}</td>
                     <td>${row.bb_lower}</td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
+            updateOptionBbPagination();
+        }
+
+        function updateOptionBbPagination() {
+            const total = optionBbRows.length;
+            const totalPages = Math.max(1, Math.ceil(total / optionBbPageSize));
+            if (optionBbCurrentPage > totalPages) {
+                optionBbCurrentPage = totalPages;
+            }
+            const pageInfo = document.getElementById('optionBbPageInfo');
+            const prevBtn = document.getElementById('optionBbPrevPage');
+            const nextBtn = document.getElementById('optionBbNextPage');
+            if (pageInfo) {
+                pageInfo.textContent = `第 ${optionBbCurrentPage} 页，共 ${totalPages} 页 (共 ${total} 条记录)`;
+            }
+            if (prevBtn) {
+                prevBtn.disabled = optionBbCurrentPage <= 1;
+            }
+            if (nextBtn) {
+                nextBtn.disabled = optionBbCurrentPage >= totalPages;
+            }
+        }
+
+        function changeOptionBbPage(delta) {
+            const totalPages = Math.max(1, Math.ceil(optionBbRows.length / optionBbPageSize));
+            const nextPage = optionBbCurrentPage + Number(delta || 0);
+            if (nextPage < 1 || nextPage > totalPages) return;
+            optionBbCurrentPage = nextPage;
+            renderOptionBollingerTable();
+        }
+
+        function changeOptionBbPageSize() {
+            const size = Number(document.getElementById('optionBbPageSize')?.value || 10);
+            optionBbPageSize = [10, 20, 30].includes(size) ? size : 10;
+            optionBbCurrentPage = 1;
+            renderOptionBollingerTable();
+        }
+
+        function selectOptionBbRow(index) {
+            const row = optionBbRows[index];
+            if (!row) return;
+            optionBbSelectedKey = row.key;
+            renderOptionBollingerTable();
+            loadOptionChartForSelection(row);
         }
 
         async function loadOptionBbMeta() {
@@ -9087,6 +9120,8 @@
             }
 
             optionBbRows = [];
+            optionBbCurrentPage = 1;
+            optionBbSelectedKey = '';
             renderOptionBollingerTable();
             setOptionBbStatus(`开始扫描 ${combos.length} 个组合...`);
 
@@ -9123,7 +9158,9 @@
                                 continue;
                             }
                             matched += 1;
+                            const rowKey = `${symbol}|${combo.expiry}|${combo.strike}|${period}|${optionType.toLowerCase()}`;
                             newRows.push({
+                                key: rowKey,
                                 symbol,
                                 expiry: formatOptionBbExpiry(combo.expiry),
                                 current_price: formatOptionBbPrice(signal.currentPrice),
@@ -9138,7 +9175,11 @@
                                 bb_upper: formatOptionBbPrice(signal.bbUpper),
                                 bb_middle: formatOptionBbPrice(signal.bbMiddle),
                                 bb_lower: formatOptionBbPrice(signal.bbLower),
-                                near_ratio: nearRatio
+                                near_ratio: nearRatio,
+                                expiry_ts: Number(combo.expiry),
+                                strike_raw: Number(combo.strike),
+                                period_raw: period,
+                                option_type_raw: String(optionType || 'CALL').toLowerCase()
                             });
                         }
                     } catch (e) {
@@ -9160,75 +9201,54 @@
 
             if (!optionBbRows.length) {
                 setOptionBbStatus(`扫描完成：${total} 个组合，无命中（${optionType} / ${period} / 阈值${Math.round(safeNearThreshold * 100)}%）`);
+                setOptionStatus('暂无可展示的期权图表');
                 return;
             }
+            optionBbSelectedKey = optionBbRows[0].key;
+            renderOptionBollingerTable();
+            loadOptionChartForSelection(optionBbRows[0], true);
             setOptionBbStatus(`扫描完成：${total} 个组合，命中 ${optionBbRows.length}（${optionType} / ${period} / 阈值${Math.round(safeNearThreshold * 100)}%）`);
         }
 
         function clearOptionBollingerRows() {
             optionBbRows = [];
+            optionBbCurrentPage = 1;
+            optionBbSelectedKey = '';
             renderOptionBollingerTable();
             setOptionBbStatus('已清空表格');
+            setOptionStatus('已清空图表数据');
+            optionLastResult = null;
+            if (optionChart) { optionChart.remove(); optionChart = null; }
+            if (macdChart) { macdChart.remove(); macdChart = null; }
+            if (kdjChart) { kdjChart.remove(); kdjChart = null; }
+            const optionContainer = document.getElementById('optionChartContainer');
+            const macdContainer = document.getElementById('macdChart');
+            const kdjContainer = document.getElementById('kdjChart');
+            if (optionContainer) optionContainer.innerHTML = '';
+            if (macdContainer) macdContainer.innerHTML = '';
+            if (kdjContainer) kdjContainer.innerHTML = '';
         }
 
-        async function loadOptionData() {
-            const symbol = document.getElementById('optionSymbol').value;
-            try {
-                const response = await fetch(`/options/get_options?symbol=${symbol}`);
-                const data = await response.json();
-
-                if (data.success) {
-                    optionsData = data;
-                    const periodSelect = document.getElementById('optionPeriod');
-                    periodSelect.innerHTML = data.periods.map(p =>
-                        `<option value="${p}">${p}</option>`
-                    ).join('');
-                    const expirySelect = document.getElementById('optionExpiry');
-                    expirySelect.innerHTML = data.expiry_dates.map(ts => {
-                        const date = new Date(ts);
-                        const dateStr = date.toISOString().split('T')[0];
-                        return `<option value="${ts}">${dateStr}</option>`;
-                    }).join('');
-                    updateStrikes();
-                    const market = data.option_market ? `（${data.option_market}）` : '';
-                    setOptionStatus(`期权列表已加载${market}`);
-                } else {
-                    alert('加载期权数据失败: ' + data.error);
-                    setOptionStatus('期权列表加载失败: ' + (data.error || '未知错误'), true);
-                }
-            } catch (e) {
-                alert('加载期权数据失败: ' + e.message);
-                setOptionStatus('期权列表加载失败: ' + e.message, true);
-            }
-        }
-
-        function updateStrikes() {
-            const expiry = document.getElementById('optionExpiry').value;
-            if (!optionsData || !expiry) return;
-
-            const strikes = optionsData.strikes[expiry] || [];
-            const strikeSelect = document.getElementById('optionStrike');
-            strikeSelect.innerHTML = strikes.map(s =>
-                `<option value="${s}">${s}</option>`
-            ).join('');
-            loadOptionChart();
-        }
-
-        async function loadOptionChart() {
-            const symbol = document.getElementById('optionSymbol').value;
-            const period = document.getElementById('optionPeriod').value;
-            const expiry = document.getElementById('optionExpiry').value;
-            const strike = document.getElementById('optionStrike').value;
-            const optionType = document.getElementById('optionType').value.toLowerCase();
+        async function loadOptionChartForSelection(row, silent = false) {
+            if (!row) return;
             const emaPeriods = getOptionEmaPeriods();
 
-            if (!period || !expiry || !strike) return;
-
             try {
+                if (!silent) {
+                    setOptionStatus('正在加载期权图表...');
+                }
                 const response = await fetch('/options/get_kline_data', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({symbol, interval: period, expiry: parseInt(expiry), strike: parseFloat(strike), option_type: optionType, ema_periods: emaPeriods, prefer_usdc: true})
+                    body: JSON.stringify({
+                        symbol: row.symbol,
+                        interval: row.period_raw || '1h',
+                        expiry: parseInt(row.expiry_ts, 10),
+                        strike: parseFloat(row.strike_raw),
+                        option_type: row.option_type_raw || 'call',
+                        ema_periods: emaPeriods,
+                        prefer_usdc: true
+                    })
                 });
                 const result = await response.json().catch(() => ({success: false, error: `HTTP ${response.status}`}));
                 if (!response.ok && !result.error) result.error = `HTTP ${response.status}`;
@@ -9241,14 +9261,25 @@
                     const instrumentText = result.instrument ? ` 合约: ${result.instrument}` : '';
                     setOptionStatus(`已加载 ${result.klines?.length || 0} 根K线 ${fb}${instrumentText}${unit}`.trim());
                 } else {
-                    alert('加载K线数据失败: ' + result.error);
                     const extra = result.fallback_tried ? `，已尝试兜底 ${result.fallback_tried} 个合约` : '';
                     setOptionStatus(`加载K线数据失败: ${result.error || '未知错误'}${extra}`, true);
                 }
             } catch (e) {
-                alert('加载K线数据失败: ' + e.message);
                 setOptionStatus('加载K线数据失败: ' + e.message, true);
             }
+        }
+
+        function reloadSelectedOptionBbChart() {
+            if (!optionBbSelectedKey) {
+                setOptionStatus('请先扫描并选择一条期权组合');
+                return;
+            }
+            const selectedRow = optionBbRows.find(r => r.key === optionBbSelectedKey);
+            if (!selectedRow) {
+                setOptionStatus('未找到当前选中行');
+                return;
+            }
+            loadOptionChartForSelection(selectedRow);
         }
 
         function redrawOptionChart() {
@@ -9388,8 +9419,9 @@
         // 页面加载时初始化期权数据
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => {
-                loadOptionData();
                 loadOptionBbMeta();
+                renderOptionBollingerTable();
+                setOptionStatus('请先执行“全量扫描并筛选”后查看图表');
             }, 500);
         });
 
