@@ -1188,10 +1188,15 @@ if __name__ == '__main__':
     
     # 运行应用
     port = int(os.environ.get('PORT', 5000))
+    debug_env = os.environ.get('FLASK_DEBUG')
+    if debug_env is None:
+        debug_mode = os.environ.get('FLASK_ENV', '').lower() == 'development'
+    else:
+        debug_mode = debug_env.strip().lower() in {'1', 'true', 'yes', 'on'}
     app.run(
         host='0.0.0.0', 
         port=port, 
-        debug=True,
+        debug=debug_mode,
         threaded=True,
         use_reloader=False  # 避免重载器导致连接重置
     )
