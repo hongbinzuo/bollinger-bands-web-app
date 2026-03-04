@@ -91,6 +91,44 @@ def _payload_has_rows(payload: dict) -> bool:
     return isinstance(ticks, list) and len(ticks) > 0
 
 
+def _normalize_interval_and_resolution(interval: str) -> tuple:
+    """将前端周期映射到Deribit分辨率；4h使用1h拉取后端聚合"""
+    normalized = str(interval or '1h').strip().lower()
+    if normalized == '4h':
+        return '4h', '60'
+    if normalized == '1d':
+        return '1d', '1D'
+    return '1h', '60'
+
+
+def _post_process_klines(df: pd.DataFrame, interval: str) -> pd.DataFrame:
+    """统一时间为秒级时间戳；4h由1h聚合而来"""
+    out = df.copy()
+    out['time'] = pd.to_numeric(out['time'], errors='coerce')
+    out = out.dropna(subset=['time', 'open', 'high', 'low', 'close', 'volume'])
+    if out.empty:
+        return out
+
+    if interval == '4h':
+        out['dt'] = pd.to_datetime(out['time'], unit='ms', utc=True)
+        out = out.set_index('dt')
+        out = out[['open', 'high', 'low', 'close', 'volume']].resample('4h').agg({
+            'open': 'first',
+            'high': 'max',
+            'low': 'min',
+            'close': 'last',
+            'volume': 'sum'
+        }).dropna()
+        if out.empty:
+            return pd.DataFrame(columns=['time', 'open', 'high', 'low', 'close', 'volume'])
+        out['time'] = (out.index.view('int64') // 10 ** 9).astype('int64')
+        out = out.reset_index(drop=True)
+    else:
+        out['time'] = (out['time'] // 1000).astype('int64')
+
+    return out[['time', 'open', 'high', 'low', 'close', 'volume']].sort_values('time')
+
+
 @options_bp.route('/get_options', methods=['GET'])
 def get_options():
     """获取BTC期权列表"""
@@ -229,8 +267,7 @@ def get_kline_data():
         # 构建目标期权合约名称
         instrument_name = _build_deribit_instrument_name(symbol, expiry_ms, strike_value, option_char)
 
-        resolution_map = {'1h': '60', '4h': '240', '1d': '1D'}
-        resolution = resolution_map.get(interval, '60')
+        interval, resolution = _normalize_interval_and_resolution(interval)
 
         import time
         end_time = int(time.time() * 1000)
@@ -314,7 +351,14 @@ def get_kline_data():
         if df.empty:
             return jsonify({'success': False, 'error': 'K线数据为空'}), 500
 
-        df = df.sort_values('time')
+        df = _post_process_klines(df, interval)
+        if df.empty:
+            return jsonify({
+                'success': False,
+                'error': '无K线数据',
+                'instrument': used_instrument,
+                'fallback_tried': fallback_tried
+            }), 404
 
         # 计算EMA均线
         ema_data = {}

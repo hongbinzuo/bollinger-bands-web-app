@@ -3188,21 +3188,26 @@
                 <label>EMA均线周期（逗号分隔）</label>
                 <input type="text" id="emaPeriods" class="form-control" value="13,21,34,55,89,144,233" onchange="loadOptionChart()">
             </div>
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-top: 10px;">
-                <div id="optionChart" style="height: 600px; background: rgba(0,0,0,0.3); border-radius: 5px;">
-                    <div id="optionChartContainer" style="width: 100%; height: 100%;"></div>
+            <div class="form-group" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+                <label style="display:flex; align-items:center; gap:6px; margin:0;">
+                    <input type="checkbox" id="optionShowEma" onchange="redrawOptionChart()"> 显示EMA
+                </label>
+                <label style="display:flex; align-items:center; gap:6px; margin:0;">
+                    <input type="checkbox" id="optionShowBoll" onchange="redrawOptionChart()"> 显示BOLL
+                </label>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+                <div style="background: rgba(0,0,0,0.3); border-radius: 5px; padding: 10px;">
+                    <div id="optionChartContainer" style="width: 100%; height: 520px;"></div>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <div style="background: rgba(0,0,0,0.3); border-radius: 5px; padding: 15px; height: 290px;">
-                        <h4 style="margin: 0 0 10px 0;">MACD指标</h4>
-                        <div id="macdChart" style="width: 100%; height: 240px;"></div>
-                    </div>
-                    <div style="background: rgba(0,0,0,0.3); border-radius: 5px; padding: 15px; height: 290px;">
-                        <h4 style="margin: 0 0 10px 0;">KDJ指标</h4>
-                        <div id="kdjChart" style="width: 100%; height: 240px;"></div>
-                    </div>
+                <div style="background: rgba(0,0,0,0.3); border-radius: 5px; padding: 10px;">
+                    <div id="macdChart" style="width: 100%; height: 180px;"></div>
+                </div>
+                <div style="background: rgba(0,0,0,0.3); border-radius: 5px; padding: 10px;">
+                    <div id="kdjChart" style="width: 100%; height: 180px;"></div>
                 </div>
             </div>
+            <div id="optionChartStatus" style="margin-top: 8px; font-size: 13px; color: #9fb3c8;"></div>
         </div>
 
         <!-- 日志诊断Tab -->
@@ -8803,9 +8808,31 @@
 
         // ==================== 期权图表系统 ====================
         let optionsData = null;
+        let optionLastResult = null;
         let optionChart = null;
         let macdChart = null;
         let kdjChart = null;
+        let optionResizeBound = false;
+
+        function getOptionEmaPeriods() {
+            return document.getElementById('emaPeriods').value
+                .split(',')
+                .map(p => parseInt(p.trim(), 10))
+                .filter(p => Number.isFinite(p) && p > 0);
+        }
+
+        function toChartTime(ts) {
+            const n = Number(ts);
+            if (!Number.isFinite(n)) return null;
+            return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
+        }
+
+        function setOptionStatus(text, isError = false) {
+            const el = document.getElementById('optionChartStatus');
+            if (!el) return;
+            el.textContent = text || '';
+            el.style.color = isError ? '#ff8a80' : '#9fb3c8';
+        }
 
         async function loadOptionData() {
             const symbol = document.getElementById('optionSymbol').value;
@@ -8826,11 +8853,14 @@
                         return `<option value="${ts}">${dateStr}</option>`;
                     }).join('');
                     updateStrikes();
+                    setOptionStatus('期权列表已加载');
                 } else {
                     alert('加载期权数据失败: ' + data.error);
+                    setOptionStatus('期权列表加载失败: ' + (data.error || '未知错误'), true);
                 }
             } catch (e) {
                 alert('加载期权数据失败: ' + e.message);
+                setOptionStatus('期权列表加载失败: ' + e.message, true);
             }
         }
 
@@ -8852,7 +8882,7 @@
             const expiry = document.getElementById('optionExpiry').value;
             const strike = document.getElementById('optionStrike').value;
             const optionType = document.getElementById('optionType').value.toLowerCase();
-            const emaPeriods = document.getElementById('emaPeriods').value.split(',').map(p => parseInt(p.trim())).filter(p => p > 0);
+            const emaPeriods = getOptionEmaPeriods();
 
             if (!period || !expiry || !strike) return;
 
@@ -8862,16 +8892,29 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({symbol, interval: period, expiry: parseInt(expiry), strike: parseFloat(strike), option_type: optionType, ema_periods: emaPeriods})
                 });
-                const result = await response.json();
+                const result = await response.json().catch(() => ({success: false, error: `HTTP ${response.status}`}));
+                if (!response.ok && !result.error) result.error = `HTTP ${response.status}`;
 
                 if (result.success) {
+                    optionLastResult = result;
                     drawOptionChart(result, emaPeriods);
+                    const fb = result.fallback_used ? '（已兜底）' : '';
+                    const instrumentText = result.instrument ? ` 合约: ${result.instrument}` : '';
+                    setOptionStatus(`已加载 ${result.klines?.length || 0} 根K线 ${fb}${instrumentText}`.trim());
                 } else {
                     alert('加载K线数据失败: ' + result.error);
+                    const extra = result.fallback_tried ? `，已尝试兜底 ${result.fallback_tried} 个合约` : '';
+                    setOptionStatus(`加载K线数据失败: ${result.error || '未知错误'}${extra}`, true);
                 }
             } catch (e) {
                 alert('加载K线数据失败: ' + e.message);
+                setOptionStatus('加载K线数据失败: ' + e.message, true);
             }
+        }
+
+        function redrawOptionChart() {
+            if (!optionLastResult) return;
+            drawOptionChart(optionLastResult, getOptionEmaPeriods());
         }
 
         function drawOptionChart(data, emaPeriods) {
@@ -8879,38 +8922,71 @@
             container.innerHTML = '';
             if (optionChart) optionChart.remove();
 
+            const showEma = document.getElementById('optionShowEma').checked;
+            const showBoll = document.getElementById('optionShowBoll').checked;
+            const candles = (data.klines || []).map(k => ({
+                time: toChartTime(k.time),
+                open: Number(k.open),
+                high: Number(k.high),
+                low: Number(k.low),
+                close: Number(k.close),
+                volume: Number(k.volume)
+            })).filter(k => Number.isFinite(k.time) && Number.isFinite(k.open) && Number.isFinite(k.close));
+
             optionChart = LightweightCharts.createChart(container, {
                 width: container.clientWidth,
-                height: 600,
+                height: 520,
                 layout: {background: {color: '#1e1e1e'}, textColor: '#d1d4dc'},
                 grid: {vertLines: {color: '#2b2b43'}, horzLines: {color: '#2b2b43'}},
                 crosshair: {mode: LightweightCharts.CrosshairMode.Normal},
                 rightPriceScale: {borderColor: '#2b2b43'},
-                timeScale: {borderColor: '#2b2b43', timeVisible: true}
-            });
-
-            const candleSeries = optionChart.addCandlestickSeries({upColor: '#26a69a', downColor: '#ef5350', borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350'});
-            candleSeries.setData(data.klines.map(k => ({time: k.time, open: k.open, high: k.high, low: k.low, close: k.close})));
-
-            // 动态绘制EMA均线
-            const colors = ['#2196f3', '#ff9800', '#9c27b0', '#4caf50', '#f44336', '#00bcd4', '#ffeb3b'];
-            emaPeriods.forEach((period, i) => {
-                const emaKey = `ema${period}`;
-                if (data.indicators[emaKey]) {
-                    optionChart.addLineSeries({color: colors[i % colors.length], lineWidth: 1})
-                        .setData(data.indicators[emaKey].map(d => ({time: d.time, value: d[emaKey]})));
+                timeScale: {
+                    borderColor: '#2b2b43',
+                    timeVisible: true,
+                    secondsVisible: false,
+                    barSpacing: 10,
+                    minBarSpacing: 6,
+                    visible: false
                 }
             });
 
-            // 布林带
-            optionChart.addLineSeries({color: '#9c27b0', lineWidth: 1}).setData(data.indicators.bb_upper.map(d => ({time: d.time, value: d.bb_upper})));
-            optionChart.addLineSeries({color: '#9c27b0', lineWidth: 1, lineStyle: 2}).setData(data.indicators.bb_middle.map(d => ({time: d.time, value: d.bb_middle})));
-            optionChart.addLineSeries({color: '#9c27b0', lineWidth: 1}).setData(data.indicators.bb_lower.map(d => ({time: d.time, value: d.bb_lower})));
+            const candleSeries = optionChart.addCandlestickSeries({
+                upColor: '#26a69a',
+                downColor: '#ef5350',
+                borderVisible: true,
+                borderUpColor: '#26a69a',
+                borderDownColor: '#ef5350',
+                wickUpColor: '#26a69a',
+                wickDownColor: '#ef5350'
+            });
+            candleSeries.setData(candles.map(k => ({time: k.time, open: k.open, high: k.high, low: k.low, close: k.close})));
+
+            // 动态绘制EMA均线
+            const colors = ['#2196f3', '#ff9800', '#9c27b0', '#4caf50', '#f44336', '#00bcd4', '#ffeb3b'];
+            if (showEma) {
+                emaPeriods.forEach((period, i) => {
+                    const emaKey = `ema${period}`;
+                    if (data.indicators[emaKey]) {
+                        optionChart.addLineSeries({color: colors[i % colors.length], lineWidth: 1})
+                            .setData(data.indicators[emaKey].map(d => ({time: toChartTime(d.time), value: d[emaKey]})));
+                    }
+                });
+            }
+
+            // 布林带（默认隐藏，通过checkbox开启）
+            if (showBoll) {
+                optionChart.addLineSeries({color: '#9c27b0', lineWidth: 1})
+                    .setData((data.indicators.bb_upper || []).map(d => ({time: toChartTime(d.time), value: d.bb_upper})));
+                optionChart.addLineSeries({color: '#9c27b0', lineWidth: 1, lineStyle: 2})
+                    .setData((data.indicators.bb_middle || []).map(d => ({time: toChartTime(d.time), value: d.bb_middle})));
+                optionChart.addLineSeries({color: '#9c27b0', lineWidth: 1})
+                    .setData((data.indicators.bb_lower || []).map(d => ({time: toChartTime(d.time), value: d.bb_lower})));
+            }
 
             // 成交量
             const volumeSeries = optionChart.addHistogramSeries({color: '#26a69a', priceFormat: {type: 'volume'}, priceScaleId: ''});
             volumeSeries.priceScale().applyOptions({scaleMargins: {top: 0.8, bottom: 0}});
-            volumeSeries.setData(data.klines.map(k => ({time: k.time, value: k.volume, color: k.close >= k.open ? '#26a69a80' : '#ef535080'})));
+            volumeSeries.setData(candles.map(k => ({time: k.time, value: k.volume, color: k.close >= k.open ? '#26a69a80' : '#ef535080'})));
 
             optionChart.timeScale().fitContent();
 
@@ -8921,16 +8997,16 @@
 
             macdChart = LightweightCharts.createChart(macdContainer, {
                 width: macdContainer.clientWidth,
-                height: 240,
+                height: 180,
                 layout: {background: {color: '#1e1e1e'}, textColor: '#d1d4dc'},
                 grid: {vertLines: {color: '#2b2b43'}, horzLines: {color: '#2b2b43'}},
                 rightPriceScale: {borderColor: '#2b2b43'},
                 timeScale: {borderColor: '#2b2b43', visible: false}
             });
 
-            macdChart.addLineSeries({color: '#2196f3', lineWidth: 2}).setData(data.indicators.macd.map(d => ({time: d.time, value: d.macd})));
-            macdChart.addLineSeries({color: '#ff9800', lineWidth: 2}).setData(data.indicators.macd.map(d => ({time: d.time, value: d.signal})));
-            macdChart.addHistogramSeries({color: '#26a69a'}).setData(data.indicators.macd.map(d => ({time: d.time, value: d.histogram, color: d.histogram >= 0 ? '#26a69a' : '#ef5350'})));
+            macdChart.addLineSeries({color: '#2196f3', lineWidth: 2}).setData((data.indicators.macd || []).map(d => ({time: toChartTime(d.time), value: d.macd})));
+            macdChart.addLineSeries({color: '#ff9800', lineWidth: 2}).setData((data.indicators.macd || []).map(d => ({time: toChartTime(d.time), value: d.signal})));
+            macdChart.addHistogramSeries({color: '#26a69a'}).setData((data.indicators.macd || []).map(d => ({time: toChartTime(d.time), value: d.histogram, color: d.histogram >= 0 ? '#26a69a' : '#ef5350'})));
             macdChart.timeScale().fitContent();
 
             // KDJ图表
@@ -8940,17 +9016,32 @@
 
             kdjChart = LightweightCharts.createChart(kdjContainer, {
                 width: kdjContainer.clientWidth,
-                height: 240,
+                height: 180,
                 layout: {background: {color: '#1e1e1e'}, textColor: '#d1d4dc'},
                 grid: {vertLines: {color: '#2b2b43'}, horzLines: {color: '#2b2b43'}},
                 rightPriceScale: {borderColor: '#2b2b43'},
-                timeScale: {borderColor: '#2b2b43', visible: false}
+                timeScale: {borderColor: '#2b2b43', visible: true, timeVisible: true, secondsVisible: false}
             });
 
-            kdjChart.addLineSeries({color: '#2196f3', lineWidth: 2}).setData(data.indicators.kdj.map(d => ({time: d.time, value: d.k})));
-            kdjChart.addLineSeries({color: '#ff9800', lineWidth: 2}).setData(data.indicators.kdj.map(d => ({time: d.time, value: d.d})));
-            kdjChart.addLineSeries({color: '#9c27b0', lineWidth: 2}).setData(data.indicators.kdj.map(d => ({time: d.time, value: d.j})));
+            kdjChart.addLineSeries({color: '#2196f3', lineWidth: 2}).setData((data.indicators.kdj || []).map(d => ({time: toChartTime(d.time), value: d.k})));
+            kdjChart.addLineSeries({color: '#ff9800', lineWidth: 2}).setData((data.indicators.kdj || []).map(d => ({time: toChartTime(d.time), value: d.d})));
+            kdjChart.addLineSeries({color: '#9c27b0', lineWidth: 2}).setData((data.indicators.kdj || []).map(d => ({time: toChartTime(d.time), value: d.j})));
             kdjChart.timeScale().fitContent();
+
+            // 同步三个图的时间窗口
+            optionChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+                if (!range) return;
+                macdChart.timeScale().setVisibleLogicalRange(range);
+                kdjChart.timeScale().setVisibleLogicalRange(range);
+            });
+
+            if (!optionResizeBound) {
+                optionResizeBound = true;
+                window.addEventListener('resize', () => {
+                    if (!optionLastResult) return;
+                    drawOptionChart(optionLastResult, getOptionEmaPeriods());
+                });
+            }
         }
 
         // 页面加载时初始化期权数据
