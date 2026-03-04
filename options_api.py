@@ -91,62 +91,12 @@ def _payload_has_rows(payload: dict) -> bool:
     return isinstance(ticks, list) and len(ticks) > 0
 
 
-def _fetch_deribit_perp_last_price(symbol: str) -> float:
-    """获取永续最新价（用于无法拉到历史时的兜底换算）"""
-    try:
-        resp = requests.get(
-            "https://www.deribit.com/api/v2/public/ticker",
-            params={"instrument_name": f"{symbol}-PERPETUAL"},
-            timeout=10
-        )
-        resp.raise_for_status()
-        payload = resp.json()
-        if payload.get('error'):
-            return 0.0
-        result = payload.get('result') or {}
-        return float(result.get('last_price') or 0.0)
-    except Exception:
-        return 0.0
+def _is_usdc_option_name(name: str) -> bool:
+    return '_USDC-' in str(name or '').upper()
 
 
-def _convert_option_premium_to_usdt(df: pd.DataFrame, symbol: str, resolution: str, start_time: int, end_time: int) -> tuple:
-    """
-    Deribit BTC/ETH 期权K线通常是币本位（如 BTC/ETH）。
-    这里转换为 USDT(≈USD) 显示：期权价 * 对应时刻永续价格。
-    """
-    base = str(symbol or '').upper().strip()
-    if base not in {'BTC', 'ETH'}:
-        return df, 'NATIVE'
-
-    perp_name = f"{base}-PERPETUAL"
-    perp_payload, perp_err = _fetch_deribit_kline(perp_name, resolution, start_time, end_time)
-    work = df.copy()
-
-    # 优先用同周期历史永续收盘价逐K线换算
-    if not perp_err and _payload_has_rows(perp_payload):
-        result = perp_payload['result']
-        under = pd.DataFrame({
-            'time': pd.to_numeric(result.get('ticks', []), errors='coerce'),
-            'under_close': pd.to_numeric(result.get('close', []), errors='coerce')
-        }).dropna().sort_values('time')
-        if not under.empty:
-            work['time'] = pd.to_numeric(work['time'], errors='coerce')
-            work = work.dropna(subset=['time']).sort_values('time')
-            merged = pd.merge_asof(work, under, on='time', direction='nearest')
-            merged['under_close'] = merged['under_close'].ffill().bfill()
-            merged = merged.dropna(subset=['under_close'])
-            for col in ['open', 'high', 'low', 'close']:
-                merged[col] = pd.to_numeric(merged[col], errors='coerce') * merged['under_close']
-            return merged.drop(columns=['under_close']), 'USDT'
-
-    # 历史拉不到时，用当前永续价格做近似换算
-    perp_last = _fetch_deribit_perp_last_price(base)
-    if perp_last > 0:
-        for col in ['open', 'high', 'low', 'close']:
-            work[col] = pd.to_numeric(work[col], errors='coerce') * perp_last
-        return work, 'USDT~'
-
-    return df, 'NATIVE'
+def _detect_price_unit_by_name(name: str) -> str:
+    return 'USDC' if _is_usdc_option_name(name) else 'NATIVE'
 
 
 def _normalize_interval_and_resolution(interval: str) -> tuple:
@@ -202,7 +152,10 @@ def get_options():
         data = response.json()
 
         if data.get('result'):
-            options = data['result']
+            raw_options = data['result']
+            usdc_options = [o for o in raw_options if _is_usdc_option_name(o.get('instrument_name', ''))]
+            options = usdc_options if usdc_options else raw_options
+            option_market = 'USDC' if usdc_options else 'ALL'
 
             # 提取唯一的到期日和执行价格
             expiry_dates = sorted(list(set([opt['expiration_timestamp'] for opt in options])))
@@ -226,7 +179,8 @@ def get_options():
                 'expiry_dates': expiry_dates,
                 'periods': periods,
                 'strikes': strikes,
-                'options': options
+                'options': options,
+                'option_market': option_market
             })
         else:
             return jsonify({'success': False, 'error': 'API返回错误'})
@@ -297,6 +251,7 @@ def get_kline_data():
         strike = data.get('strike')
         option_type = str(data.get('option_type', 'call')).strip().lower()
         ema_periods = data.get('ema_periods', [13, 21, 34, 55, 89, 144, 233])
+        prefer_usdc = bool(data.get('prefer_usdc', True))
 
         if not symbol:
             return jsonify({'success': False, 'error': '缺少symbol参数'}), 400
@@ -322,18 +277,36 @@ def get_kline_data():
                 continue
         ema_periods = safe_periods or [13, 21, 34, 55, 89, 144, 233]
 
-        # 构建目标期权合约名称
-        instrument_name = _build_deribit_instrument_name(symbol, expiry_ms, strike_value, option_char)
-
         interval, resolution = _normalize_interval_and_resolution(interval)
 
         import time
         end_time = int(time.time() * 1000)
         start_time = end_time - (500 * 3600 * 1000)
 
-        result, err_msg = _fetch_deribit_kline(instrument_name, resolution, start_time, end_time)
+        date_obj = datetime.fromtimestamp(expiry_ms / 1000, tz=timezone.utc)
+        date_str = f"{date_obj.day}{date_obj.strftime('%b%y').upper()}"
+        instrument_candidates = []
+        if prefer_usdc:
+            instrument_candidates.append(f"{symbol}_USDC-{date_str}-{int(strike_value)}-{option_char}")
+        instrument_candidates.append(_build_deribit_instrument_name(symbol, expiry_ms, strike_value, option_char))
 
-        used_instrument = instrument_name
+        result = None
+        err_msg = 'no data'
+        used_instrument = instrument_candidates[0]
+        for candidate in instrument_candidates:
+            cand_result, cand_err = _fetch_deribit_kline(candidate, resolution, start_time, end_time)
+            if cand_err:
+                err_msg = cand_err
+                continue
+            if not _payload_has_rows(cand_result):
+                err_msg = '无K线数据'
+                continue
+            result = cand_result
+            err_msg = ''
+            used_instrument = candidate
+            break
+
+        instrument_name = used_instrument
         fallback_tried = 0
         fallback_used = False
         need_fallback = bool(err_msg) or (result is not None and not _payload_has_rows(result))
@@ -347,8 +320,13 @@ def get_kline_data():
                 )
                 inst_resp.raise_for_status()
                 inst_data = inst_resp.json()
+                pool = inst_data.get('result', [])
+                if prefer_usdc:
+                    usdc_pool = [o for o in pool if _is_usdc_option_name(o.get('instrument_name', ''))]
+                    if usdc_pool:
+                        pool = usdc_pool
                 fallback_names = _rank_fallback_instruments(
-                    inst_data.get('result', []),
+                    pool,
                     target_expiry_ms=expiry_ms,
                     target_strike=strike_value,
                     option_char=option_char
@@ -403,7 +381,7 @@ def get_kline_data():
             'close': kline_data['close'],
             'volume': kline_data['volume']
         })
-        df, price_unit = _convert_option_premium_to_usdt(df, symbol, resolution, start_time, end_time)
+        price_unit = _detect_price_unit_by_name(used_instrument)
         for col in ['time', 'open', 'high', 'low', 'close', 'volume']:
             df[col] = pd.to_numeric(df[col], errors='coerce')
         df = df.dropna(subset=['time', 'open', 'high', 'low', 'close', 'volume'])

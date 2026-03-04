@@ -8853,7 +8853,8 @@
                         return `<option value="${ts}">${dateStr}</option>`;
                     }).join('');
                     updateStrikes();
-                    setOptionStatus('期权列表已加载');
+                    const market = data.option_market ? `（${data.option_market}）` : '';
+                    setOptionStatus(`期权列表已加载${market}`);
                 } else {
                     alert('加载期权数据失败: ' + data.error);
                     setOptionStatus('期权列表加载失败: ' + (data.error || '未知错误'), true);
@@ -8890,7 +8891,7 @@
                 const response = await fetch('/options/get_kline_data', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({symbol, interval: period, expiry: parseInt(expiry), strike: parseFloat(strike), option_type: optionType, ema_periods: emaPeriods})
+                    body: JSON.stringify({symbol, interval: period, expiry: parseInt(expiry), strike: parseFloat(strike), option_type: optionType, ema_periods: emaPeriods, prefer_usdc: true})
                 });
                 const result = await response.json().catch(() => ({success: false, error: `HTTP ${response.status}`}));
                 if (!response.ok && !result.error) result.error = `HTTP ${response.status}`;
