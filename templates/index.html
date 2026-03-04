@@ -8827,6 +8827,26 @@
             return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
         }
 
+        function getOptionPriceFormat(candles) {
+            const closes = (candles || [])
+                .map(c => Number(c.close))
+                .filter(v => Number.isFinite(v))
+                .sort((a, b) => a - b);
+            if (closes.length < 2) {
+                return { type: 'price', precision: 6, minMove: 0.000001 };
+            }
+            let minDiff = Infinity;
+            for (let i = 1; i < closes.length; i++) {
+                const d = Math.abs(closes[i] - closes[i - 1]);
+                if (d > 0 && d < minDiff) minDiff = d;
+            }
+            if (!Number.isFinite(minDiff)) {
+                return { type: 'price', precision: 6, minMove: 0.000001 };
+            }
+            const precision = Math.max(4, Math.min(8, Math.ceil(-Math.log10(minDiff)) + 2));
+            return { type: 'price', precision, minMove: Math.pow(10, -precision) };
+        }
+
         function setOptionStatus(text, isError = false) {
             const el = document.getElementById('optionChartStatus');
             if (!el) return;
@@ -8934,6 +8954,7 @@
                 close: Number(k.close),
                 volume: Number(k.volume)
             })).filter(k => Number.isFinite(k.time) && Number.isFinite(k.open) && Number.isFinite(k.close));
+            const priceFormat = getOptionPriceFormat(candles);
 
             optionChart = LightweightCharts.createChart(container, {
                 width: container.clientWidth,
@@ -8959,7 +8980,8 @@
                 borderUpColor: '#26a69a',
                 borderDownColor: '#ef5350',
                 wickUpColor: '#26a69a',
-                wickDownColor: '#ef5350'
+                wickDownColor: '#ef5350',
+                priceFormat
             });
             candleSeries.setData(candles.map(k => ({time: k.time, open: k.open, high: k.high, low: k.low, close: k.close})));
 

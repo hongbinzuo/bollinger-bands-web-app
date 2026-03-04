@@ -99,6 +99,77 @@ def _detect_price_unit_by_name(name: str) -> str:
     return 'USDC' if _is_usdc_option_name(name) else 'NATIVE'
 
 
+def _fetch_deribit_perp_last_price(symbol: str) -> float:
+    """获取永续最新价（用于无法拉到历史时的兜底换算）"""
+    try:
+        resp = requests.get(
+            "https://www.deribit.com/api/v2/public/ticker",
+            params={"instrument_name": f"{symbol}-PERPETUAL"},
+            timeout=10
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        if payload.get('error'):
+            return 0.0
+        result = payload.get('result') or {}
+        return float(result.get('last_price') or 0.0)
+    except Exception:
+        return 0.0
+
+
+def _convert_native_option_to_usdc(
+    df: pd.DataFrame,
+    symbol: str,
+    resolution: str,
+    start_time: int,
+    end_time: int,
+) -> tuple:
+    """
+    将Deribit币本位期权价格换算为USDC(≈USD)。
+    优先使用同时间的永续OHLC逐列换算，其次使用永续最新价近似换算。
+    """
+    base = str(symbol or '').upper().strip()
+    if base not in {'BTC', 'ETH'}:
+        return df, 'NATIVE'
+
+    work = df.copy()
+    for col in ['time', 'open', 'high', 'low', 'close', 'volume']:
+        work[col] = pd.to_numeric(work[col], errors='coerce')
+    work = work.dropna(subset=['time', 'open', 'high', 'low', 'close', 'volume']).sort_values('time')
+    if work.empty:
+        return work, 'NATIVE'
+
+    perp_payload, perp_err = _fetch_deribit_kline(f"{base}-PERPETUAL", resolution, start_time, end_time)
+    if not perp_err and _payload_has_rows(perp_payload):
+        result = perp_payload['result']
+        under = pd.DataFrame({
+            'time': pd.to_numeric(result.get('ticks', []), errors='coerce'),
+            'u_open': pd.to_numeric(result.get('open', []), errors='coerce'),
+            'u_high': pd.to_numeric(result.get('high', []), errors='coerce'),
+            'u_low': pd.to_numeric(result.get('low', []), errors='coerce'),
+            'u_close': pd.to_numeric(result.get('close', []), errors='coerce'),
+        }).dropna().sort_values('time')
+        if not under.empty:
+            merged = pd.merge_asof(work, under, on='time', direction='nearest')
+            for col in ['u_open', 'u_high', 'u_low', 'u_close']:
+                merged[col] = merged[col].ffill().bfill()
+            merged = merged.dropna(subset=['u_open', 'u_high', 'u_low', 'u_close'])
+            if not merged.empty:
+                merged['open'] = merged['open'] * merged['u_open']
+                merged['high'] = merged['high'] * merged['u_high']
+                merged['low'] = merged['low'] * merged['u_low']
+                merged['close'] = merged['close'] * merged['u_close']
+                return merged[['time', 'open', 'high', 'low', 'close', 'volume']], 'USDC~'
+
+    perp_last = _fetch_deribit_perp_last_price(base)
+    if perp_last > 0:
+        for col in ['open', 'high', 'low', 'close']:
+            work[col] = work[col] * perp_last
+        return work, 'USDC~'
+
+    return work, 'NATIVE'
+
+
 def _normalize_interval_and_resolution(interval: str) -> tuple:
     """将前端周期映射到Deribit分辨率；4h使用1h拉取后端聚合"""
     normalized = str(interval or '1h').strip().lower()
@@ -382,6 +453,14 @@ def get_kline_data():
             'volume': kline_data['volume']
         })
         price_unit = _detect_price_unit_by_name(used_instrument)
+        if price_unit == 'NATIVE':
+            df, price_unit = _convert_native_option_to_usdc(
+                df=df,
+                symbol=symbol,
+                resolution=resolution,
+                start_time=start_time,
+                end_time=end_time,
+            )
         for col in ['time', 'open', 'high', 'low', 'close', 'volume']:
             df[col] = pd.to_numeric(df[col], errors='coerce')
         df = df.dropna(subset=['time', 'open', 'high', 'low', 'close', 'volume'])
