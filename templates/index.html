@@ -8899,8 +8899,9 @@
                     optionLastResult = result;
                     drawOptionChart(result, emaPeriods);
                     const fb = result.fallback_used ? '（已兜底）' : '';
+                    const unit = result.price_unit ? ` 单位: ${result.price_unit}` : '';
                     const instrumentText = result.instrument ? ` 合约: ${result.instrument}` : '';
-                    setOptionStatus(`已加载 ${result.klines?.length || 0} 根K线 ${fb}${instrumentText}`.trim());
+                    setOptionStatus(`已加载 ${result.klines?.length || 0} 根K线 ${fb}${instrumentText}${unit}`.trim());
                 } else {
                     alert('加载K线数据失败: ' + result.error);
                     const extra = result.fallback_tried ? `，已尝试兜底 ${result.fallback_tried} 个合约` : '';
