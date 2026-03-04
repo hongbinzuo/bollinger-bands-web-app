@@ -8,6 +8,74 @@ from datetime import datetime, timezone
 options_bp = Blueprint('options', __name__, url_prefix='/options')
 logger = logging.getLogger(__name__)
 
+
+def _build_deribit_instrument_name(symbol: str, expiry_ms: int, strike_value: float, option_char: str) -> str:
+    """构建Deribit期权合约名（日期不补零，如 5MAR26）"""
+    expiry_date = datetime.fromtimestamp(expiry_ms / 1000, tz=timezone.utc)
+    date_str = f"{expiry_date.day}{expiry_date.strftime('%b%y').upper()}"
+    return f'{symbol}-{date_str}-{int(strike_value)}-{option_char}'
+
+
+def _choose_fallback_instrument(
+    options: list,
+    target_expiry_ms: int,
+    target_strike: float,
+    option_char: str,
+) -> str:
+    """Deribit兜底：在同方向(C/P)里按到期日和执行价最近匹配"""
+    if not isinstance(options, list):
+        return ''
+
+    target_option_type = 'call' if option_char == 'C' else 'put'
+    candidates = []
+
+    for item in options:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get('instrument_name') or '')
+        expiry = item.get('expiration_timestamp')
+        strike = item.get('strike')
+        option_type = str(item.get('option_type') or '').lower()
+        if not name or expiry is None or strike is None:
+            continue
+        if option_type and option_type != target_option_type:
+            continue
+        try:
+            expiry_diff = abs(int(expiry) - target_expiry_ms)
+            strike_diff = abs(float(strike) - target_strike)
+            candidates.append((expiry_diff, strike_diff, name))
+        except Exception:
+            continue
+
+    if not candidates:
+        return ''
+    candidates.sort(key=lambda x: (x[0], x[1]))
+    return candidates[0][2]
+
+
+def _fetch_deribit_kline(instrument_name: str, resolution: str, start_time: int, end_time: int):
+    """请求Deribit K线，返回 (result_json, error_message)"""
+    url = "https://www.deribit.com/api/v2/public/get_tradingview_chart_data"
+    params = {
+        'instrument_name': instrument_name,
+        'start_timestamp': start_time,
+        'end_timestamp': end_time,
+        'resolution': resolution
+    }
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as e:
+        return None, str(e)
+
+    if payload.get('error'):
+        return payload, payload['error'].get('message', 'Deribit请求失败')
+    if not isinstance(payload.get('result'), dict):
+        return payload, 'Deribit返回缺少result'
+    return payload, ''
+
+
 @options_bp.route('/get_options', methods=['GET'])
 def get_options():
     """获取BTC期权列表"""
@@ -143,10 +211,8 @@ def get_kline_data():
                 continue
         ema_periods = safe_periods or [13, 21, 34, 55, 89, 144, 233]
 
-        # 构建期权合约名称
-        expiry_date = datetime.fromtimestamp(expiry_ms / 1000, tz=timezone.utc)
-        date_str = expiry_date.strftime('%d%b%y').upper()
-        instrument_name = f'{symbol}-{date_str}-{int(strike_value)}-{option_char}'
+        # 构建目标期权合约名称
+        instrument_name = _build_deribit_instrument_name(symbol, expiry_ms, strike_value, option_char)
 
         # 从Deribit获取期权K线数据
         url = "https://www.deribit.com/api/v2/public/get_tradingview_chart_data"
@@ -158,22 +224,42 @@ def get_kline_data():
         end_time = int(time.time() * 1000)
         start_time = end_time - (500 * 3600 * 1000)
 
-        params = {
-            'instrument_name': instrument_name,
-            'start_timestamp': start_time,
-            'end_timestamp': end_time,
-            'resolution': resolution
-        }
+        result, err_msg = _fetch_deribit_kline(instrument_name, resolution, start_time, end_time)
 
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        result = response.json()
+        used_instrument = instrument_name
+        if err_msg:
+            # Deribit报错时兜底：拉取可交易期权，找最近的同方向合约
+            try:
+                inst_resp = requests.get(
+                    "https://www.deribit.com/api/v2/public/get_instruments",
+                    params={'currency': symbol, 'kind': 'option', 'expired': 'false'},
+                    timeout=10
+                )
+                inst_resp.raise_for_status()
+                inst_data = inst_resp.json()
+                fallback_name = _choose_fallback_instrument(
+                    inst_data.get('result', []),
+                    target_expiry_ms=expiry_ms,
+                    target_strike=strike_value,
+                    option_char=option_char
+                )
+                if fallback_name and fallback_name != instrument_name:
+                    second_result, second_err = _fetch_deribit_kline(
+                        fallback_name, resolution, start_time, end_time
+                    )
+                    if not second_err:
+                        result = second_result
+                        used_instrument = fallback_name
+                        err_msg = ''
+            except Exception:
+                pass
 
-        if result.get('error'):
-            api_msg = result['error'].get('message', 'Deribit请求失败')
-            return jsonify({'success': False, 'error': f'Deribit API错误: {api_msg}'}), 400
-        if not isinstance(result.get('result'), dict):
-            return jsonify({'success': False, 'error': '无K线数据'})
+        if err_msg:
+            return jsonify({
+                'success': False,
+                'error': f'Deribit API错误: {err_msg}',
+                'instrument': instrument_name
+            }), 400
 
         kline_data = result['result']
         required_keys = ['ticks', 'open', 'high', 'low', 'close', 'volume']
@@ -227,6 +313,7 @@ def get_kline_data():
 
         result = {
             'success': True,
+            'instrument': used_instrument,
             'klines': df[['time', 'open', 'high', 'low', 'close', 'volume']].to_dict('records'),
             'indicators': {
                 **ema_data,
