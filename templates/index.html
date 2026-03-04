@@ -2934,6 +2934,7 @@
             <button class="tab" onclick="showTab('dailyBottom', event)">🌙 日线信号</button>
             <button class="tab" onclick="showTab('ultraShort', event)">⚡ 超短BTC</button>
             <button class="tab" onclick="showTab('options', event)">📊 期权图表</button>
+            <button class="tab" onclick="showTab('optionsBollinger', event)">🧮 期权布林带</button>
             <button class="tab" onclick="showTab('logs', event)">🔍 日志诊断</button>
             <button class="tab" onclick="showTab('management', event)">⚙️ 系统管理</button>
         </div>
@@ -3208,6 +3209,72 @@
                 </div>
             </div>
             <div id="optionChartStatus" style="margin-top: 8px; font-size: 13px; color: #9fb3c8;"></div>
+        </div>
+
+        <!-- 期权布林带Tab -->
+        <div id="optionsBollinger" class="tab-content">
+            <h3>🧮 期权布林带</h3>
+            <div class="help-text">
+                <strong>说明：</strong>全量扫描期权组合（到期日 × 行权价），仅展示“价格在中轨下方且接近下轨”的点位。
+            </div>
+            <div class="form-group">
+                <label>币种</label>
+                <select id="optionBbSymbol" class="form-control" onchange="loadOptionBbMeta()">
+                    <option value="BTC">BTC</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>期权类型</label>
+                <select id="optionBbType" class="form-control">
+                    <option value="CALL">Call</option>
+                    <option value="PUT">Put</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>周期</label>
+                <select id="optionBbPeriod" class="form-control">
+                    <option value="1h">1h</option>
+                    <option value="4h">4h</option>
+                    <option value="1d">1D</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>接近下轨阈值</label>
+                <select id="optionBbNearThreshold" class="form-control">
+                    <option value="0.3" selected>30%（默认）</option>
+                    <option value="0.2">20%</option>
+                    <option value="0.1">10%</option>
+                    <option value="0.5">50%</option>
+                    <option value="1">100%（仅中轨下方）</option>
+                </select>
+            </div>
+            <div class="form-group" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <button class="btn btn-success" onclick="scanOptionBollingerTable()">🚀 全量扫描并筛选</button>
+                <button class="btn btn-warning" onclick="clearOptionBollingerRows()">🧹 清空表格</button>
+            </div>
+            <div id="optionBbStatus" style="margin-top: 8px; font-size: 13px; color: #9fb3c8;"></div>
+            <div class="table-container" style="margin-top: 10px;">
+                <table class="analysis-table">
+                    <thead>
+                        <tr>
+                            <th>币种</th>
+                            <th>到期日</th>
+                            <th>最新价格(USDT)</th>
+                            <th>执行价</th>
+                            <th>时间周期</th>
+                            <th>挂单价格(USDT)</th>
+                            <th>布林上轨</th>
+                            <th>布林中轨</th>
+                            <th>布林下轨</th>
+                        </tr>
+                    </thead>
+                    <tbody id="optionBbTableBody">
+                        <tr>
+                            <td colspan="9" style="text-align:center; color:#999;">请选择参数并点击“全量扫描并筛选”</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- 日志诊断Tab -->
@@ -8813,6 +8880,8 @@
         let macdChart = null;
         let kdjChart = null;
         let optionResizeBound = false;
+        let optionBbData = null;
+        let optionBbRows = [];
 
         function getOptionEmaPeriods() {
             return document.getElementById('emaPeriods').value
@@ -8852,6 +8921,254 @@
             if (!el) return;
             el.textContent = text || '';
             el.style.color = isError ? '#ff8a80' : '#9fb3c8';
+        }
+
+        function setOptionBbStatus(text, isError = false) {
+            const el = document.getElementById('optionBbStatus');
+            if (!el) return;
+            el.textContent = text || '';
+            el.style.color = isError ? '#ff8a80' : '#9fb3c8';
+        }
+
+        function formatOptionBbPrice(value) {
+            const n = Number(value);
+            if (!Number.isFinite(n)) return '-';
+            const abs = Math.abs(n);
+            let precision = 6;
+            if (abs >= 1000) precision = 2;
+            else if (abs >= 100) precision = 3;
+            else if (abs >= 1) precision = 4;
+            else if (abs >= 0.1) precision = 5;
+            else if (abs >= 0.01) precision = 6;
+            else if (abs >= 0.001) precision = 7;
+            else precision = 8;
+            return n.toFixed(precision);
+        }
+
+        function formatOptionBbExpiry(ts) {
+            const d = new Date(Number(ts));
+            if (Number.isNaN(d.getTime())) return String(ts || '-');
+            return d.toISOString().slice(0, 10);
+        }
+
+        function calculateOptionBbOrderPrice(currentPrice, middleBand, upperBand, lowerBand) {
+            if (![currentPrice, middleBand, upperBand, lowerBand].every(v => Number.isFinite(v))) {
+                return '计算失败';
+            }
+            if (lowerBand <= currentPrice && currentPrice <= middleBand) {
+                return Number(lowerBand).toFixed(6);
+            }
+            const upperThreshold = middleBand * 1.02;
+            if (middleBand <= currentPrice && currentPrice <= upperThreshold) {
+                return Number(lowerBand).toFixed(6);
+            } else if (middleBand <= currentPrice && currentPrice <= upperBand) {
+                return Number(middleBand).toFixed(6);
+            } else if (currentPrice < lowerBand) {
+                return '已破下轨';
+            }
+            return Number(middleBand).toFixed(6);
+        }
+
+        function renderOptionBollingerTable() {
+            const tbody = document.getElementById('optionBbTableBody');
+            if (!tbody) return;
+
+            if (!optionBbRows.length) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#999;">请选择参数并点击“全量扫描并筛选”</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = optionBbRows.map(row => `
+                <tr>
+                    <td>${row.symbol}</td>
+                    <td>${row.expiry}</td>
+                    <td>${row.current_price}</td>
+                    <td>${row.strike}</td>
+                    <td>${row.period}</td>
+                    <td>${row.order_price}</td>
+                    <td>${row.bb_upper}</td>
+                    <td>${row.bb_middle}</td>
+                    <td>${row.bb_lower}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadOptionBbMeta() {
+            const symbol = document.getElementById('optionBbSymbol')?.value || 'BTC';
+            const periodSelect = document.getElementById('optionBbPeriod');
+            if (!periodSelect) return;
+
+            try {
+                const response = await fetch(`/options/get_options?symbol=${symbol}`);
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '加载失败');
+                }
+                optionBbData = data;
+                periodSelect.innerHTML = (data.periods || ['1h', '4h', '1d']).map(p => {
+                    const label = p === '1d' ? '1D' : p;
+                    return `<option value="${p}">${label}</option>`;
+                }).join('');
+                const market = data.option_market ? `（${data.option_market}）` : '';
+                setOptionBbStatus(`期权组合已加载${market}`);
+            } catch (e) {
+                optionBbData = null;
+                setOptionBbStatus(`加载期权组合失败: ${e.message}`, true);
+            }
+        }
+
+        async function fetchOptionBbSignal(symbol, period, optionType, expiry, strike) {
+            const response = await fetch('/options/get_kline_data', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    symbol,
+                    interval: period,
+                    expiry: parseInt(expiry, 10),
+                    strike: parseFloat(strike),
+                    option_type: String(optionType || 'CALL').toLowerCase(),
+                    prefer_usdc: true
+                })
+            });
+            const result = await response.json().catch(() => ({success: false, error: `HTTP ${response.status}`}));
+            if (!response.ok && !result.error) {
+                result.error = `HTTP ${response.status}`;
+            }
+            if (!result.success) {
+                throw new Error(result.error || '请求失败');
+            }
+            if (result.fallback_used) {
+                throw new Error('兜底合约已跳过');
+            }
+
+            const klines = result.klines || [];
+            const currentKline = klines[klines.length - 1];
+            const bbUpperArr = result.indicators?.bb_upper || [];
+            const bbMiddleArr = result.indicators?.bb_middle || [];
+            const bbLowerArr = result.indicators?.bb_lower || [];
+            const bbUpper = Number(bbUpperArr[bbUpperArr.length - 1]?.bb_upper);
+            const bbMiddle = Number(bbMiddleArr[bbMiddleArr.length - 1]?.bb_middle);
+            const bbLower = Number(bbLowerArr[bbLowerArr.length - 1]?.bb_lower);
+            const currentPrice = Number(currentKline?.close);
+
+            if (![currentPrice, bbUpper, bbMiddle, bbLower].every(v => Number.isFinite(v))) {
+                throw new Error('布林带数据不足');
+            }
+
+            return { currentPrice, bbUpper, bbMiddle, bbLower };
+        }
+
+        async function scanOptionBollingerTable() {
+            const symbol = document.getElementById('optionBbSymbol')?.value || 'BTC';
+            const period = document.getElementById('optionBbPeriod')?.value || '1h';
+            const optionType = document.getElementById('optionBbType')?.value || 'CALL';
+            const nearThreshold = Number(document.getElementById('optionBbNearThreshold')?.value || 0.3);
+            const safeNearThreshold = Number.isFinite(nearThreshold) ? Math.max(0, Math.min(1, nearThreshold)) : 0.3;
+
+            if (!optionBbData) {
+                await loadOptionBbMeta();
+            }
+            if (!optionBbData || !Array.isArray(optionBbData.expiry_dates)) {
+                setOptionBbStatus('期权组合未就绪，请稍后重试', true);
+                return;
+            }
+
+            const combos = [];
+            (optionBbData.expiry_dates || []).forEach(expiry => {
+                const strikes = optionBbData.strikes?.[expiry] || [];
+                strikes.forEach(strike => {
+                    combos.push({expiry, strike});
+                });
+            });
+
+            if (!combos.length) {
+                setOptionBbStatus('没有可扫描的期权组合', true);
+                return;
+            }
+
+            optionBbRows = [];
+            renderOptionBollingerTable();
+            setOptionBbStatus(`开始扫描 ${combos.length} 个组合...`);
+
+            let cursor = 0;
+            let processed = 0;
+            let matched = 0;
+            const total = combos.length;
+            const maxConcurrent = Math.min(4, total);
+            const newRows = [];
+
+            async function worker() {
+                while (true) {
+                    const index = cursor;
+                    cursor += 1;
+                    if (index >= total) break;
+                    const combo = combos[index];
+
+                    try {
+                        const signal = await fetchOptionBbSignal(
+                            symbol,
+                            period,
+                            optionType,
+                            combo.expiry,
+                            combo.strike
+                        );
+
+                        // 参考币种分析规则：挂单触发区间为 [下轨, 中轨]，仅展示该区间的组合
+                        if (signal.currentPrice >= signal.bbLower && signal.currentPrice <= signal.bbMiddle) {
+                            const distDen = Math.abs(signal.bbMiddle - signal.bbLower);
+                            const nearRatio = distDen > 0
+                                ? (signal.currentPrice - signal.bbLower) / distDen
+                                : (signal.currentPrice === signal.bbLower ? 0 : Number.POSITIVE_INFINITY);
+                            if (nearRatio > safeNearThreshold) {
+                                continue;
+                            }
+                            matched += 1;
+                            newRows.push({
+                                symbol,
+                                expiry: formatOptionBbExpiry(combo.expiry),
+                                current_price: formatOptionBbPrice(signal.currentPrice),
+                                strike: formatOptionBbPrice(combo.strike),
+                                period: period === '1d' ? '1D' : period,
+                                order_price: calculateOptionBbOrderPrice(
+                                    signal.currentPrice,
+                                    signal.bbMiddle,
+                                    signal.bbUpper,
+                                    signal.bbLower
+                                ),
+                                bb_upper: formatOptionBbPrice(signal.bbUpper),
+                                bb_middle: formatOptionBbPrice(signal.bbMiddle),
+                                bb_lower: formatOptionBbPrice(signal.bbLower),
+                                near_ratio: nearRatio
+                            });
+                        }
+                    } catch (e) {
+                        // 单个组合失败时跳过，继续扫描其他组合
+                    } finally {
+                        processed += 1;
+                        if (processed % 10 === 0 || processed === total) {
+                            setOptionBbStatus(`扫描中：${processed}/${total}，命中 ${matched}`);
+                        }
+                    }
+                }
+            }
+
+            await Promise.all(Array.from({length: maxConcurrent}, () => worker()));
+
+            newRows.sort((a, b) => a.near_ratio - b.near_ratio);
+            optionBbRows = newRows.map(({near_ratio, ...rest}) => rest);
+            renderOptionBollingerTable();
+
+            if (!optionBbRows.length) {
+                setOptionBbStatus(`扫描完成：${total} 个组合，无命中（${optionType} / ${period} / 阈值${Math.round(safeNearThreshold * 100)}%）`);
+                return;
+            }
+            setOptionBbStatus(`扫描完成：${total} 个组合，命中 ${optionBbRows.length}（${optionType} / ${period} / 阈值${Math.round(safeNearThreshold * 100)}%）`);
+        }
+
+        function clearOptionBollingerRows() {
+            optionBbRows = [];
+            renderOptionBollingerTable();
+            setOptionBbStatus('已清空表格');
         }
 
         async function loadOptionData() {
@@ -9070,7 +9387,10 @@
 
         // 页面加载时初始化期权数据
         document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(() => loadOptionData(), 500);
+            setTimeout(() => {
+                loadOptionData();
+                loadOptionBbMeta();
+            }, 500);
         });
 
         // ==================== 期权图表系统结束 ====================
