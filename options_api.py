@@ -13,28 +13,29 @@ def get_options():
     try:
         symbol = request.args.get('symbol', 'BTC')
 
-        # Coincall API endpoint
-        url = "https://api.coincall.com/open/option/query/option-list"
-        params = {'underlying': symbol}
+        # Deribit API endpoint
+        url = "https://www.deribit.com/api/v2/public/get_instruments"
+        params = {'currency': symbol, 'kind': 'option', 'expired': 'false'}
 
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
 
-        if data.get('code') == 0:
-            options = data.get('data', [])
+        if data.get('result'):
+            options = data['result']
 
-            # 提取唯一的到期日、执行价格和时间周期
-            expiry_dates = sorted(list(set([opt['expiryDate'] for opt in options])))
-            periods = sorted(list(set([opt.get('period', 'N/A') for opt in options])))
+            # 提取唯一的到期日和执行价格
+            expiry_dates = sorted(list(set([opt['expiration_timestamp'] for opt in options])))
+            periods = ['1h', '4h', '1d']  # 固定时间周期
             strikes = {}
 
             for opt in options:
-                expiry = opt['expiryDate']
+                expiry = opt['expiration_timestamp']
                 if expiry not in strikes:
                     strikes[expiry] = []
-                if opt['strikePrice'] not in strikes[expiry]:
-                    strikes[expiry].append(opt['strikePrice'])
+                strike = opt['strike']
+                if strike not in strikes[expiry]:
+                    strikes[expiry].append(strike)
 
             # 排序执行价格
             for expiry in strikes:

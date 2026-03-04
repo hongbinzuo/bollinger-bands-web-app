@@ -8820,9 +8820,11 @@
                         `<option value="${p}">${p}</option>`
                     ).join('');
                     const expirySelect = document.getElementById('optionExpiry');
-                    expirySelect.innerHTML = data.expiry_dates.map(d =>
-                        `<option value="${d}">${d}</option>`
-                    ).join('');
+                    expirySelect.innerHTML = data.expiry_dates.map(ts => {
+                        const date = new Date(ts);
+                        const dateStr = date.toISOString().split('T')[0];
+                        return `<option value="${ts}">${dateStr}</option>`;
+                    }).join('');
                     updateStrikes();
                 } else {
                     alert('加载期权数据失败: ' + data.error);
