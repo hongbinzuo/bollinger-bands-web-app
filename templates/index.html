@@ -9065,7 +9065,7 @@
                 const missingCount = Number(cov.missing_count || 0);
                 const coveragePct = Number(cov.coverage_pct || 0);
                 if (allCount > 0 && usdcCount > 0) {
-                    const covText = `USDC到期日覆盖 ${usdcCount}/${allCount} (${coveragePct.toFixed(1)}%)`;
+                    const covText = `到期日覆盖 ${usdcCount}/${allCount} (${coveragePct.toFixed(1)}%)`;
                     const missText = missingCount > 0 ? `，缺失 ${missingCount} 个到期日` : '';
                     setOptionBbStatus(`期权组合已加载${market}，${covText}${missText}`);
                 } else {
@@ -9088,6 +9088,7 @@
                     strike: parseFloat(strike),
                     option_type: String(optionType || 'CALL').toLowerCase(),
                     price_source: priceSource || 'mark',
+                    market_source: 'coincall',
                     prefer_usdc: true
                 })
             });
@@ -9113,6 +9114,7 @@
             const currentPrice = Number(result.current_price ?? currentKline?.close);
             const spreadPct = Number(result.current_prices?.spread_pct);
             const effectivePriceSource = result.effective_price_source || 'close';
+            const marketSource = result.market_source || 'unknown';
             const bandWidthRatio = Number.isFinite(currentPrice) && Math.abs(currentPrice) > 0
                 ? Math.abs(bbUpper - bbLower) / Math.abs(currentPrice)
                 : 0;
@@ -9121,7 +9123,7 @@
                 throw new Error('布林带数据不足');
             }
 
-            return { currentPrice, bbUpper, bbMiddle, bbLower, spreadPct, effectivePriceSource, bandWidthRatio };
+            return { currentPrice, bbUpper, bbMiddle, bbLower, spreadPct, effectivePriceSource, bandWidthRatio, marketSource };
         }
 
         async function scanOptionBollingerTable() {
@@ -9189,7 +9191,7 @@
                         if (safeMaxSpread > 0 && Number.isFinite(signal.spreadPct) && signal.spreadPct > safeMaxSpread) {
                             continue;
                         }
-                        if (priceSource === 'mark' && signal.effectivePriceSource !== 'mark') {
+                        if (priceSource === 'mark' && !['mark', 'mark_proxy'].includes(String(signal.effectivePriceSource || ''))) {
                             skippedNoMark += 1;
                             continue;
                         }
@@ -9231,7 +9233,8 @@
                                 strike_raw: Number(combo.strike),
                                 period_raw: period,
                                 option_type_raw: String(optionType || 'CALL').toLowerCase(),
-                                price_source_raw: signal.effectivePriceSource || priceSource
+                                price_source_raw: priceSource || 'mark',
+                                market_source_raw: signal.marketSource || 'coincall'
                             });
                         }
                     } catch (e) {
@@ -9299,6 +9302,7 @@
                         strike: parseFloat(row.strike_raw),
                         option_type: row.option_type_raw || 'call',
                         price_source: row.price_source_raw || 'mark',
+                        market_source: row.market_source_raw || 'coincall',
                         ema_periods: emaPeriods,
                         prefer_usdc: true
                     })
@@ -9311,12 +9315,13 @@
                     drawOptionChart(result, emaPeriods);
                     const fb = result.fallback_used ? '（已兜底）' : '';
                     const unit = result.price_unit ? ` 单位: ${result.price_unit}` : '';
+                    const source = result.market_source ? ` 数据源: ${result.market_source}` : '';
                     const instrumentText = result.instrument ? ` 合约: ${result.instrument}` : '';
                     const sourceText = result.effective_price_source ? ` 价格基准: ${result.effective_price_source}` : '';
                     const spreadPct = Number(result.current_prices?.spread_pct);
                     const spreadText = Number.isFinite(spreadPct) ? ` 价差: ${spreadPct.toFixed(2)}%` : '';
                     const noteText = result.source_note ? ` ${result.source_note}` : '';
-                    setOptionStatus(`已加载 ${result.klines?.length || 0} 根K线 ${fb}${instrumentText}${unit}${sourceText}${spreadText}${noteText}`.trim());
+                    setOptionStatus(`已加载 ${result.klines?.length || 0} 根K线 ${fb}${source}${instrumentText}${unit}${sourceText}${spreadText}${noteText}`.trim());
                 } else {
                     const extra = result.fallback_tried ? `，已尝试兜底 ${result.fallback_tried} 个合约` : '';
                     setOptionStatus(`加载K线数据失败: ${result.error || '未知错误'}${extra}`, true);
