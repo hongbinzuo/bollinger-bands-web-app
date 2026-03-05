@@ -327,6 +327,14 @@ def get_options():
             options = usdc_options if usdc_options else raw_options
             option_market = 'USDC' if usdc_options else 'ALL'
 
+            raw_expiry_dates = sorted(list(set([opt['expiration_timestamp'] for opt in raw_options if opt.get('expiration_timestamp') is not None])))
+            usdc_expiry_dates = sorted(list(set([opt['expiration_timestamp'] for opt in usdc_options if opt.get('expiration_timestamp') is not None])))
+            usdc_expiry_set = set(usdc_expiry_dates)
+            missing_expiry_dates = [ts for ts in raw_expiry_dates if ts not in usdc_expiry_set]
+            all_count = len(raw_expiry_dates)
+            usdc_count = len(usdc_expiry_dates)
+            coverage_pct = (usdc_count / all_count * 100.0) if all_count > 0 else 0.0
+
             # 提取唯一的到期日和执行价格
             expiry_dates = sorted(list(set([opt['expiration_timestamp'] for opt in options])))
             periods = ['1h', '4h', '1d']  # 固定时间周期
@@ -350,7 +358,14 @@ def get_options():
                 'periods': periods,
                 'strikes': strikes,
                 'options': options,
-                'option_market': option_market
+                'option_market': option_market,
+                'expiry_coverage': {
+                    'all_count': all_count,
+                    'usdc_count': usdc_count,
+                    'coverage_pct': coverage_pct,
+                    'missing_count': len(missing_expiry_dates),
+                    'missing_expiry_dates': missing_expiry_dates
+                }
             })
         else:
             return jsonify({'success': False, 'error': 'API返回错误'})

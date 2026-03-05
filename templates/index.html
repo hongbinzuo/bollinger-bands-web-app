@@ -9059,7 +9059,18 @@
                     return `<option value="${p}">${label}</option>`;
                 }).join('');
                 const market = data.option_market ? `（${data.option_market}）` : '';
-                setOptionBbStatus(`期权组合已加载${market}`);
+                const cov = data.expiry_coverage || {};
+                const allCount = Number(cov.all_count || 0);
+                const usdcCount = Number(cov.usdc_count || 0);
+                const missingCount = Number(cov.missing_count || 0);
+                const coveragePct = Number(cov.coverage_pct || 0);
+                if (allCount > 0 && usdcCount > 0) {
+                    const covText = `USDC到期日覆盖 ${usdcCount}/${allCount} (${coveragePct.toFixed(1)}%)`;
+                    const missText = missingCount > 0 ? `，缺失 ${missingCount} 个到期日` : '';
+                    setOptionBbStatus(`期权组合已加载${market}，${covText}${missText}`);
+                } else {
+                    setOptionBbStatus(`期权组合已加载${market}`);
+                }
             } catch (e) {
                 optionBbData = null;
                 setOptionBbStatus(`加载期权组合失败: ${e.message}`, true);
